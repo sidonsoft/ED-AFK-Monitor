@@ -14,6 +14,7 @@ from urllib.request import urlopen
 from journal_reader import JournalReader, read_complete_line, commander_from_line
 from terminal_output import StatusLogger
 from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
+from outbox import Outbox, profile_directory_name
 
 try:
     from discord_webhook import DiscordWebhook
@@ -484,7 +485,12 @@ if webhook_live:
     senders["discord_live"] = discord_live_send
 if telegram_enabled:
     senders["telegram"] = lambda message: telegram_send(telegram_token, telegram_chat, message)
-notifications = NotificationDispatcher(senders, preview=discord_test)
+notifications_outbox = None
+if senders and not discord_test:
+    notifications_outbox = Outbox(
+        config_file_path / "pending_notifications" / profile_directory_name(profile),
+        [name for name in senders if name != "discord_live"])
+notifications = NotificationDispatcher(senders, preview=discord_test, outbox=notifications_outbox)
 
 
 def notification_reports():

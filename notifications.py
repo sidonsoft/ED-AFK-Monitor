@@ -9,6 +9,7 @@ from threading import Thread, Event
 from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,13 @@ class LiveUpdate:
 
     def __str__(self):
         return self.text
+
+
+@dataclass(frozen=True)
+class Delivery:
+    """One queued notification; the id names its saved copy, if any."""
+    id: str
+    payload: object
 
 
 class DeliveryError(Exception):
@@ -84,7 +92,7 @@ def telegram_send(token, chat_id, message, timeout=5):
 
 class NotificationDispatcher:
     """One independent FIFO worker per channel; all terminal output stays on the caller."""
-    def __init__(self, senders, preview=False, capacity=200, attempts=3):
+    def __init__(self, senders, preview=False, capacity=200, attempts=3, outbox=None):
         self.senders = senders
         self.preview = preview
         self.attempts = attempts
@@ -92,12 +100,36 @@ class NotificationDispatcher:
         self.stopped = Event()
         self.closed = False
         self.queues = {name: Queue(capacity) for name in senders}
+        self.outbox = None
+        pending = {}
+        if not preview and outbox is not None:
+            try:
+                pending, warnings = outbox.load(limit=capacity)
+            except Exception:
+                self.reports.put("Notifications: saved-message store unavailable; continuing without it")
+            else:
+                self.outbox = outbox
+                for warning in warnings:
+                    self.reports.put(warning)
         self.workers = []
         if not preview:
             for name in senders:
                 worker = Thread(target=self._run, args=(name,), daemon=True)
                 worker.start()
                 self.workers.append(worker)
+        replayed = 0
+        for channel, entries in pending.items():
+            if channel not in self.queues:
+                continue  # Keep saved messages until that channel is configured again.
+            for entry in entries:
+                try:
+                    self.queues[channel].put_nowait(Delivery(entry["id"], entry["text"]))
+                except Full:
+                    self.reports.put(f"{channel}: notification queue full; saved messages remain")
+                    break
+                replayed += 1
+        if replayed:
+            self.reports.put(f"Notifications: replaying {replayed} saved message(s)")
 
     def submit(self, channel, message):
         if self.closed or channel not in self.senders or not message:
@@ -105,12 +137,41 @@ class NotificationDispatcher:
         if self.preview:
             self.reports.put(f"{channel.upper()} PREVIEW: {message}")
             return True
+        delivery = Delivery(uuid4().hex, message)
+        outbox = self.outbox
+        saved = False
+        if outbox is not None and channel in outbox.channels and isinstance(message, str):
+            saved = self._save(outbox, channel, delivery)
         try:
-            self.queues[channel].put_nowait(message)
+            self.queues[channel].put_nowait(delivery)
             return True
         except Full:
-            self.reports.put(f"{channel}: notification queue full; message not queued")
+            suffix = "; saved for next start" if saved else ""
+            self.reports.put(f"{channel}: notification queue full; message not queued{suffix}")
             return False
+
+    def _save(self, outbox, channel, delivery):
+        try:
+            outbox.add(channel, delivery.id, delivery.payload)
+            return True
+        except Exception:
+            self.reports.put("Notifications: could not save pending messages; continuing without the store")
+            self.outbox = None
+            return False
+
+    def _complete(self, channel, delivery_id):
+        outbox = self.outbox
+        if outbox is None:
+            return
+        try:
+            outbox.complete(channel, delivery_id)
+        except Exception:
+            self.reports.put("Notifications: could not update saved messages")
+            self.outbox = None
+
+    def _saved_channel(self, channel):
+        outbox = self.outbox
+        return outbox is not None and channel in outbox.channels
 
     def _wait_until(self, deadline):
         # Split very large server delays into portable, interruptible waits.
@@ -127,7 +188,7 @@ class NotificationDispatcher:
         next_send_at = 0
         while not self.stopped.is_set():
             try:
-                message = queue.get(timeout=0.1)
+                delivery = queue.get(timeout=0.1)
             except Empty:
                 continue
             try:
@@ -135,16 +196,24 @@ class NotificationDispatcher:
                     if self._wait_until(next_send_at):
                         break
                     try:
-                        self.senders[channel](message)
+                        self.senders[channel](delivery.payload)
+                        self._complete(channel, delivery.id)
                         break
                     except DeliveryError as error:
                         if error.retryable or error.retry_after is not None:
                             delay = error.retry_after if error.retry_after is not None else 2 ** attempt
                             next_send_at = monotonic() + delay
                         if not error.retryable or attempt + 1 == self.attempts:
-                            self.reports.put(f"{channel}: delivery failed ({error})")
+                            if not error.retryable:
+                                self._complete(channel, delivery.id)
+                                self.reports.put(f"{channel}: delivery failed ({error})")
+                            elif self._saved_channel(channel):
+                                self.reports.put(f"{channel}: delivery failed ({error}); kept for next start")
+                            else:
+                                self.reports.put(f"{channel}: delivery failed ({error})")
                             break
                     except Exception:
+                        self._complete(channel, delivery.id)
                         self.reports.put(f"{channel}: delivery failed (unexpected transport error)")
                         break
             finally:
@@ -169,4 +238,5 @@ class NotificationDispatcher:
         for worker in self.workers:
             worker.join(timeout=max(0, deadline - monotonic()))
         if pending:
-            self.reports.put(f"Notifications: stopped with {pending} pending delivery(s)")
+            suffix = " (saved for next start)" if self.outbox is not None else ""
+            self.reports.put(f"Notifications: stopped with {pending} pending delivery(s){suffix}")
