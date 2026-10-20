@@ -1,13 +1,16 @@
 import io
 import json
+from pathlib import Path
 from ssl import SSLCertVerificationError
+from tempfile import TemporaryDirectory
 import unittest
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
-from notifications import DeliveryError, NotificationDispatcher, check_response, telegram_send
+from notifications import DeliveryError, LiveUpdate, NotificationDispatcher, check_response, telegram_send
+from outbox import Outbox
 
 
 class NotificationTests(unittest.TestCase):
@@ -190,3 +193,121 @@ class NotificationTests(unittest.TestCase):
                         telegram_send('SECRET', 1, 'hi')
                 self.assertEqual(caught.exception.retryable, retryable)
                 self.assertNotIn('SECRET', str(caught.exception))
+
+
+class SavedNotificationTests(unittest.TestCase):
+    def wait_for(self, predicate, timeout=2):
+        deadline = monotonic() + timeout
+        while monotonic() < deadline:
+            if predicate():
+                return True
+            sleep(0.01)
+        return predicate()
+
+    def pending_texts(self, folder, channel="telegram"):
+        return [entry["text"] for entry in Outbox(Path(folder), [channel]).load()[0][channel]]
+
+    def test_saved_message_is_replayed_and_removed_by_the_next_dispatcher(self):
+        with TemporaryDirectory() as folder:
+            Outbox(Path(folder), ["telegram"]).add("telegram", "saved", "hull damaged")
+            delivered = []
+            dispatcher = NotificationDispatcher({"telegram": delivered.append},
+                                                outbox=Outbox(Path(folder), ["telegram"]))
+            try:
+                self.assertTrue(self.wait_for(lambda: delivered == ["hull damaged"]))
+            finally:
+                dispatcher.close()
+            self.assertEqual(delivered, ["hull damaged"])
+            self.assertEqual(self.pending_texts(folder), [])
+            self.assertTrue(any("replaying 1 saved message" in report
+                                for report in dispatcher.drain_reports()))
+
+    def test_message_is_saved_before_delivery_and_removed_after_success(self):
+        with TemporaryDirectory() as folder:
+            started, release = Event(), Event()
+            def sender(message):
+                started.set()
+                release.wait(2)
+            dispatcher = NotificationDispatcher({"telegram": sender},
+                                                outbox=Outbox(Path(folder), ["telegram"]))
+            try:
+                dispatcher.submit("telegram", "hull damaged")
+                self.assertTrue(started.wait(1))
+                self.assertEqual(self.pending_texts(folder), ["hull damaged"])
+            finally:
+                release.set()
+                dispatcher.close()
+            self.assertEqual(self.pending_texts(folder), [])
+
+    def test_permanent_failure_is_not_kept_for_next_start(self):
+        with TemporaryDirectory() as folder:
+            dispatcher = NotificationDispatcher(
+                {"telegram": Mock(side_effect=DeliveryError("HTTP 403"))},
+                outbox=Outbox(Path(folder), ["telegram"]))
+            dispatcher.submit("telegram", "rejected")
+            dispatcher.close()
+            reports = list(dispatcher.drain_reports())
+            self.assertTrue(any("HTTP 403" in report for report in reports))
+            self.assertFalse(any("kept" in report for report in reports))
+            self.assertEqual(self.pending_texts(folder), [])
+
+    def test_transient_failure_is_kept_for_next_start(self):
+        with TemporaryDirectory() as folder:
+            dispatcher = NotificationDispatcher(
+                {"telegram": Mock(side_effect=DeliveryError("HTTP 503", True))},
+                attempts=1, outbox=Outbox(Path(folder), ["telegram"]))
+            dispatcher.submit("telegram", "retry later")
+            dispatcher.close()
+            self.assertTrue(any("kept for next start" in report
+                                for report in dispatcher.drain_reports()))
+            self.assertEqual(self.pending_texts(folder), ["retry later"])
+
+    def test_live_updates_are_never_saved(self):
+        with TemporaryDirectory() as folder:
+            dispatcher = NotificationDispatcher({"discord_live": Mock()},
+                                                outbox=Outbox(Path(folder), ["discord"]))
+            dispatcher.submit("discord_live", LiveUpdate("live stats", 1))
+            dispatcher.close()
+            self.assertFalse((Path(folder) / "discord.json").exists())
+
+    def test_preview_never_touches_the_store(self):
+        outbox = Mock()
+        dispatcher = NotificationDispatcher({"telegram": Mock()}, preview=True, outbox=outbox)
+        dispatcher.submit("telegram", "preview only")
+        dispatcher.close()
+        outbox.load.assert_not_called()
+        outbox.add.assert_not_called()
+        self.assertEqual(len(list(dispatcher.drain_reports())), 1)
+
+    def test_store_write_failure_does_not_stop_delivery(self):
+        class BrokenOutbox:
+            channels = ("telegram",)
+            def load(self, limit=None):
+                return {"telegram": []}, []
+            def add(self, *args):
+                raise OSError("disk full")
+            def complete(self, *args):
+                pass
+
+        delivered = []
+        dispatcher = NotificationDispatcher({"telegram": delivered.append}, outbox=BrokenOutbox())
+        dispatcher.submit("telegram", "still delivered")
+        dispatcher.submit("telegram", "and again")
+        dispatcher.close()
+        self.assertEqual(delivered, ["still delivered", "and again"])
+        reports = list(dispatcher.drain_reports())
+        self.assertEqual(sum("could not save" in report for report in reports), 1)
+
+    def test_unavailable_store_still_delivers(self):
+        class BrokenOutbox:
+            channels = ("telegram",)
+            def load(self, limit=None):
+                raise OSError("no access")
+
+        delivered = []
+        dispatcher = NotificationDispatcher({"telegram": delivered.append}, outbox=BrokenOutbox())
+        dispatcher.submit("telegram", "delivered anyway")
+        dispatcher.close()
+        self.assertEqual(delivered, ["delivered anyway"])
+        self.assertTrue(any("store unavailable" in report
+                            for report in dispatcher.drain_reports()))

@@ -1,0 +1,74 @@
+"""Storage-level checks for the durable notification outbox."""
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
+from time import time
+
+from outbox import Outbox, profile_directory_name
+
+
+class OutboxTests(unittest.TestCase):
+    def test_added_entries_are_written_completed_and_loaded_in_order(self):
+        with TemporaryDirectory() as folder:
+            outbox = Outbox(Path(folder), ["telegram"])
+            outbox.add("telegram", "one", "first message")
+            outbox.add("telegram", "two", "second message")
+            outbox.complete("telegram", "one")
+
+            pending, warnings = Outbox(Path(folder), ["telegram"]).load()
+            self.assertEqual(warnings, [])
+            self.assertEqual([entry["text"] for entry in pending["telegram"]], ["second message"])
+            data = json.loads((Path(folder) / "telegram.json").read_text(encoding="utf-8"))
+            self.assertEqual([entry["id"] for entry in data["entries"]], ["two"])
+
+    def test_only_configured_channels_are_stored(self):
+        with TemporaryDirectory() as folder:
+            outbox = Outbox(Path(folder), ["discord"])
+            with self.assertRaises(KeyError):
+                outbox.add("telegram", "one", "not saved")
+            self.assertFalse((Path(folder) / "telegram.json").exists())
+
+    def test_expired_malformed_and_duplicate_entries_are_skipped(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "telegram.json"
+            now = time()
+            path.write_text(json.dumps({"version": 1, "entries": [
+                {"id": "old", "text": "too old", "created": now - 7 * 24 * 3600},
+                {"id": "bad", "text": "", "created": now},
+                {"id": "ok", "text": "keep", "created": now},
+                {"id": "ok", "text": "duplicate", "created": now},
+                "not-an-entry",
+            ]}), encoding="utf-8")
+
+            pending, warnings = Outbox(Path(folder), ["telegram"]).load()
+            self.assertEqual([entry["text"] for entry in pending["telegram"]], ["keep"])
+            self.assertTrue(any("expired" in warning for warning in warnings))
+            self.assertTrue(any("unreadable" in warning for warning in warnings))
+            self.assertTrue(any("duplicate" in warning for warning in warnings))
+
+    def test_unreadable_file_is_ignored_without_raising(self):
+        with TemporaryDirectory() as folder:
+            (Path(folder) / "telegram.json").write_text("not json", encoding="utf-8")
+            pending, warnings = Outbox(Path(folder), ["telegram"]).load()
+            self.assertEqual(pending["telegram"], [])
+            self.assertTrue(warnings)
+
+    def test_entry_limit_keeps_the_newest_messages(self):
+        with TemporaryDirectory() as folder:
+            outbox = Outbox(Path(folder), ["telegram"], max_entries=2)
+            for index in range(4):
+                outbox.add("telegram", f"id{index}", f"message {index}")
+            pending, _ = outbox.load()
+            self.assertEqual([entry["text"] for entry in pending["telegram"]],
+                             ["message 2", "message 3"])
+
+    def test_profile_directory_names_are_safe_and_distinct(self):
+        self.assertEqual(profile_directory_name(None), "default")
+        self.assertEqual(profile_directory_name("Jameson"), "Jameson")
+        self.assertNotEqual(profile_directory_name("Cmdr One"), profile_directory_name("Cmdr/One"))
+        self.assertNotIn("/", profile_directory_name("Cmdr/One"))
+
+
+if __name__ == "__main__":
+    unittest.main()

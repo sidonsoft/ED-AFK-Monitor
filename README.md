@@ -55,8 +55,8 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
 
 The Telegram, journal-following and plain-output changes in this fork are available
 from this branch's source code. Upstream standalone releases do not include them.
-Keep `afk_monitor.py`, `notifications.py`, `journal_reader.py`, and `terminal_output.py`
-together when running from source.
+Keep `afk_monitor.py`, `notifications.py`, `outbox.py`, `journal_reader.py`, and
+`terminal_output.py` together when running from source.
 
 **Standalone (EXE) version**: Recommended for Windows users that aren't familiar with Python.  
 **Python version**: For everyone else, including Linux users.
@@ -96,9 +96,18 @@ Discord, Telegram, and Discord live updates without sending notifications.
 Each destination has an independent background worker, a 200-message queue, and a
 five-second request timeout. Temporary connection errors, HTTP 429, and server errors
 are retried up to three attempts. Server-requested retry delays are respected and can be interrupted at shutdown. Permanent
-errors and full queues are reported in the terminal. Queues are kept in memory;
-shutdown allows six seconds to finish delivery and reports any pending messages.
-A timeout after a service accepted a message can result in a duplicate on retry.
+errors and full queues are reported in the terminal. Shutdown allows six seconds to
+finish delivery and reports any pending messages.
+
+Undelivered messages are saved before they are sent to
+`pending_notifications/<profile>/` next to `afk_monitor.toml`, so a crash or shutdown
+does not lose them. Saved messages are replayed in order on the next start, kept for
+up to 24 hours and capped at 200 per destination. Permanent failures (for example an
+invalid token or chat ID) are reported and removed; a message whose retries run out
+while the service is unreachable stays saved for the next start. Saved files contain
+the notification text, so delete that directory if you do not want it retained.
+Live-stat updates are not saved because each new update replaces the previous one.
+A timeout after a service accepted a message can still result in a duplicate on retry.
 
 ## Following game restarts
 
