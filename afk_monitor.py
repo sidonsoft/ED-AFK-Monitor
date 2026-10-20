@@ -7,12 +7,12 @@ import sys
 import time
 import tomllib
 import traceback
-import unicodedata
 from bisect import bisect_left
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.request import urlopen
-from journal_reader import JournalReader
+from journal_reader import JournalReader, read_complete_line, commander_from_line
+from terminal_output import StatusLogger
 from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
 
 try:
@@ -66,113 +66,27 @@ class Col:
 
 WARNING = f"{Col.WARN}Warning:{Col.END}"
 
-class StatusLogger:
-    """Logs messages to console, with support for a persistent status line
-    Supports emojis, ANSI colours, padding and truncation based on terminal width
-    Imports: sys, unicodedata, re"""
-    
-    ANSI_CLEAR_LINE =  "\x1b[2K"
-    ANSI_COL_END = "\x1b[0m"
-    ANSI_CURSOR_UP = "\x1b[A"
-    ANSI_HIDE_CURSOR = "\x1b[?25l"
-    ANSI_SHOW_CURSOR = "\x1b[?25h"
-    ANSI_REGEX_STRIP = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-    
-    def __init__(self, clear_cols=False, pad_char="", safe_margin=2):
-        self.endcol = self.ANSI_COL_END if clear_cols else ""
-        self.pad = "" if not pad_char else str(pad_char)
-        self.safe = safe_margin
-        self._stream = sys.stdout
-        self._status = ""
-        self._prev = False
-        self._con_prev = 0
+# Command line overrides
+parser = argparse.ArgumentParser(
+    prog="ED AFK Monitor",
+    description="Live monitoring of Elite Dangerous AFK sessions to terminal, Discord and Telegram")
+parser.add_argument("-p", "--profile", help="Load a specific profile for config settings")
+parser.add_argument("-j", "--journal", help="Override for path to journal folder")
+parser.add_argument("-w", "--webhook", help="Override for Discord logging webhook URL")
+parser.add_argument("-wl", "--webhooklive", help="Override for Discord live webhook URL")
+parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
+parser.add_argument("-t", "--test", action="store_true", default=None, help="Preview all notifications in the terminal without sending")
+parser.add_argument("-d", "--debug", action="store_true", default=None, help="Print information for debugging")
+parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED_AFK_TELEGRAM_TOKEN environment variable)")
+parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
+parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
+parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
+file_group = parser.add_mutually_exclusive_group()
+file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
+file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
+args = parser.parse_args()
 
-    def _write(self, text):
-        self._stream.write(text)
-        self._stream.flush()
-    
-    def get_columns(self, input: str):
-        """Returns string column width, accounting for ANSI escape sequences and emojis"""
-        
-        length = 0
-        
-        # Strip ANSI sequences
-        input = self.ANSI_REGEX_STRIP.sub("", input)  
-        
-        # Calculate width including emojis
-        for char in input:
-            width = unicodedata.east_asian_width(char)
-            length += 2 if width in ["F", "W"] else 1
-        
-        return length
-    
-    def _clear_lines(self):
-        """Calculate line clears based on lines previous status now occupies"""
-        
-        con_width = os.get_terminal_size().columns
-        prev_width = self.get_columns(self._status)
-        prev_lines = prev_width // con_width
-        clear_lines = self.ANSI_CLEAR_LINE
-        
-        # Clear another line for every wrap
-        for _ in range(prev_lines):
-            clear_lines += f"{self.ANSI_CURSOR_UP}{self.ANSI_CLEAR_LINE}"
-        
-        return clear_lines
-
-    def set_status(self, msg):
-        """Sets/updates a persistent status line"""
-        
-        # Get line clears 
-        clear_lines = self._clear_lines()
-        
-        # Truncate status as needed based on terminal width
-        con_width = os.get_terminal_size().columns
-        msg_width = self.get_columns(msg)
-        output = f"{msg}"
-        msg_width = self.get_columns(msg)
-        
-        if msg_width > (con_width - self.safe):
-            # Shrink status by 1 character until actual width fits within terminal
-            while not self.get_columns(output) <= (con_width - self.safe - 1):
-                output = output[:-1]
-            output = output + ">"
-        else:
-            output = msg + (self.pad * (con_width - msg_width - self.safe))
-
-        self._write(f"{clear_lines}\r{output}{self.endcol}")
-        self._status = output
-        self._prev = True
-        self._con_prev = con_width
-
-    def clear_status(self):
-        if self._prev:
-            # Clear status line
-            self._write(f"{self.ANSI_CLEAR_LINE}\r")
-            self._status = ""
-            self._prev = False
-
-    def log(self, msg):
-        """Outputs a new line, while clearing and repeating status if set"""
-        
-        # Get line clears 
-        clear_lines = self._clear_lines()
-        
-        log_line = str(msg)
-        if self._prev:
-            # Overwrite existing status line with new log + status
-            out = f"{clear_lines}\r{log_line}\n{self._status}{self.endcol}"
-            self._write(out)
-        else:
-            self._write(f"{log_line}\n")
-    
-    def hide_cursor(self):
-        self._write(self.ANSI_HIDE_CURSOR)
-
-    def show_cursor(self):
-        self._write(self.ANSI_SHOW_CURSOR)
-
-msg = StatusLogger()
+msg = StatusLogger(plain=args.plain)
 
 # Update check
 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -233,25 +147,6 @@ while not config_ready:
         if response != "":
             msg.log("\nQuitting...")
             sys.exit()
-
-# Command line overrides
-parser = argparse.ArgumentParser(
-    prog="ED AFK Monitor",
-    description="Live monitoring of Elite Dangerous AFK sessions to terminal, Discord and Telegram")
-parser.add_argument("-p", "--profile", help="Load a specific profile for config settings")
-parser.add_argument("-j", "--journal", help="Override for path to journal folder")
-parser.add_argument("-w", "--webhook", help="Override for Discord logging webhook URL")
-parser.add_argument("-wl", "--webhooklive", help="Override for Discord live webhook URL")
-parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
-parser.add_argument("-t", "--test", action="store_true", default=None, help="Preview all notifications in the terminal without sending")
-parser.add_argument("-d", "--debug", action="store_true", default=None, help="Print information for debugging")
-parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED_AFK_TELEGRAM_TOKEN environment variable)")
-parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
-parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
-file_group = parser.add_mutually_exclusive_group()
-file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
-file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
-args = parser.parse_args()
 
 # Get settings from config
 def getconfig(category: str, defaults: dict, warn_missing = True) -> dict:
@@ -381,6 +276,8 @@ if not setting_journal_dir:
     journal_dir = Path.home() / "Saved Games" / "Frontier Developments" / "Elite Dangerous"
 else:
     journal_dir = Path(setting_journal_dir)
+if setting_journal_file and Path(setting_journal_file).expanduser().is_absolute():
+    journal_dir = Path(setting_journal_file).expanduser().parent
 if not journal_dir.is_dir():
     fallover(f"Directory {journal_dir} not found")
 
@@ -417,13 +314,9 @@ if not setting_journal_file:
         for i, filename in enumerate(journals, start=1):
             commander = None
             with open(Path(journal_dir / filename), mode="r", encoding="utf-8") as file:
-                for line in file:
-                    try:
-                        entry = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        msg.log(f"[Fileselect] JSON error in {filename}: {e}")
-                    if entry["event"] == "Commander":
-                        commander =  entry["Name"]
+                while line := read_complete_line(file):
+                    commander = commander_from_line(line)
+                    if commander:
                         break
 
             num = f"{i:>{len(str(len(journals)))}}"
@@ -436,7 +329,7 @@ if not setting_journal_file:
         if selection:
             try:
                 selection = int(selection)
-                if 1 <= selection <= setting_recent_files:
+                if 1 <= selection <= len(journals):
                     journal_file = journals[selection-1]
                     track.cmdrname = commanders[selection-1]
                 else:
@@ -447,41 +340,32 @@ if not setting_journal_file:
             journal_file = journals[0]
             track.cmdrname = commanders[0]
 elif setting_journal_file:
-    # Set specific journal file
-    journal_file = setting_journal_file if bool(re.search(REG_JOURNAL, setting_journal_file)) else None
-    if not journal_file or not (journal_dir / journal_file).is_file():
+    selected = Path(setting_journal_file).expanduser()
+    selected = selected if selected.is_absolute() else journal_dir / selected
+    if not re.fullmatch(REG_JOURNAL, selected.name) or not selected.is_file():
         fallover(f"Journal file '{setting_journal_file}' invalid or not found")
+    journal_dir = selected.parent
+    journal_file = selected.name
 
 msg.log(f"{Col.YELL}Journal file:{Col.END} {journal_file}")
 
-# Get commander name if not already known
+# Wait for complete Commander events, following restarts even before game load.
 if not track.cmdrname:
     try:
-        with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
-            for line in file:
-                entry = json.loads(line)
-                if entry["event"] == "Commander":
-                    track.cmdrname = entry["Name"]
-                    break
-            
-            # If we *still* don't have a commander name wait for it
-            if not track.cmdrname:
-                msg.log("Waiting for game load... (Press Ctrl+C to stop)")
-                file.seek(0, 2)
-                while True:
-                    line = file.readline()
-                    
-                    if not line:
-                        time.sleep(1)
-                        continue
-                    
-                    entry = json.loads(line)
-                    if entry["event"] == "Commander":
-                        track.cmdrname = entry["Name"]
-                        break
-    except json.JSONDecodeError as e:
-        msg.log(f"[CMDR Name] JSON error in {journal_file}: {e}")
-    except(KeyboardInterrupt):
+        with JournalReader(journal_dir / journal_file,
+                           follow=not (args.no_follow or args.setfile or args.fileselect)) as file:
+            waiting = False
+            while not track.cmdrname:
+                line = file.readline()
+                journal_file = file.path.name
+                if line:
+                    track.cmdrname = commander_from_line(line)
+                else:
+                    if not waiting:
+                        msg.log("Waiting for game load... (Press Ctrl+C to stop)")
+                        waiting = True
+                    time.sleep(1)
+    except KeyboardInterrupt:
         fallover("Quitting...")
 
 msg.log(f"{Col.YELL}Commander name:{Col.END} {track.cmdrname}")
@@ -710,15 +594,6 @@ def truncate(input: str, chars: int) -> str:
         return input
     else:
         return f"{input[:chars].rstrip()}…"
-
-def read_complete_line(file):
-    """Leave an unfinished journal event available until its newline is written."""
-    position = file.tell()
-    line = file.readline()
-    if line and not line.endswith("\n"):
-        file.seek(position)
-        return ""
-    return line
 
 # Process incoming journal entries
 def processevent(line):
@@ -982,8 +857,8 @@ def processevent(line):
                 debug(f"Deploy time by supercruise drop: {track.deploytime}")
             case "EjectCargo" if not j["Abandoned"] and j["Count"] == 1:
                 name = j["Type_Localised"] if "Type_Localised" in j else j["Type"].title()
-                logevent(msg_term=f"{Col.BAD}Cargo stolen!{Col.END} ({name})",
-                        msg_discord=f"**Cargo stolen!** ({name})",
+                logevent(msg_term=f"{Col.BAD}Cargo lost or jettisoned (possible theft){Col.END} ({name})",
+                        msg_discord=f"**Cargo lost or jettisoned (possible theft)** ({name})",
                         emoji="🪓", timestamp=logtime, loglevel=conf_log_levels["CargoLost"], event="CargoLost")
             case "Rank":
                 track.cmdrcombatrank = COMBAT_RANKS[j["Combat"]]
@@ -1135,12 +1010,12 @@ def update_status(reset=False):
                 msg.set_status(f"{status_col}[{time_clock:>8}]💥 {s_kills:<23} | 📦 {s_scans:<23} | ⏱️ {time_sesh:<5} | 🎯 {s_missions}")
             
             # Window title (Windows only)
-            if conf_settings["DynamicTitle"] and os.name=="nt":
+            if conf_settings["DynamicTitle"] and os.name=="nt" and not msg.plain:
                 cmdr_name = "" if not conf_settings["WinTitleCmdrName"] else f"{track.cmdrname} "
                 ctypes.windll.kernel32.SetConsoleTitleW(f"{cmdr_name}💥{kills_hour}/h ⌚{last_kill} 🎯 {s_missions}")
 
         elif reset:
-            if conf_settings["DynamicTitle"] and os.name=="nt":
+            if conf_settings["DynamicTitle"] and os.name=="nt" and not msg.plain:
                 ctypes.windll.kernel32.SetConsoleTitleW(f"ED AFK Monitor v{VERSION}")
             if conf_settings["LiveStatus"]:
                 msg.clear_status()

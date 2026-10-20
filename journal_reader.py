@@ -1,9 +1,35 @@
 """Read complete journal events and follow chronological journal rotation."""
 import re
+import json
 from pathlib import Path
 from time import monotonic
 
 JOURNAL_NAME = re.compile(r"Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log")
+
+
+def read_complete_line(file):
+    """Leave unfinished text/UTF-8 writes available for the next poll."""
+    position = file.tell()
+    try:
+        line = file.readline()
+    except UnicodeDecodeError:
+        file.seek(position)
+        return ""
+    if line and not line.endswith("\n"):
+        file.seek(position)
+        return ""
+    return line
+
+
+def commander_from_line(line):
+    try:
+        event = json.loads(line)
+    except (ValueError, TypeError):
+        return None
+    if isinstance(event, dict) and event.get("event") == "Commander":
+        name = event.get("Name")
+        return name if isinstance(name, str) and name else None
+    return None
 
 
 class JournalReader:
@@ -17,16 +43,16 @@ class JournalReader:
         self.last_poll = float("-inf")
 
     def readline(self):
-        position = self.file.tell()
-        try:
-            line = self.file.readline()
-        except UnicodeDecodeError:
-            # A write can stop in the middle of a multi-byte UTF-8 character.
+        line = read_complete_line(self.file)
+        # At a partial line the reader rewinds; retain it before considering rotation.
+        if not line:
+            position = self.file.tell()
+            # TextIO tell cookies must be restored through the same text stream.
+            self.file.seek(0, 2)
+            has_partial = self.file.tell() != position
             self.file.seek(position)
-            return ""
-        if line and not line.endswith("\n"):
-            self.file.seek(position)
-            return ""
+            if has_partial:
+                return ""
         if line or not self.follow:
             return line
         now = monotonic()

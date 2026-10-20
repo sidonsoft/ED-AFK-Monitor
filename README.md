@@ -130,13 +130,14 @@ You can pass the following arguments when launching AFK Monitor:
 --telegram-token <token>                     Override Telegram bot token
 --telegram-chat <id>                         Override Telegram chat ID
 --no-follow                                 Monitor only the selected journal
+--plain                                     Plain text without colours, emojis or live status
 ```
 
 ## Common Issues
 
 ### No new terminal output during a live session
 
-By default AFK Monitor starts with your latest journal and follows newer files automatically. Start it after loading the game for the first session. To monitor a different journal pass `--fileselect` when starting AFK Monitor and a list of recent journals will be provided to chose from.
+By default AFK Monitor starts with your latest journal and follows newer files automatically, including while waiting for the game to load. Check the journal folder/file printed at startup if events are missing. Use `--journal <folder>` for a different journal folder, `--setfile <full-path>` for a particular file, or `--fileselect` to choose from recent journals. Explicit file selections stay fixed rather than following new files. A journal folder with no journal files yet still requires starting the game once.
 
 ### Some kills are not being logged
 
@@ -144,7 +145,7 @@ ED does not log all bounties either in-game or to the journal (anywhere from 0-3
 
 ### Ships scans are reported when manually scanned
 
-Scans by your NPC pilot are logged just like any other scans. To avoid erroneous logging of scans (e.g. of system security) while using AFK Monitor set and use a key bind for 'select next hostile target' instead of scanning any target. Alternatively, outgoing scan logs can be disabled by config.
+Scans by your NPC pilot are logged just like any other scans. To avoid erroneous logging of scans (e.g. of system security) while using AFK Monitor set and use a key bind for 'select next hostile target' instead of scanning any target. To silence all outgoing scan notifications, set `ScanEasy = 0`, `ScanHard = 0`, and `SecurityScan = 0` under `[LogLevels]`. Incoming pirate cargo scans are controlled separately by `ScanIncoming`.
 
 ### Ship or fighter hull damage not logged
 
@@ -152,11 +153,11 @@ ED only records hull damage in 20% increments, so if your ship or fighter hull w
 
 ### Stolen cargo notifications when ejecting cargo
 
-ED's journal does not differentiate between individual units of cargo jettisoned by the player or stolen by hatch breaker limpets. As a workaround if you want to get rid of cargo with AFK Monitor running and not be notified you can use 'Abandon' instead of 'Jettison', or jettison more than one unit at a time.
+ED's journal does not distinguish a single unit jettisoned by the player from cargo stolen by a hatch breaker limpet. These notifications now say **Cargo lost or jettisoned (possible theft)**. To avoid a warning when disposing of cargo, use 'Abandon' instead of 'Jettison', or jettison more than one unit at a time. Set `CargoLost = 0` under `[LogLevels]` to disable these alerts entirely.
 
 ### Garbled characters or repeated lines in terminal output
 
-The Windows 10 console doesn't support some of the modern terminal features AFK Monitor uses. It is recommended to install and use [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) instead. For more information see [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support).
+Use `--plain` for text without colours, emojis, cursor controls, or the live status line. Plain output is selected automatically for redirected output, `TERM=dumb`, or Windows consoles where virtual-terminal support cannot be enabled. It uses ASCII text, so accented names are simplified in the terminal; notifications retain their original text. This avoids registry edits and repeated status lines. Modern consoles keep formatted live output, and narrow/resized windows are handled safely. [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) remains an option for full formatting; the upstream [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support) page describes older releases.
 
 ## Development checks
 

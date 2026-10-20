@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from notifications import DeliveryError, check_response
+from journal_reader import read_complete_line
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "afk_monitor.py"
@@ -17,8 +18,6 @@ def load_function(name, namespace=None):
     exec(compile(ast.Module(body=[function], type_ignores=[]), str(SOURCE), "exec"), scope)
     return scope[name]
 
-
-read_complete_line = load_function("read_complete_line")
 
 
 class JournalReaderTests(unittest.TestCase):
