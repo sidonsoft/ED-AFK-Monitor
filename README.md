@@ -158,8 +158,10 @@ Mission spread: 0/3 complete | 2 wing | 57 kills left
   the requirement.
 - When `Missions` lists a mission the monitor has never seen, it searches up to 20 recent
   journals for that `MissionAccepted` event to recover the faction and kill count.
-- `SummaryMissions` under `[LogLevels]` sets where the spread is reported; the default
-  is 1 (terminal only), while 2 or 3 also sends it to Discord and Telegram.
+- `SummaryMissions` under `[LogLevels]` sets where the mission block is reported; the
+  default is 2 (terminal, Discord and Telegram). Set 1 for terminal only or 0 to hide it.
+  The block is appended to the periodic session-stats message and to the edited live
+  Discord session-stats message, which also refreshes on mission changes.
 - Wing missions progress from every wing member's kills, but the journal only records
   your own kills, so `Done` is your contribution. `MissionRedirected` still marks a
   mission complete when the wing finishes it.

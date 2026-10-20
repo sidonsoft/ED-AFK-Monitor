@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
-from notifications import DeliveryError, check_response
+from notifications import DeliveryError, LiveUpdate, check_response
 from journal_reader import find_mission_accepts, read_complete_line
 
 
@@ -97,9 +97,16 @@ class LiveDeliveryTests(unittest.TestCase):
     def test_new_session_creates_new_message_and_updates_edit_it(self):
         from notifications import LiveUpdate
         calls = []
-        webhook = SimpleNamespace(
-            execute=lambda: (calls.append('create') or SimpleNamespace(status_code=200)),
-            edit=lambda: (calls.append('edit') or SimpleNamespace(status_code=200)))
+        webhook = SimpleNamespace(id=None)
+        def execute():
+            calls.append('create')
+            webhook.id = 'message-1'
+            return SimpleNamespace(status_code=200)
+        def edit():
+            calls.append('edit')
+            return SimpleNamespace(status_code=200)
+        webhook.execute = execute
+        webhook.edit = edit
         send = load_function('discord_live_send', {
             'webhook_live': webhook, 'DeliveryError': DeliveryError,
             'check_response': check_response, 'live_delivery_generation': None})
@@ -174,6 +181,91 @@ class SummaryRoutingTests(unittest.TestCase):
         self.assertNotIn('Private Faction', calls[0]['msg_discord'])
         self.assertNotIn('Private Faction', calls[0]['msg_telegram'])
         self.assertIn('Kills:', calls[0]['msg_telegram'])
+
+    def test_live_summary_includes_mission_progress(self):
+        import time as time_module
+        from datetime import datetime, timedelta, timezone
+        calls = []
+        now = datetime.now(timezone.utc)
+        stats = SimpleNamespace(kills=2, factions={'Pirates': 2}, bounties=0,
+                                scansin=0, merits=0, kill_times=[])
+        summarize = load_function('summary', {
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
+                                     deploytime=now - timedelta(seconds=3600)),
+            'conf_settings': {'ExtendedStats': False},
+            'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 0, 'SummaryBounties': 0,
+                                'SummaryMerits': 0, 'SummaryScans': 0, 'SummaryMissions': 2},
+            'mission_ledger': SimpleNamespace(has_missions=lambda: True,
+                                              status_line=lambda: '0/1',
+                                              report_text=lambda **kwargs: '',
+                                              report_discord=lambda: '',
+                                              report_live=lambda: '**Mission spread** 0/1 complete'),
+            'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
+            'time_format': lambda seconds: '1h',
+            'logevent': lambda **kwargs: calls.append(('log', kwargs)),
+            'discord_live_update': lambda text: calls.append(('live', text)),
+            'time': time_module,
+        })
+        summarize(stats, logtime=now, live=True)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], 'live')
+        self.assertIn('**Mission spread** 0/1 complete', calls[0][1])
+
+    def test_deleted_live_message_is_reposted(self):
+        from types import SimpleNamespace
+        calls = []
+        def edit():
+            calls.append('edit')
+            return SimpleNamespace(status_code=404)
+        def execute():
+            calls.append('execute')
+            return SimpleNamespace(status_code=200)
+        webhook = SimpleNamespace(id='message-1', content=None, edit=edit, execute=execute)
+        send = load_function('discord_live_send', {
+            'webhook_live': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'live_delivery_generation': 1})
+        send(LiveUpdate('session stats', 1))
+        self.assertEqual(calls, ['edit', 'execute'])
+        self.assertEqual(send.__globals__['live_delivery_generation'], 1)
+
+    def test_live_message_without_id_is_created(self):
+        from types import SimpleNamespace
+        calls = []
+        webhook = SimpleNamespace(id=None, content=None,
+                                  execute=lambda: (calls.append('execute')
+                                                   or SimpleNamespace(status_code=200)))
+        send = load_function('discord_live_send', {
+            'webhook_live': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'live_delivery_generation': 1})
+        send(LiveUpdate('session stats', 1))
+        self.assertEqual(calls, ['execute'])
+
+    def test_summary_appends_mission_block_to_discord(self):
+        from datetime import datetime, timezone
+        calls = []
+        now = datetime.now(timezone.utc)
+        stats = SimpleNamespace(kills=2, factions={'Pirates': 2}, bounties=0,
+                                scansin=0, merits=0, kill_times=[])
+        summarize = load_function('summary', {
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
+                                     deploytime=now, missionredirects=0, missionsactive=[]),
+            'conf_settings': {'ExtendedStats': False},
+            'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 0, 'SummaryBounties': 0,
+                                'SummaryMerits': 0, 'SummaryScans': 0, 'SummaryMissions': 2},
+            'mission_ledger': SimpleNamespace(has_missions=lambda: True,
+                                              status_line=lambda: '0/1',
+                                              report_text=lambda **kwargs: 'Mission spread text',
+                                              report_discord=lambda: 'Mission spread discord',
+                                              report_live=lambda: '**Mission spread** live'),
+            'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
+            'time_format': lambda seconds: '1h',
+            'logevent': lambda **kwargs: calls.append(kwargs),
+        })
+        summarize(stats, logtime=now, session=False)
+        self.assertEqual(len(calls), 1)
+        self.assertIn('Mission spread text', calls[0]['msg_term'])
+        self.assertIn('**Mission spread** live', calls[0]['msg_discord'])
+        self.assertIn('Mission spread text', calls[0]['msg_telegram'])
 
     def test_event_uses_explicit_telegram_text_and_respects_terminal_only_level(self):
         import re
