@@ -98,7 +98,7 @@ SummaryKills = 2        # Kills and rate/h from bounties or bonds
 SummaryFaction = 0      # As above but for the most-killed faction
 SummaryBounties = 2     # Credits earned from bounties or bonds
 SummaryMerits = 2       # Merits (powerplay, only shown if merits earned)
-SummaryMissions = 1    # Mission spread (factions, kills required and remaining)
+SummaryMissions = 2    # Mission spread (factions, kills required and remaining)
 
 # Custom profiles (advanced)
 # You can set additional profiles to override settings as per the examples below

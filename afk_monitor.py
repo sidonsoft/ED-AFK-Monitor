@@ -333,6 +333,7 @@ class Tracking:
             self.warnednokills = None
             self.warnedkillrate = None
             self.lastcheck = time.monotonic()
+            self.live_update = None
             update_status()
 
     def sessionend(self):
@@ -472,7 +473,7 @@ conf_settings = getconfig("Settings", DEFAULTS_SETTINGS)
 conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
-conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 1}, False))
+conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
 telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
 telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
@@ -551,8 +552,15 @@ live_generation = 0
 def discord_live_send(update):
     global live_delivery_generation
     webhook_live.content = update.text
+    use_edit = (update.generation == live_delivery_generation
+                and bool(getattr(webhook_live, "id", None)))
     try:
-        response = webhook_live.execute() if update.generation != live_delivery_generation else webhook_live.edit()
+        response = webhook_live.edit() if use_edit else webhook_live.execute()
+        if use_edit and getattr(response, "status_code", None) == 404:
+            # The live message was deleted; post a new one instead of failing forever.
+            webhook_live.id = None
+            live_delivery_generation = None
+            response = webhook_live.execute()
     except Exception:
         raise DeliveryError("connection failed or timed out", retryable=True) from None
     if response is None:
@@ -843,6 +851,7 @@ def processevent(line):
                 detail = f" ({mission.target})" if mission and mission.target else ""
                 logevent(msg_term=f"Completed kills for {type} ({done}/{mission_total}){detail}",
                         emoji="✅", timestamp=logtime, loglevel=log)
+                track.live_update = None
                 update_status()
             case "ReservoirReplenished":
                 fuelremaining = round((j["FuelMain"] / track.fuelcapacity) * 100)
@@ -964,6 +973,7 @@ def processevent(line):
             case "Missions" if "Active" in j and not track.missions:
                 mission_ledger.reconcile(j["Active"], logtime)
                 track.missions = True
+                track.live_update = None
                 if mission_ledger.backfilled:
                     msg.log(f"Missions: recovered details for {mission_ledger.backfilled} mission(s)"
                             f" from earlier journals")
@@ -976,6 +986,7 @@ def processevent(line):
                     wing = " (wing)" if mission.wing else ""
                     logevent(msg_term=f"Accepted massacre mission{detail}{wing} (active: {mission_ledger.count()})",
                             emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
+                track.live_update = None
             case "MissionAbandoned" | "MissionCompleted" | "MissionFailed":
                 mission = mission_ledger.close(j.get("MissionID"))
                 if mission:
@@ -983,6 +994,7 @@ def processevent(line):
                     detail = f": {mission.target}" if mission.target else ""
                     logevent(msg_term=f"Massacre mission {event}{detail} (active: {mission_ledger.count()})",
                             emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
+                track.live_update = None
             case "PowerplayMerits":
                 if session.meritstoreport > 0 and j["MeritsGained"] < 500:
                     session.merits += j["MeritsGained"]
@@ -1203,6 +1215,13 @@ def summary(stats, logtime=None, session=True, live=False):
                 out_discord += f"\n:white_small_square: **{k}:** {v}"
                 out_telegram += f"\n  -> {k}: {v}"
 
+        if mission_level > 0 and mission_ledger.has_missions():
+            mission_text = mission_ledger.report_text()
+            out_terminal += f"\n\n{mission_text}"
+            if mission_level >= 2:
+                out_discord += f"\n\n{mission_ledger.report_live()}"
+                out_telegram += f"\n\n{mission_text}"
+
         if not live:
             logevent(msg_term=f"{out_terminal}",
                 msg_discord=f"{out_discord}", msg_telegram=out_telegram,
@@ -1210,13 +1229,11 @@ def summary(stats, logtime=None, session=True, live=False):
         else:
             discord_ts = round(time.time())
             live_stats = f"{out_discord}\n-# Updated: <t:{discord_ts}:t> (<t:{discord_ts}:R>)"
+            if mission_level >= 2:
+                mission_live = mission_ledger.report_live()
+                if mission_live:
+                    live_stats = f"{live_stats}\n\n{mission_live}"
             discord_live_update(live_stats)
-    
-    if not live and mission_level > 0 and mission_ledger.has_missions():
-        logevent(msg_term=mission_ledger.report_text(),
-                msg_discord=mission_ledger.report_discord(),
-                msg_telegram=mission_ledger.report_text(),
-                emoji="🎯", timestamp=logtime, loglevel=mission_level)
 
 def journal_rotated(path):
     global journal_file

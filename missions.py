@@ -580,6 +580,23 @@ class MissionLedger:
             lines.append(f"Rewards: {data['reward']:,} cr")
         return "\n".join(lines)
 
+    def report_live(self, max_factions=10):
+        """Compact mission block for the edited live session-stats message."""
+        data = self.spread()
+        if not data["total"]:
+            return ""
+        lines = [f"**Mission spread** {data['done']}/{data['total']} complete"
+                 f" · **{data['left']}** kills left"]
+        for row in data["rows"][:max_factions]:
+            lines.append(f"• **{row['faction']}** {row['done']}/{row['need']}"
+                         f" · {row['left']} left")
+        hidden = len(data["rows"]) - max_factions
+        if hidden > 0:
+            lines.append(f"• …and {hidden} more faction(s)")
+        if data["unknown"]:
+            lines.append(f"• {data['unknown']} mission(s) with unknown target")
+        return "\n".join(lines)
+
     def export(self):
         return {
             "commander": self.commander,

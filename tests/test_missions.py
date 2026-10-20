@@ -301,3 +301,24 @@ class MissionListImportTests(unittest.TestCase):
             self.assertEqual(mission.target, "Pirates")
             ledger.kill("Pirates")
             self.assertEqual(mission.kills, 1)
+
+
+class LiveMissionReportTests(unittest.TestCase):
+    def test_live_report_is_compact_and_truncated(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            for index in range(12):
+                ledger.accept(accepted(index + 1, target=f"Pirates {index + 1:02d}", kills=10))
+            ledger.kill("Pirates 01")
+            text = ledger.report_live(max_factions=12)
+            self.assertIn("**Mission spread** 0/12 complete", text)
+            self.assertIn("Pirates 01", text)
+            self.assertIn("1/10", text)
+            truncated = ledger.report_live(max_factions=10)
+            self.assertIn("and 2 more faction(s)", truncated)
+            self.assertNotIn("Pirates 01", truncated)
+
+    def test_live_report_is_empty_without_missions(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            self.assertEqual(ledger.report_live(), "")
