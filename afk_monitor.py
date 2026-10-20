@@ -511,7 +511,7 @@ def discord_live_update(message=""):
     notification_reports()
 
 # Log events
-def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2, event=None):
+def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2, event=None, msg_telegram=None):
     emoji = f"{emoji} " if emoji else ""
     loglevel = int(loglevel)
     if track.preloading and not discord_test:
@@ -539,9 +539,10 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
         ping = f" <@{conf_discord['UserID']}>" if loglevel > 2 and track.duperepeats == 1 else ""
         logtime = f" {{{logtime}}}" if conf_discord["Timestamp"] else ""
         cmdrname = "" if not conf_discord["PrependCmdrName"] else f"[{track.cmdrname}] "
+        telegram_message = msg_term if msg_telegram is None else msg_telegram
         if track.duperepeats <= DUPE_MAX:
             sendmessage(f"{cmdrname}{emoji}{discord_message}{logtime}{ping}",
-                        telegram_message=re.sub(r"\x1b\[[0-9;]*m", "", f"{track.cmdrname}: {emoji}{msg_term}{logtime}"))
+                        telegram_message=re.sub(r"\x1b\[[0-9;]*m", "", f"{track.cmdrname}: {emoji}{telegram_message}{logtime}"))
         elif not track.dupewarn:
             sendmessage(f"{cmdrname}⏸️ **Suppressing further duplicate messages**{logtime}",
                         telegram_message=f"⏸️ Suppressing further duplicate messages{logtime}")
@@ -1094,16 +1095,18 @@ def summary(stats, logtime=None, session=True, live=False):
         
         out_terminal = f"{type} Stats{session_time}{missions_completed}"
         out_discord = f"**{type} Stats**{session_time}{missions_completed}"
+        out_telegram = out_terminal
         
         for k, v in stats_out.items():
             if log_levels[k] >= 1:
                 out_terminal += f"\n{' '*10}-> {k}: {v}"
             if log_levels[k] >= 2:
                 out_discord += f"\n:white_small_square: **{k}:** {v}"
+                out_telegram += f"\n  -> {k}: {v}"
 
         if not live:
             logevent(msg_term=f"{out_terminal}",
-                msg_discord=f"{out_discord}",
+                msg_discord=f"{out_discord}", msg_telegram=out_telegram,
                 emoji="📝", timestamp=logtime, loglevel=log_max)
         else:
             discord_ts = round(time.time())

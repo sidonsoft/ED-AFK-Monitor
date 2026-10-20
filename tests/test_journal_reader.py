@@ -124,5 +124,77 @@ class LiveDeliveryTests(unittest.TestCase):
         self.assertEqual(calls, ['create', 'create'])
 
 
+class DiscordForumTests(unittest.TestCase):
+    def test_successful_forum_creation_keeps_original_thread_for_later_events(self):
+        calls = []
+        webhook = SimpleNamespace(thread_name='session', thread_id=None, id=None)
+        def execute():
+            calls.append((webhook.thread_name, webhook.thread_id, webhook.content))
+            webhook.id = str(len(calls))
+            return SimpleNamespace(status_code=200)
+        webhook.execute = execute
+        send = load_function('discordsend', {
+            'webhook_log': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'conf_discord': {'ForumChannel': True}})
+        send('startup')
+        send('kill')
+        self.assertEqual(calls, [('session', None, 'startup'), (None, '1', 'kill')])
+        self.assertEqual(webhook.thread_id, '1')
+
+    def test_failed_forum_creation_does_not_advance_thread_state(self):
+        webhook = SimpleNamespace(thread_name='session', thread_id=None, id=None,
+                                  execute=lambda: SimpleNamespace(status_code=429))
+        send = load_function('discordsend', {
+            'webhook_log': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'conf_discord': {'ForumChannel': True}})
+        with self.assertRaises(DeliveryError):
+            send('startup')
+        self.assertEqual(webhook.thread_name, 'session')
+        self.assertIsNone(webhook.thread_id)
+
+
+class SummaryRoutingTests(unittest.TestCase):
+    def test_telegram_summary_omits_terminal_only_fields(self):
+        from datetime import datetime, timezone
+        calls = []
+        stats = SimpleNamespace(kills=2, factions={'Private Faction': 2}, bounties=0,
+                                scansin=0, merits=0, kill_times=[])
+        summarize = load_function('summary', {
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
+                                     missionredirects=0, missionsactive=[]),
+            'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 1,
+                                'SummaryBounties': 0, 'SummaryMerits': 0, 'SummaryScans': 0},
+            'conf_settings': {'ExtendedStats': False},
+            'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
+            'time_format': lambda seconds: '1h',
+            'logevent': lambda **kwargs: calls.append(kwargs),
+        })
+        summarize(stats, logtime=datetime.now(timezone.utc), session=False)
+        self.assertIn('Private Faction', calls[0]['msg_term'])
+        self.assertNotIn('Private Faction', calls[0]['msg_discord'])
+        self.assertNotIn('Private Faction', calls[0]['msg_telegram'])
+        self.assertIn('Kills:', calls[0]['msg_telegram'])
+
+    def test_event_uses_explicit_telegram_text_and_respects_terminal_only_level(self):
+        import re
+        from datetime import datetime, timezone
+        calls = []
+        log = load_function('logevent', {
+            'datetime': datetime, 'timezone': timezone, 're': re,
+            'track': SimpleNamespace(preloading=False, logged=0, dupeevent=None),
+            'discord_test': False, 'webhook_log': None, 'telegram_enabled': True,
+            'conf_settings': {'UseUTC': True},
+            'conf_discord': {'UserID': 0, 'Timestamp': False, 'PrependCmdrName': False},
+            'DUPE_MAX': 5, 'msg': SimpleNamespace(log=lambda _: None),
+            'sendmessage': lambda *args, **kwargs: calls.append(kwargs),
+        })
+        log.__globals__['track'].cmdrname = 'Test'
+        log('private terminal details', msg_telegram='remote summary', loglevel=2)
+        self.assertIn('remote summary', calls[0]['telegram_message'])
+        self.assertNotIn('private terminal details', calls[0]['telegram_message'])
+        log('terminal-only event', loglevel=1)
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

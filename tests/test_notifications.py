@@ -3,6 +3,7 @@ import json
 from ssl import SSLCertVerificationError
 import unittest
 from threading import Event
+from time import monotonic
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
@@ -112,7 +113,7 @@ class NotificationTests(unittest.TestCase):
             with self.subTest(status=status), self.assertRaises(DeliveryError) as caught:
                 check_response(status, "999")
             self.assertEqual(caught.exception.retryable, retryable)
-            self.assertEqual(caught.exception.retry_after, 30)
+            self.assertEqual(caught.exception.retry_after, 999)
 
     def test_certificate_errors_are_actionable_and_not_retried(self):
         for wrapped in (False, True):
@@ -128,3 +129,64 @@ class NotificationTests(unittest.TestCase):
                 self.assertIn('SSL_CERT_FILE', report)
                 self.assertIn('certificate verification failed', report)
                 self.assertNotIn('SECRET', report)
+
+    def test_invalid_retry_delays_use_default_backoff(self):
+        for value in ('nan', 'inf', '-1', 'invalid'):
+            with self.subTest(value=value), self.assertRaises(DeliveryError) as caught:
+                check_response(429, value)
+            self.assertIsNone(caught.exception.retry_after)
+
+    def test_long_rate_limit_can_be_interrupted_at_shutdown(self):
+        entered = Event()
+        calls = []
+        def send(message):
+            calls.append(message)
+            entered.set()
+            raise DeliveryError('HTTP 429', True, 999)
+        dispatcher = NotificationDispatcher({'telegram': send})
+        dispatcher.submit('telegram', 'one')
+        self.assertTrue(entered.wait(1))
+        before = monotonic()
+        dispatcher.close(timeout=0.01)
+        for worker in dispatcher.workers:
+            worker.join(timeout=1)
+            self.assertFalse(worker.is_alive())
+        self.assertLess(monotonic() - before, 1)
+        self.assertEqual(calls, ['one'])
+        self.assertFalse(dispatcher.submit('telegram', 'after close'))
+        self.assertIn('pending', next(dispatcher.drain_reports()))
+
+    def test_retry_delay_applies_to_next_message_after_attempts_exhausted(self):
+        calls = []
+        def send(message):
+            calls.append((message, monotonic()))
+            if message == 'one':
+                raise DeliveryError('HTTP 429', True, 0.03)
+        dispatcher = NotificationDispatcher({'telegram': send}, attempts=1)
+        dispatcher.submit('telegram', 'one')
+        dispatcher.submit('telegram', 'two')
+        dispatcher.close()
+        self.assertEqual([message for message, _ in calls], ['one', 'two'])
+        self.assertGreaterEqual(calls[1][1] - calls[0][1], 0.025)
+
+    def test_non_object_error_body_preserves_retryable_http_status(self):
+        error = HTTPError('https://example.invalid', 503, 'unavailable', {}, io.BytesIO(b'[]'))
+        with patch('notifications.urlopen', side_effect=error):
+            with self.assertRaises(DeliveryError) as caught:
+                telegram_send('fake', 1, 'hi')
+        self.assertTrue(caught.exception.retryable)
+        self.assertIn('HTTP 503', str(caught.exception))
+
+    def test_invalid_success_payload_is_reported_without_leaking_content(self):
+        for payload, retryable in [(b'null', False), (b'[]', False),
+                                   (b'{"ok":false,"error_code":429,"parameters":[]}', True)]:
+            with self.subTest(payload=payload):
+                response = Mock()
+                response.__enter__ = Mock(return_value=response)
+                response.__exit__ = Mock(return_value=False)
+                response.read.return_value = payload
+                with patch('notifications.urlopen', return_value=response):
+                    with self.assertRaises(DeliveryError) as caught:
+                        telegram_send('SECRET', 1, 'hi')
+                self.assertEqual(caught.exception.retryable, retryable)
+                self.assertNotIn('SECRET', str(caught.exception))
