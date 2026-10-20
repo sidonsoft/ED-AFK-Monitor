@@ -1,6 +1,7 @@
 """Track massacre missions, their target factions and local kill progress."""
 import json
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -8,6 +9,19 @@ from time import time
 
 FILE_VERSION = 1
 SAVE_INTERVAL = 5
+MAX_IMPORT = 100
+
+HEADER_ALIASES = {
+    "id": {"id", "missionid"},
+    "target": {"target", "targetfaction", "faction", "targetfactionname"},
+    "kills": {"kills", "killcount", "count", "required", "killsrequired", "killreq"},
+    "wing": {"wing", "shared", "iswing"},
+    "issuer": {"issuer", "missionfaction", "giver", "factionissuer"},
+    "expiry": {"expiry", "expires"},
+    "reward": {"reward", "credits"},
+}
+WING_VALUES = {"1", "true", "yes", "y", "wing", "shared"}
+SOLO_VALUES = {"0", "false", "no", "n", "solo", "single"}
 
 
 def faction_key(name):
@@ -57,6 +71,127 @@ def _expiry_text(expiry, now=None):
     return f"{seconds // 86400}d{(seconds % 86400) // 3600:02d}"
 
 
+def _column_key(value):
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+
+
+def _cell(value):
+    return str(value or "").strip().strip('"').strip("'").strip()
+
+
+def _wing_value(value):
+    text = _column_key(value)
+    if not text:
+        return False
+    if text in WING_VALUES:
+        return True
+    if text in SOLO_VALUES:
+        return False
+    raise ValueError(f"invalid wing value '{value}'")
+
+
+def _looks_numeric(value):
+    try:
+        int(str(value).replace(",", "").strip())
+        return True
+    except ValueError:
+        return False
+
+
+def _header_value(values, name):
+    for alias in HEADER_ALIASES[name]:
+        if values.get(alias):
+            return values[alias]
+    return ""
+
+
+def _row_from_position(parts):
+    if len(parts) < 2:
+        raise ValueError("expected 'TargetFaction, Kills [, Wing]' or 'MissionID, TargetFaction, Kills [, Wing]'")
+    if _looks_numeric(parts[0]) and len(parts) >= 3:
+        mission_id = int(parts[0].replace(",", ""))
+        target, kills_text = parts[1], parts[2]
+        wing_text = parts[3] if len(parts) > 3 else ""
+    else:
+        mission_id = None
+        target, kills_text = parts[0], parts[1]
+        wing_text = parts[2] if len(parts) > 2 else ""
+    if mission_id is not None and mission_id <= 0:
+        raise ValueError("mission id must be positive")
+    target = _cell(target)
+    if not target:
+        raise ValueError("target faction is missing")
+    try:
+        kills = int(kills_text.replace(",", "").strip())
+    except ValueError:
+        raise ValueError(f"invalid kills value '{kills_text}'") from None
+    if kills <= 0:
+        raise ValueError("kills must be positive")
+    return {"id": mission_id, "target": target, "kills": kills,
+            "wing": _wing_value(wing_text), "issuer": "", "expiry": "", "reward": 0}
+
+
+def _row_from_header(parts, header):
+    values = {key: (parts[index] if index < len(parts) else "")
+              for index, key in enumerate(header) if key}
+    target = _cell(_header_value(values, "target"))
+    if not target:
+        raise ValueError("target faction is missing")
+    kills_text = _header_value(values, "kills")
+    try:
+        kills = int(kills_text.replace(",", "").strip())
+    except ValueError:
+        raise ValueError(f"invalid kills value '{kills_text}'") from None
+    if kills <= 0:
+        raise ValueError("kills must be positive")
+    id_text = _header_value(values, "id")
+    mission_id = int(id_text) if id_text else None
+    if mission_id is not None and mission_id <= 0:
+        raise ValueError("mission id must be positive")
+    expiry = _header_value(values, "expiry")
+    if expiry:
+        try:
+            expiry = datetime.fromisoformat(expiry.replace("Z", "+00:00")).isoformat()
+        except ValueError:
+            raise ValueError(f"invalid expiry '{expiry}'") from None
+    reward_text = _header_value(values, "reward")
+    reward = _int(reward_text.replace(",", "")) if reward_text else 0
+    return {"id": mission_id, "target": target, "kills": kills,
+            "wing": _wing_value(_header_value(values, "wing")),
+            "issuer": _cell(_header_value(values, "issuer")),
+            "expiry": expiry, "reward": max(0, reward)}
+
+
+def parse_mission_list(text, limit=MAX_IMPORT):
+    """Parse pasted/CSV mission lists into rows; returns (rows, errors)."""
+    rows = []
+    errors = []
+    header = None
+    for number, raw in enumerate(str(text or "").splitlines(), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        parts = [_cell(part) for part in re.split(r"[,;\t]", line)]
+        while parts and not parts[-1]:
+            parts.pop()
+        keys = {_column_key(part) for part in parts}
+        if header is None and keys & HEADER_ALIASES["target"] and keys & HEADER_ALIASES["kills"]:
+            header = [_column_key(part) for part in parts]
+            continue
+        if len(rows) >= limit:
+            errors.append(f"too many missions (limit {limit})")
+            break
+        try:
+            row = _row_from_header(parts, header) if header else _row_from_position(parts)
+        except ValueError as error:
+            errors.append(f"line {number}: {error}")
+            continue
+        rows.append(row)
+    if not rows and not errors:
+        errors.append("no missions found")
+    return rows, errors
+
+
 @dataclass
 class Mission:
     """One massacre mission, with the details the journal only gives on accept."""
@@ -73,6 +208,7 @@ class Mission:
     done: bool = False
     known: bool = False
     fresh: bool = False
+    manual: bool = False
 
     def as_dict(self):
         return {
@@ -88,6 +224,7 @@ class Mission:
             "kills": self.kills,
             "done": self.done,
             "known": self.known,
+            "manual": self.manual,
         }
 
     @classmethod
@@ -110,6 +247,7 @@ class Mission:
             kills=max(0, _int(raw.get("kills"))),
             done=bool(raw.get("done")),
             known=bool(raw.get("known")),
+            manual=bool(raw.get("manual")),
         )
 
 
@@ -121,13 +259,16 @@ class MissionLedger:
     mission for that faction; targets that are not mission targets cannot be told apart.
     """
 
-    def __init__(self, path, commander="", profile="", save_interval=SAVE_INTERVAL):
+    def __init__(self, path, commander="", profile="", save_interval=SAVE_INTERVAL,
+                 details_lookup=None):
         self.path = Path(path)
         self.commander = commander or ""
         self.profile = profile or ""
         self.save_interval = save_interval
+        self.details_lookup = details_lookup
         self.missions = {}
         self.warnings = []
+        self.backfilled = 0
         self.preloading = False
         self._dirty = False
         self._broken = False
@@ -147,8 +288,16 @@ class MissionLedger:
         if mission is None:
             mission = Mission(mission_id=mission_id, accepted=time())
             self.missions[mission_id] = mission
+        self._apply(mission, event)
+        self._dirty = True
+        self.save()
+        return mission
+
+    def _apply(self, mission, event):
+        name = str(event.get("Name") or "")
         was_known = mission.known
-        mission.name = name or mission.name
+        if name:
+            mission.name = name
         if event.get("Faction"):
             mission.faction = str(event["Faction"])
         if event.get("TargetFaction"):
@@ -159,19 +308,19 @@ class MissionLedger:
         if event.get("Expiry"):
             mission.expiry = str(event["Expiry"])
         if _int(event.get("Reward")) > 0:
-            mission.reward = _int(event.get("Reward"))
+            mission.reward = _int(event["Reward"])
         mission.known = bool(mission.target and mission.kill_count > 0)
         if mission.known and not was_known and self.preloading:
             # Kills for an already persisted mission must not be counted twice when the
             # journal is replayed; a mission first seen in this replay has no stored kills.
             mission.fresh = True
         self._clamp(mission)
-        self._dirty = True
-        self.save()
         return mission
 
     def reconcile(self, active, timestamp=None):
-        """Match the game's active list, keeping details for missions already known."""
+        """Match the game's active list, recovering details from earlier journals."""
+        self.backfilled = 0
+        entries = []
         active_ids = set()
         for entry in active or ():
             if not isinstance(entry, dict):
@@ -182,18 +331,41 @@ class MissionLedger:
             mission_id = _int(entry.get("MissionID"))
             if not mission_id:
                 continue
+            entries.append((mission_id, entry))
             active_ids.add(mission_id)
+
+        missing = [mission_id for mission_id, _ in entries
+                   if mission_id not in self.missions or not self.missions[mission_id].known]
+        if missing and self.details_lookup is not None:
+            try:
+                events = self.details_lookup(missing) or {}
+            except Exception:
+                events = {}
+            for mission_id, event in events.items():
+                mission = self.missions.get(_int(mission_id))
+                if mission is None:
+                    mission = Mission(mission_id=_int(mission_id), accepted=time())
+                    self.missions[mission.mission_id] = mission
+                if isinstance(event, dict):
+                    self._apply(mission, event)
+                    if mission.known:
+                        self.backfilled += 1
+
+        for mission_id, entry in entries:
             mission = self.missions.get(mission_id)
             if mission is None:
-                mission = Mission(mission_id=mission_id, name=name, accepted=time())
+                mission = Mission(mission_id=mission_id,
+                                  name=str(entry.get("Name") or ""),
+                                  accepted=time())
                 self.missions[mission_id] = mission
                 self._dirty = True
             if not mission.expiry:
                 expires = _int(entry.get("Expires"))
                 if expires > 0 and isinstance(timestamp, datetime):
                     mission.expiry = (timestamp + timedelta(seconds=expires)).isoformat()
-        removed = [mission for mission_id, mission in self.missions.items()
-                   if mission_id not in active_ids]
+
+        removed = [mission for mission in self.missions.values()
+                   if not mission.manual and mission.mission_id not in active_ids]
         for mission in removed:
             del self.missions[mission.mission_id]
         if removed:
@@ -217,6 +389,8 @@ class MissionLedger:
             if mission.kills >= mission.kill_count:
                 continue
             mission.kills += 1
+            if mission.manual and mission.kills >= mission.kill_count:
+                mission.done = True
             credited.append(mission)
         if credited:
             self._dirty = True
@@ -247,6 +421,62 @@ class MissionLedger:
             mission.fresh = False
         if self._dirty:
             self.save()
+
+    # ---- import ---------------------------------------------------------
+
+    def import_text(self, text):
+        """Replace imported (manual) missions with this list, keeping saved progress."""
+        rows, errors = parse_mission_list(text)
+        if errors:
+            return 0, 0, errors
+        existing = [mission for mission in self.missions.values() if mission.manual]
+        pool = {}
+        for mission in existing:
+            key = (faction_key(mission.target), mission.kill_count, mission.wing)
+            pool.setdefault(key, []).append(mission)
+        for mission in existing:
+            del self.missions[mission.mission_id]
+
+        added = 0
+        next_manual_id = -1
+        for row in rows:
+            if row["id"] is not None:
+                mission = self.missions.get(row["id"])
+                if mission is None:
+                    mission = Mission(mission_id=row["id"], name="Mission_Massacre",
+                                      accepted=time())
+                    self.missions[row["id"]] = mission
+                mission.manual = False
+            else:
+                while next_manual_id in self.missions:
+                    next_manual_id -= 1
+                mission = Mission(mission_id=next_manual_id, name="Mission_Massacre",
+                                  accepted=time(), manual=True)
+                key = (faction_key(row["target"]), row["kills"], row["wing"])
+                kept = pool.get(key)
+                if kept:
+                    old = kept.pop()
+                    mission.kills = old.kills
+                    mission.done = old.done
+                    mission.accepted = old.accepted
+                self.missions[next_manual_id] = mission
+                next_manual_id -= 1
+            mission.name = mission.name or "Mission_Massacre"
+            mission.target = row["target"]
+            mission.kill_count = row["kills"]
+            mission.wing = row["wing"]
+            if row["issuer"]:
+                mission.faction = row["issuer"]
+            if row["expiry"]:
+                mission.expiry = row["expiry"]
+            if row["reward"]:
+                mission.reward = row["reward"]
+            mission.known = bool(mission.target and mission.kill_count > 0)
+            self._clamp(mission)
+            added += 1
+        self._dirty = True
+        self.save()
+        return added, len(existing), []
 
     # ---- reporting ------------------------------------------------------
 
@@ -293,6 +523,7 @@ class MissionLedger:
             "done": done_total,
             "total": total,
             "wing": sum(1 for mission in self.missions.values() if mission.wing),
+            "manual": sum(1 for mission in self.missions.values() if mission.manual),
             "left": sum(row["left"] for row in rows),
             "sum_kills": sum(mission.kill_count for mission in open_missions if mission.known),
             "reward": sum(mission.reward for mission in self.missions.values()),
@@ -306,8 +537,9 @@ class MissionLedger:
         if not data["total"]:
             lines.append("No active massacre missions.")
             return "\n".join(lines)
+        imported = f" | {data['manual']} imported" if data["manual"] else ""
         lines.append(f"Mission spread: {data['done']}/{data['total']} complete"
-                     f" | {data['wing']} wing | {data['left']} kills left")
+                     f" | {data['wing']} wing | {data['left']} kills left{imported}")
         lines.append(f"  {'Faction':<24} {'Open':>4} {'Wing':>4} {'Need':>5} {'Done':>5} {'Left':>5}")
         for row in data["rows"]:
             lines.append(f"  {_short(row['faction']):<24} {row['missions']:>4} {row['wing']:>4}"
@@ -328,7 +560,8 @@ class MissionLedger:
                 kills = f"{mission.kills}/{mission.kill_count}" if mission.known else "-"
                 if mission.done:
                     kills = "done"
-                lines.append(f"  {mission.mission_id:>10}  {_short(target):<24} {kills:>9}"
+                identifier = "imported" if mission.manual else str(mission.mission_id)
+                lines.append(f"  {identifier:>10}  {_short(target):<24} {kills:>9}"
                              f" {'yes' if mission.wing else '-':>4} {_expiry_text(mission.expiry):>7}")
         return "\n".join(lines)
 
@@ -346,6 +579,15 @@ class MissionLedger:
         if data["reward"]:
             lines.append(f"Rewards: {data['reward']:,} cr")
         return "\n".join(lines)
+
+    def export(self):
+        return {
+            "commander": self.commander,
+            "profile": self.profile,
+            "updated": time(),
+            "spread": self.spread(),
+            "missions": [mission.as_dict() for mission in self.missions.values()],
+        }
 
     # ---- persistence ----------------------------------------------------
 
@@ -406,3 +648,5 @@ class MissionLedger:
     def _clamp(mission):
         if mission.kill_count:
             mission.kills = min(mission.kills, mission.kill_count)
+        if mission.manual and mission.kill_count and mission.kills >= mission.kill_count:
+            mission.done = True

@@ -100,3 +100,45 @@ class JournalReader:
 
     def __exit__(self, *exc):
         self.file.close()
+
+
+def find_mission_accepts(folder, mission_ids, max_files=20):
+    """Find MissionAccepted events for the given ids in recent journals, newest first."""
+    wanted = set()
+    for value in mission_ids:
+        try:
+            wanted.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    found = {}
+    if not wanted:
+        return found
+    try:
+        paths = sorted((path for path in Path(folder).iterdir()
+                        if JOURNAL_NAME.fullmatch(path.name) and path.is_file()),
+                       reverse=True)
+    except OSError:
+        return found
+    for path in paths[:max_files]:
+        if wanted <= found.keys():
+            break
+        try:
+            with path.open(encoding="utf-8", errors="replace") as file:
+                for line in file:
+                    if "MissionAccepted" not in line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue
+                    if not isinstance(event, dict) or event.get("event") != "MissionAccepted":
+                        continue
+                    try:
+                        mission_id = int(event.get("MissionID"))
+                    except (TypeError, ValueError):
+                        continue
+                    if mission_id in wanted and mission_id not in found:
+                        found[mission_id] = event
+        except OSError:
+            continue
+    return found

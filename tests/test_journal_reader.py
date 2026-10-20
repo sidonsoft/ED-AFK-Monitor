@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 from notifications import DeliveryError, check_response
-from journal_reader import read_complete_line
+from journal_reader import find_mission_accepts, read_complete_line
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "afk_monitor.py"
@@ -198,3 +198,40 @@ class SummaryRoutingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MissionBackfillTests(unittest.TestCase):
+    def test_finds_accepts_in_older_journals(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            newer = root / "Journal.2026-10-20T130000.01.log"
+            older = root / "Journal.2026-10-20T120000.01.log"
+            newer.write_text('{"event":"LoadGame"}\n', encoding="utf-8")
+            older.write_text(
+                '{"event":"MissionAccepted","MissionID":1001,"TargetFaction":"Pirates","KillCount":40}\n'
+                '{"event":"MissionAccepted","MissionID":1002,"TargetFaction":"Others","KillCount":20}\n',
+                encoding="utf-8")
+            (root / "not-a-journal.log").write_text(
+                '{"event":"MissionAccepted","MissionID":1003}\n', encoding="utf-8")
+            found = find_mission_accepts(root, [1001, 9999])
+            self.assertEqual(set(found), {1001})
+            self.assertEqual(found[1001]["TargetFaction"], "Pirates")
+
+    def test_missing_folder_and_invalid_lines_are_ignored(self):
+        self.assertEqual(find_mission_accepts("/does/not/exist", [1]), {})
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "Journal.2026-10-20T120000.01.log"
+            path.write_bytes(b'{"event":"MissionAccepted","MissionID":\xff}\n'
+                             b'{"event":"MissionAccepted","MissionID":5,"KillCount":10}\n')
+            found = find_mission_accepts(folder, [5])
+            self.assertEqual(found[5]["KillCount"], 10)
+
+    def test_file_limit_is_respected(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            for index, mission_id in enumerate((7, 101, 102)):
+                path = root / f"Journal.2026-10-2{index}T120000.01.log"
+                path.write_text('{"event":"MissionAccepted","MissionID":%d,"KillCount":1}\n' % mission_id,
+                                encoding="utf-8")
+            self.assertEqual(find_mission_accepts(root, [7], max_files=2), {})
+            self.assertIn(7, find_mission_accepts(root, [7], max_files=3))

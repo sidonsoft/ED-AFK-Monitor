@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from missions import MissionLedger
+from missions import MissionLedger, parse_mission_list
 
 
 def accepted(mission_id, target="Pirate Faction", kills=40, wing=True,
@@ -192,3 +192,112 @@ class MissionAttributionTests(unittest.TestCase):
             self.assertEqual(ledger.missions[1].kills, 1)
             ledger.kill("Lords of Ngaliba", "Lords of Ngaliba")
             self.assertEqual(ledger.missions[1].kills, 2)
+
+
+class MissionListImportTests(unittest.TestCase):
+    def make(self, folder):
+        return MissionLedger(Path(folder) / "missions.json", commander="Test", profile="Test")
+
+    def test_parse_positional_and_header_lists(self):
+        rows, errors = parse_mission_list("""
+            # target faction, kills, wing
+            Lords of Ngaliba, 40, wing
+            Ngaliba Blue Boys, 30
+            1001, Crimson State Ltd, 20, solo
+        """)
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [(row["target"], row["kills"], row["wing"], row["id"]) for row in rows],
+            [("Lords of Ngaliba", 40, True, None),
+             ("Ngaliba Blue Boys", 30, False, None),
+             ("Crimson State Ltd", 20, False, 1001)])
+
+        rows, errors = parse_mission_list("""
+            Target Faction,Kills Required,Wing,Mission ID
+            "Lords of Ngaliba",40,yes,2001
+            Ngaliba Blue Boys,30,no,
+        """)
+        self.assertEqual(errors, [])
+        self.assertEqual(rows[0]["id"], 2001)
+        self.assertEqual(rows[0]["target"], "Lords of Ngaliba")
+        self.assertTrue(rows[0]["wing"])
+        self.assertEqual(rows[1]["target"], "Ngaliba Blue Boys")
+        self.assertFalse(rows[1]["wing"])
+
+    def test_import_replaces_manual_missions_and_keeps_progress(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.import_text("Lords of Ngaliba, 40, wing\nNgaliba Blue Boys, 30\n")
+            self.assertEqual(sum(1 for mission in ledger.missions.values() if mission.manual), 2)
+            for _ in range(3):
+                ledger.kill("Lords of Ngaliba")
+            ledger.import_text("Lords of Ngaliba, 40, wing\nNgaliba Blue Boys, 30\n")
+            manual = [mission for mission in ledger.missions.values() if mission.manual]
+            self.assertEqual(ledger.count(), 2)
+            lord = next(mission for mission in manual if mission.target == "Lords of Ngaliba")
+            self.assertEqual(lord.kills, 3)
+
+    def test_import_with_id_updates_known_mission_without_resetting_progress(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.accept(accepted(1001, target="Pirates", kills=40))
+            ledger.kill("Pirates")
+            ledger.import_text("1001, Pirates, 50, solo\n")
+            mission = ledger.missions[1001]
+            self.assertFalse(mission.manual)
+            self.assertEqual(mission.kill_count, 50)
+            self.assertEqual(mission.kills, 1)
+
+    def test_import_errors_leave_the_ledger_unchanged(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.import_text("Lords of Ngaliba, 40\n")
+            before = ledger.count()
+            added, replaced, errors = ledger.import_text("Lords of Ngaliba, not-a-number\n")
+            self.assertEqual(added, 0)
+            self.assertTrue(errors)
+            self.assertEqual(ledger.count(), before)
+
+    def test_manual_mission_completes_when_requirement_is_reached(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.import_text("Lords of Ngaliba, 2\n")
+            for _ in range(2):
+                ledger.kill("Lords of Ngaliba")
+            mission = next(iter(ledger.missions.values()))
+            self.assertTrue(mission.done)
+            self.assertEqual(ledger.progress(), (1, 1))
+            self.assertEqual(ledger.spread()["left"], 0)
+
+    def test_reconcile_keeps_imported_missions(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.import_text("Lords of Ngaliba, 40\n")
+            ledger.accept(accepted(1001, target="Pirates", kills=10))
+            ledger.reconcile([{"MissionID": 2002, "Name": "Mission_Massacre", "Expires": 100}])
+            self.assertEqual(sum(1 for mission in ledger.missions.values() if mission.manual), 1)
+            self.assertNotIn(1001, ledger.missions)
+            self.assertIn(2002, ledger.missions)
+
+    def test_export_contains_spread_and_missions(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.make(folder)
+            ledger.import_text("3001, Lords of Ngaliba, 40, wing\n")
+            data = ledger.export()
+            self.assertEqual(data["commander"], "Test")
+            self.assertEqual(data["missions"][0]["id"], 3001)
+            self.assertEqual(data["spread"]["total"], 1)
+
+    def test_backfill_fills_details_and_credits_replayed_kills(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(
+                Path(folder) / "missions.json",
+                details_lookup=lambda ids: {1001: accepted(1001, target="Pirates", kills=40)})
+            ledger.preloading = True
+            ledger.reconcile([{"MissionID": 1001, "Name": "Mission_Massacre", "Expires": 3600}])
+            self.assertEqual(ledger.backfilled, 1)
+            mission = ledger.missions[1001]
+            self.assertTrue(mission.known)
+            self.assertEqual(mission.target, "Pirates")
+            ledger.kill("Pirates")
+            self.assertEqual(mission.kills, 1)

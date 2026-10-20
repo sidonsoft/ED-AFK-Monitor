@@ -11,7 +11,7 @@ from bisect import bisect_left
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.request import urlopen
-from journal_reader import JournalReader, read_complete_line, commander_from_line
+from journal_reader import JournalReader, read_complete_line, commander_from_line, find_mission_accepts
 from terminal_output import StatusLogger
 from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
 from outbox import Outbox, profile_directory_name
@@ -83,6 +83,8 @@ parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED
 parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
 parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
 parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
+parser.add_argument("--json", action="store_true", help="With --missions, print machine-readable JSON")
+parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
 file_group = parser.add_mutually_exclusive_group()
 file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
@@ -94,7 +96,7 @@ msg = StatusLogger(plain=args.plain)
 # Update check (skipped for the offline mission report)
 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 latest_version = 0
-if not args.missions:
+if not (args.missions or args.import_missions):
     try:
         with urlopen(url, timeout=1) as response:
             if response.status == 200:
@@ -118,8 +120,20 @@ else:
     config_file_path = Path(__file__).parent
 
 
-def show_mission_ledgers(directory):
-    paths = sorted(Path(directory).glob("*.json")) if Path(directory).is_dir() else []
+def ledger_paths(directory):
+    return sorted(Path(directory).glob("*.json")) if Path(directory).is_dir() else []
+
+
+def show_mission_ledgers(directory, as_json=False):
+    paths = ledger_paths(directory)
+    if as_json:
+        data = []
+        for path in paths:
+            payload = MissionLedger(path).export()
+            payload["file"] = path.name
+            data.append(payload)
+        sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        return
     if not paths:
         msg.log("No mission ledger found. Start the monitor with massacre missions active to record them.")
         return
@@ -131,8 +145,50 @@ def show_mission_ledgers(directory):
         msg.log(ledger.report_text(include_missions=True, title=True))
 
 
+def import_missions(directory, source, profile=None):
+    paths = ledger_paths(directory)
+    if profile:
+        target = Path(directory) / f"{profile_directory_name(profile)}.json"
+    elif len(paths) == 1:
+        target = paths[0]
+    elif not paths:
+        target = Path(directory) / f"{profile_directory_name(None)}.json"
+    else:
+        msg.log("Multiple mission ledgers found; choose one with -p <profile>:")
+        for existing in paths:
+            msg.log(f"  {existing.stem}")
+        return 2
+    try:
+        if source == "-":
+            text = sys.stdin.read()
+        else:
+            text = Path(source).read_text(encoding="utf-8")
+    except OSError as error:
+        msg.log(f"Could not read '{source}': {error}")
+        return 1
+    ledger = MissionLedger(target)
+    if profile and not ledger.profile:
+        ledger.profile = profile
+    for warning in ledger.warnings:
+        msg.log(warning)
+    added, replaced, errors = ledger.import_text(text)
+    if errors:
+        msg.log("Mission import failed:")
+        for error in errors:
+            msg.log(f"  {error}")
+        return 1
+    msg.log(f"Imported {added} mission(s) ({replaced} replaced)")
+    msg.log("")
+    msg.log(ledger.report_text(include_missions=True, title=True))
+    return 0
+
+
+if args.import_missions:
+    sys.exit(import_missions(config_file_path / "mission_ledger",
+                             args.import_missions, args.profile))
+
 if args.missions:
-    show_mission_ledgers(config_file_path / "mission_ledger")
+    show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json)
     sys.exit()
 
 config_file = Path(config_file_path / "afk_monitor.toml")
@@ -406,7 +462,8 @@ if profile:
 
 mission_ledger = MissionLedger(
     config_file_path / "mission_ledger" / f"{profile_directory_name(profile)}.json",
-    commander=track.cmdrname or "", profile=profile or "")
+    commander=track.cmdrname or "", profile=profile or "",
+    details_lookup=lambda ids: find_mission_accepts(journal_dir, ids))
 for warning in mission_ledger.warnings:
     msg.log(warning)
 
@@ -907,6 +964,9 @@ def processevent(line):
             case "Missions" if "Active" in j and not track.missions:
                 mission_ledger.reconcile(j["Active"], logtime)
                 track.missions = True
+                if mission_ledger.backfilled:
+                    msg.log(f"Missions: recovered details for {mission_ledger.backfilled} mission(s)"
+                            f" from earlier journals")
                 logevent(msg_term=f"Missions loaded (active massacres: {mission_ledger.count()})",
                         emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
             case "MissionAccepted" if "Mission_Massacre" in j["Name"]:

@@ -263,3 +263,95 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
             self.assertEqual(mission['target'], 'Pirate Faction')
             self.assertEqual(mission['kills'], 2)
             self.assertTrue(mission['wing'])
+
+
+class MissionBackfillIntegrationTests(unittest.TestCase):
+    def test_missions_from_an_older_journal_are_recovered(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
+                         'terminal_output.py', 'outbox.py', 'missions.py'):
+                shutil.copyfile(ROOT / name, root / name)
+            (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+            config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
+            config = config.replace('SummaryMissions = 1', 'SummaryMissions = 2')
+            config = config.replace('LiveStatus = true', 'LiveStatus = false')
+            (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
+            journals = root / 'journals'
+            journals.mkdir()
+            older = journals / 'Journal.2026-10-20T120000.01.log'
+            older.write_text(json.dumps({
+                'timestamp': '2026-10-20T12:00:00Z', 'event': 'MissionAccepted',
+                'Name': 'Mission_MassacreWing', 'MissionID': 3001, 'Faction': 'Issuer',
+                'TargetFaction': 'Pirate Faction', 'KillCount': 3, 'Wing': True,
+                'Reward': 1000000, 'Expiry': '2026-10-21T12:00:00Z'}) + '\n', encoding='utf-8')
+            current = journals / 'Journal.2026-10-20T130000.01.log'
+            events = [
+                {'event': 'Commander', 'Name': 'Test Commander'},
+                {'event': 'LoadGame', 'Ship': 'Anaconda', 'GameMode': 'Solo'},
+                {'event': 'Missions', 'Active': [
+                    {'MissionID': 3001, 'Name': 'Mission_MassacreWing', 'Expires': 3600}]},
+            ]
+            for _ in range(2):
+                events.append({'event': 'Bounty', 'Target': 'sidewinder',
+                               'VictimFaction': 'Pirate Faction',
+                               'Rewards': [{'Faction': 'Pirate Faction', 'Reward': 10000}],
+                               'TotalReward': 10000})
+            with current.open('w', encoding='utf-8') as file:
+                for event in events:
+                    file.write(json.dumps({'timestamp': '2026-10-20T13:00:00Z', **event}) + '\n')
+
+            env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
+            env.pop('ED_AFK_TELEGRAM_TOKEN', None)
+            process = subprocess.Popen([sys.executable, 'bootstrap.py'], cwd=root, env=env,
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                       stdin=subprocess.DEVNULL, encoding='utf-8')
+            try:
+                time.sleep(3)
+                (root / 'stop-requested').touch()
+                output = process.communicate(timeout=15)[0] or ''
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+            self.assertEqual(process.returncode, 0, output)
+            self.assertIn('recovered details for 1 mission', output)
+            ledgers = list((root / 'mission_ledger').glob('*.json'))
+            self.assertEqual(len(ledgers), 1, output)
+            data = json.loads(ledgers[0].read_text(encoding='utf-8'))
+            mission = data['missions'][0]
+            self.assertEqual(mission['id'], 3001)
+            self.assertEqual(mission['target'], 'Pirate Faction')
+            self.assertEqual(mission['kills'], 2)
+            self.assertIn('Mission spread', output)
+
+
+class MissionImportIntegrationTests(unittest.TestCase):
+    def test_import_list_and_json_export(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
+                         'terminal_output.py', 'outbox.py', 'missions.py'):
+                shutil.copyfile(ROOT / name, root / name)
+            (root / 'missions.csv').write_text(
+                'Target Faction,Kills,Wing\nLords of Ngaliba,40,yes\nNgaliba Blue Boys,30,no\n',
+                encoding='utf-8')
+            result = subprocess.run(
+                [sys.executable, 'afk_monitor.py', '--import-missions', 'missions.csv', '-p', 'Test'],
+                cwd=root, capture_output=True, text=True, timeout=10, encoding='utf-8')
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn('Imported 2 mission(s)', result.stdout)
+            files = list((root / 'mission_ledger').glob('*.json'))
+            self.assertEqual(len(files), 1)
+            data = json.loads(files[0].read_text(encoding='utf-8'))
+            self.assertEqual(len(data['missions']), 2)
+            self.assertEqual(data['profile'], 'Test')
+
+            result = subprocess.run(
+                [sys.executable, 'afk_monitor.py', '--missions', '--json'],
+                cwd=root, capture_output=True, text=True, timeout=10, encoding='utf-8')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload[0]['profile'], 'Test')
+            self.assertEqual(len(payload[0]['missions']), 2)
+            self.assertEqual(payload[0]['spread']['manual'], 2)
