@@ -5,6 +5,7 @@ from pathlib import Path
 from time import monotonic
 
 JOURNAL_NAME = re.compile(r"Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log")
+JOURNAL_ERRORS = "replace"  # A corrupt byte must not stall the reader forever.
 
 
 def read_complete_line(file):
@@ -33,48 +34,66 @@ def commander_from_line(line):
 
 
 class JournalReader:
-    def __init__(self, path, position=0, follow=True, on_rotate=None, poll_interval=1):
+    def __init__(self, path, position=0, follow=True, on_rotate=None, poll_interval=1,
+                 rotation_grace=5):
         self.path = Path(path)
-        self.file = self.path.open(encoding="utf-8")
+        self.file = self.path.open(encoding="utf-8", errors=JOURNAL_ERRORS)
         self.file.seek(position)
         self.follow = follow
         self.on_rotate = on_rotate
         self.poll_interval = poll_interval
+        self.rotation_grace = rotation_grace
         self.last_poll = float("-inf")
+        self._tail_since = None
+
+    def _has_partial(self):
+        position = self.file.tell()
+        # TextIO tell cookies must be restored through the same text stream.
+        self.file.seek(0, 2)
+        has_partial = self.file.tell() != position
+        self.file.seek(position)
+        return has_partial
 
     def readline(self):
         line = read_complete_line(self.file)
-        # At a partial line the reader rewinds; retain it before considering rotation.
-        if not line:
-            position = self.file.tell()
-            # TextIO tell cookies must be restored through the same text stream.
-            self.file.seek(0, 2)
-            has_partial = self.file.tell() != position
-            self.file.seek(position)
-            if has_partial:
-                return ""
-        if line or not self.follow:
+        if line:
+            self._tail_since = None
+            return line
+        if not self.follow:
             return line
         now = monotonic()
         if now - self.last_poll < self.poll_interval:
             return ""
         self.last_poll = now
-        candidates = sorted(p for p in self.path.parent.iterdir()
-                            if p.name > self.path.name and JOURNAL_NAME.fullmatch(p.name) and p.is_file())
-        if candidates:
-            # Oldest unseen file first: never skip an intermediate journal.
-            candidate = candidates[0]
-            try:
-                new_file = candidate.open(encoding="utf-8")
-            except OSError:
-                return ""  # A writer may still be creating/moving it; retry next poll.
-            self.file.close()
-            self.file = new_file
-            self.path = candidate
-            if self.on_rotate:
-                self.on_rotate(candidate)
-            return self.readline()
-        return ""
+        try:
+            candidates = sorted(p for p in self.path.parent.iterdir()
+                                if p.name > self.path.name and JOURNAL_NAME.fullmatch(p.name) and p.is_file())
+        except OSError:
+            return ""  # The folder may be unavailable; keep polling rather than failing.
+        if not candidates:
+            self._tail_since = None
+            return ""
+        if self._has_partial():
+            # A newer journal exists but this line has no newline yet. Allow the writer a
+            # brief moment to finish it, then switch: an abandoned write must not block
+            # following the next journal.
+            if self._tail_since is None:
+                self._tail_since = now
+            if now - self._tail_since < self.rotation_grace:
+                return ""
+        # Oldest unseen file first: never skip an intermediate journal.
+        candidate = candidates[0]
+        try:
+            new_file = candidate.open(encoding="utf-8", errors=JOURNAL_ERRORS)
+        except OSError:
+            return ""  # A writer may still be creating/moving it; retry next poll.
+        self.file.close()
+        self.file = new_file
+        self.path = candidate
+        self._tail_since = None
+        if self.on_rotate:
+            self.on_rotate(candidate)
+        return self.readline()
 
     def __enter__(self):
         return self

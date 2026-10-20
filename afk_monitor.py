@@ -313,7 +313,7 @@ if not setting_journal_file:
         commanders = []
         for i, filename in enumerate(journals, start=1):
             commander = None
-            with open(Path(journal_dir / filename), mode="r", encoding="utf-8") as file:
+            with open(Path(journal_dir / filename), mode="r", encoding="utf-8", errors="replace") as file:
                 while line := read_complete_line(file):
                     commander = commander_from_line(line)
                     if commander:
@@ -832,6 +832,10 @@ def processevent(line):
                 track.missions = False
                 track.missionsactive.clear()
                 track.missionredirects = 0
+                # Duplicate suppression must not carry a previous session's counter over.
+                track.dupeevent = ""
+                track.duperepeats = 1
+                track.dupewarn = False
                 if "Ship_Localised" in j:
                     track.cmdrship = j["Ship_Localised"]
                 elif "Ship" in j:
@@ -1129,7 +1133,7 @@ if __name__ == "__main__":
         preload_position = 0
         # Journal preloading
         if track.preloading:
-            with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
+            with open(journal_dir / journal_file, mode="r", encoding="utf-8", errors="replace") as file:
                 while True:
                     line = read_complete_line(file)
                     if not line:

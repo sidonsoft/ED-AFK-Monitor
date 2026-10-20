@@ -110,8 +110,10 @@ with the correct configuration profile. Discord forum logging continues in its e
 thread for the monitor's lifetime.
 
 Use `--no-follow`, `--setfile`, or `--fileselect` to keep monitoring a single journal.
-An unfinished final event is retained until its terminating newline arrives, including
-before rotation; an abandoned partial write can therefore delay switching files.
+An unfinished final event is retained until its terminating newline arrives. If a newer
+journal appears while a line is unfinished, the monitor waits briefly for the writer and
+then switches, so an abandoned partial write cannot block following; that unfinished
+event is discarded.
 
 ## Configuring log levels
 

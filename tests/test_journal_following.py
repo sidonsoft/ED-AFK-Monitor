@@ -1,5 +1,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from time import sleep
+from unittest.mock import patch
 import unittest
 from journal_reader import JournalReader
 
@@ -62,3 +64,41 @@ class JournalFollowingTests(unittest.TestCase):
                 with path.open('ab') as writer:
                     writer.write(event[split:])
                 self.assertEqual(reader.readline(), event.decode('utf-8'))
+
+    def test_abandoned_unterminated_write_does_not_block_rotation(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            first = root / 'Journal.2026-10-20T120000.01.log'
+            second = root / 'Journal.2026-10-20T130000.01.log'
+            # A crashed game can leave a complete or partial final line without a newline.
+            first.write_text('{"event":"Bounty"}\n{"event":"LoadGame"}', encoding='utf-8')
+            with JournalReader(first, poll_interval=0, rotation_grace=0.05) as reader:
+                self.assertEqual(reader.readline(), '{"event":"Bounty"}\n')
+                second.write_text('next\n', encoding='utf-8')
+                self.assertEqual(reader.readline(), '')  # still allowing the writer to finish
+                sleep(0.08)
+                self.assertEqual(reader.readline(), 'next\n')
+                self.assertEqual(reader.path, second)
+
+    def test_unavailable_journal_folder_is_retried_instead_of_raising(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'Journal.2026-10-20T120000.01.log'
+            path.write_text('one\n', encoding='utf-8')
+            with JournalReader(path, poll_interval=0) as reader:
+                self.assertEqual(reader.readline(), 'one\n')
+                with patch.object(Path, 'iterdir', side_effect=OSError('unavailable')):
+                    self.assertEqual(reader.readline(), '')
+                path.with_name('Journal.2026-10-20T130000.01.log').write_text('two\n', encoding='utf-8')
+                self.assertEqual(reader.readline(), 'two\n')
+
+    def test_invalid_utf8_byte_does_not_stall_later_events(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'Journal.2026-10-20T120000.01.log'
+            path.write_bytes(b'{"event":"Commander","Name":"Andr\xe9"}\n'
+                             b'not-json\xffbytes\n'
+                             b'{"event":"LoadGame"}\n')
+            with JournalReader(path, follow=False) as reader:
+                self.assertIn('"event":"Commander"', reader.readline())
+                self.assertIn('not-json', reader.readline())
+                self.assertEqual(reader.readline(), '{"event":"LoadGame"}\n')
+                self.assertEqual(reader.readline(), '')
