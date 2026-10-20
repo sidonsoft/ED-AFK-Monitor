@@ -1,5 +1,6 @@
 import io
 import json
+from ssl import SSLCertVerificationError
 import unittest
 from threading import Event
 from unittest.mock import Mock, patch
@@ -112,3 +113,18 @@ class NotificationTests(unittest.TestCase):
                 check_response(status, "999")
             self.assertEqual(caught.exception.retryable, retryable)
             self.assertEqual(caught.exception.retry_after, 30)
+
+    def test_certificate_errors_are_actionable_and_not_retried(self):
+        for wrapped in (False, True):
+            with self.subTest(wrapped=wrapped):
+                certificate_error = SSLCertVerificationError(1, 'certificate failure SECRET')
+                error = URLError(certificate_error) if wrapped else certificate_error
+                with patch('notifications.urlopen', side_effect=error) as opener:
+                    dispatcher = NotificationDispatcher({'telegram': lambda message: telegram_send('SECRET', 1, message)})
+                    dispatcher.submit('telegram', 'test')
+                    dispatcher.close()
+                self.assertEqual(opener.call_count, 1)
+                report = next(dispatcher.drain_reports())
+                self.assertIn('SSL_CERT_FILE', report)
+                self.assertIn('certificate verification failed', report)
+                self.assertNotIn('SECRET', report)

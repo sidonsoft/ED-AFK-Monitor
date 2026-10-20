@@ -1,6 +1,7 @@
 """Bounded background delivery; importing this module has no side effects."""
 import json
 import socket
+from ssl import SSLCertVerificationError
 from dataclasses import dataclass
 from queue import Queue, Empty, Full
 from threading import Thread, Event
@@ -34,6 +35,8 @@ def check_response(status, retry_after=None):
         raise DeliveryError(f"HTTP {status}", status == 429 or status >= 500, delay)
 
 
+CERTIFICATE_ERROR = "TLS certificate verification failed; repair Python CA certificates or set SSL_CERT_FILE to a trusted CA bundle"
+
 def telegram_send(token, chat_id, message, timeout=5):
     # Plain text deliberately avoids interpreting Discord markup or user-supplied HTML.
     request = Request(f"https://api.telegram.org/bot{token}/sendMessage",
@@ -49,7 +52,13 @@ def telegram_send(token, chat_id, message, timeout=5):
         except (ValueError, OSError):
             pass
         check_response(error.code, delay)
-    except (URLError, TimeoutError, socket.timeout, OSError):
+    except SSLCertVerificationError:
+        raise DeliveryError(CERTIFICATE_ERROR) from None
+    except URLError as error:
+        if isinstance(error.reason, SSLCertVerificationError):
+            raise DeliveryError(CERTIFICATE_ERROR) from None
+        raise DeliveryError("connection failed or timed out", retryable=True) from None
+    except (TimeoutError, socket.timeout, OSError):
         # Exception strings can contain the bot token in the request URL.
         raise DeliveryError("connection failed or timed out", retryable=True) from None
     except ValueError:

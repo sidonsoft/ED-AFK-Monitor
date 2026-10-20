@@ -155,6 +155,18 @@ ED only records hull damage in 20% increments, so if your ship or fighter hull w
 
 ED's journal does not distinguish a single unit jettisoned by the player from cargo stolen by a hatch breaker limpet. These notifications now say **Cargo lost or jettisoned (possible theft)**. To avoid a warning when disposing of cargo, use 'Abandon' instead of 'Jettison', or jettison more than one unit at a time. Set `CargoLost = 0` under `[LogLevels]` to disable these alerts entirely.
 
+### Telegram certificate verification fails
+
+Some bundled Python runtimes do not have a working root-certificate store. Certificate
+failures are reported as a setup error rather than retried as a temporary outage.
+Repair the runtime's certificate installation, or set `SSL_CERT_FILE` to the full path
+of a trusted PEM CA bundle before starting the monitor. Python/OpenSSL uses this
+[certificate-file setting](https://docs.python.org/3/library/ssl.html#ssl.get_default_verify_paths)
+for its default HTTPS context. A bundle already installed with Requests/Certifi may
+be suitable; the path is specific to the Python environment. Certificate and hostname
+verification remain enabled. Discord and Telegram can use different certificate
+stores, so working Discord delivery does not establish that Telegram's store works.
+
 ### Garbled characters or repeated lines in terminal output
 
 Use `--plain` for text without colours, emojis, cursor controls, or the live status line. Plain output is selected automatically for redirected output, `TERM=dumb`, or Windows consoles where virtual-terminal support cannot be enabled. It uses ASCII text, so accented names are simplified in the terminal; notifications retain their original text. This avoids registry edits and repeated status lines. Modern consoles keep formatted live output, and narrow/resized windows are handled safely. [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) remains an option for full formatting; the upstream [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support) page describes older releases.

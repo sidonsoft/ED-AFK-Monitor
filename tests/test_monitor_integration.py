@@ -60,11 +60,11 @@ class MonitorIntegrationTests(unittest.TestCase):
             root = Path(directory)
             for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py', 'terminal_output.py'):
                 shutil.copyfile(ROOT / name, root / name)
-            (root / 'bootstrap.py').write_text(BOOTSTRAP)
-            config = (ROOT / 'afk_monitor.example.toml').read_text().replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
+            (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+            config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8').replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
             config = config.replace('ChatID = 0', 'ChatID = -123')
             config = config.replace('LiveStatus = true', 'LiveStatus = false').replace('DynamicTitle = true', 'DynamicTitle = false')
-            (root / 'afk_monitor.toml').write_text(config)
+            (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
             journals = root / 'journals'
             journals.mkdir()
             first = journals / 'Journal.2026-10-20T120000.01.log'
@@ -73,11 +73,11 @@ class MonitorIntegrationTests(unittest.TestCase):
                     for event in events:
                         file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
             write(first, [] if late_commander else [{'event': 'Commander', 'Name': 'Test Commander'}])
-            env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
+            env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
             env.pop('ED_AFK_TELEGRAM_TOKEN', None)
             process = subprocess.Popen([sys.executable, 'bootstrap.py'] + (['--plain'] if plain else []), cwd=root, env=env,
                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                       stdin=subprocess.DEVNULL)
+                                       stdin=subprocess.DEVNULL, encoding='utf-8')
             lines = queue.Queue()
             output = []
             def collect():
@@ -157,14 +157,14 @@ class SetupIntegrationTests(unittest.TestCase):
     def prepare(self, root):
         for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py', 'terminal_output.py'):
             shutil.copyfile(ROOT / name, root / name)
-        (root / 'bootstrap.py').write_text(BOOTSTRAP)
+        (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
 
     def test_help_needs_neither_configuration_nor_network(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             self.prepare(root)
             result = subprocess.run([sys.executable, 'bootstrap.py', '--help'], cwd=root,
-                                    capture_output=True, text=True, timeout=8)
+                                    capture_output=True, text=True, timeout=8, encoding='utf-8', env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('--plain', result.stdout)
             self.assertFalse((root / 'network-attempted').exists())
@@ -179,7 +179,7 @@ class SetupIntegrationTests(unittest.TestCase):
             journal = root / 'journals' / 'Journal.2026-10-20T120000.01.log'
             journal.write_text('broken JSON\n{"event":"Commander","Name":"Test Commander"}\n{"event":', encoding='utf-8')
             result = subprocess.run([sys.executable, 'bootstrap.py', '--fileselect'], cwd=root,
-                                    input='2\n', capture_output=True, text=True, timeout=8)
+                                    input='2\n', capture_output=True, text=True, timeout=8, encoding='utf-8', env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('CMDR Test Commander', result.stdout)
             self.assertIn('Invalid number', result.stdout)
@@ -194,7 +194,7 @@ class SetupIntegrationTests(unittest.TestCase):
             journal.write_text('{"event":"Commander","Name":"Test Commander"}\n', encoding='utf-8')
             (root / 'stop-requested').touch()
             result = subprocess.run([sys.executable, 'bootstrap.py', '-j', 'missing-folder', '--setfile', str(journal)],
-                                    cwd=root, capture_output=True, text=True, timeout=8)
+                                    cwd=root, capture_output=True, text=True, timeout=8, encoding='utf-8', env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn('Monitor started', result.stdout)
             self.assertIn('Commander name:', result.stdout)

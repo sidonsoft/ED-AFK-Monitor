@@ -11,9 +11,13 @@ class JournalFollowingTests(unittest.TestCase):
             first = root / 'Journal.2026-10-20T120000.01.log'
             second = root / 'Journal.2026-10-20T130000.01.log'
             third = root / 'Journal.2026-10-20T140000.01.log'
-            first.write_text('history\nlive\n', encoding='utf-8')
+            with first.open('w', encoding='utf-8', newline='\r\n') as writer:
+                writer.write('hístory\nlive\n')
+            with first.open(encoding='utf-8') as reader:
+                self.assertEqual(reader.readline(), 'hístory\n')
+                position = reader.tell()
             rotations = []
-            with JournalReader(first, position=len('history\n'), on_rotate=rotations.append, poll_interval=0) as reader:
+            with JournalReader(first, position=position, on_rotate=rotations.append, poll_interval=0) as reader:
                 second.write_text('second\n', encoding='utf-8')
                 third.write_text('third\n', encoding='utf-8')
                 (root / 'not-a-journal.log').write_text('ignored\n')
