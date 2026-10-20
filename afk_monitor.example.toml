@@ -57,11 +57,18 @@ Timestamp = true
 # Identity = true (default) provides default name and avatar for webhook, set false to use user-set
 Identity = true
 
+[Telegram]
+# Create a bot with @BotFather, then open the bot's chat and send /start.
+# Set BotToken here or use the ED_AFK_TELEGRAM_TOKEN environment variable.
+BotToken = ''
+# Your numeric chat ID; negative IDs are supported for groups.
+ChatID = 0
+
 [LogLevels]
 # 0 = Not logged
 # 1 = Terminal
-# 2 = Terminal & Discord
-# 3 = Terminal & Discord with user ping
+# 2 = Terminal, Discord & Telegram
+# 3 = Same as 2, with a Discord user ping
 ScanIncoming = 1        # Incoming cargo scans by pirates
 ScanEasy = 1            # Outgoing scans of 'easy' ships (Sidewinder etc.)
 ScanHard = 2            # Outgoing scans of 'hard' ships (Python etc.)
