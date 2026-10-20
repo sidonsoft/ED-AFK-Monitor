@@ -55,8 +55,8 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
 
 The Telegram, journal-following and plain-output changes in this fork are available
 from this branch's source code. Upstream standalone releases do not include them.
-Keep `afk_monitor.py`, `notifications.py`, `outbox.py`, `journal_reader.py`, and
-`terminal_output.py` together when running from source.
+Keep `afk_monitor.py`, `notifications.py`, `outbox.py`, `missions.py`,
+`journal_reader.py`, and `terminal_output.py` together when running from source.
 
 **Standalone (EXE) version**: Recommended for Windows users that aren't familiar with Python.  
 **Python version**: For everyone else, including Linux users.
@@ -124,6 +124,39 @@ journal appears while a line is unfinished, the monitor waits briefly for the wr
 then switches, so an abandoned partial write cannot block following; that unfinished
 event is discarded.
 
+## Mission tracking and the spread
+
+Massacre missions are recorded from `MissionAccepted` with their target faction, kill
+requirement, wing flag, expiry and reward, and saved to
+`mission_ledger/<profile>.json` next to `afk_monitor.py`. This matters because the
+journal's `Missions` event only lists mission IDs and expiry, so the details would
+otherwise be lost on a relog.
+
+Kills are credited by the victim faction of `Bounty` events. Every kill advances all
+missions targeting that faction, so a stack needs the largest kill requirement per
+faction rather than the sum of every mission. The session summary reports one row per
+faction and the unique kills remaining:
+
+```text
+Mission spread: 0/3 complete | 2 wing | 57 kills left
+  Faction                  Open Wing  Need  Done  Left
+  Lords of Ngaliba            2    2    40     2    38
+  Ngaliba Blue Boys           1    0    20     1    19
+  Unique kills left: 57 (sum of mission kills: 90)
+  Mission rewards: 43,000,000 cr
+```
+
+- `--missions` prints every saved ledger (including mission IDs) and exits without
+  starting the monitor, reading the journal or contacting Discord/Telegram.
+- `SummaryMissions` under `[LogLevels]` sets where the spread is reported; the default
+  is 1 (terminal only), while 2 or 3 also sends it to Discord and Telegram.
+- Wing missions progress from every wing member's kills, but the journal only records
+  your own kills, so `Done` is your contribution. `MissionRedirected` still marks a
+  mission complete when the wing finishes it.
+- Not every wanted ship of the target faction is a mission target, so kill credit is an
+  estimate. Missions accepted before the monitor first recorded them have no saved
+  details and show as "unknown target" without kill credit.
+
 ## Configuring log levels
 
 Each type of event can be set to one of four additive output levels: nothing (0), terminal (1), terminal plus configured Discord and Telegram destinations (2), or the same with a Discord user ping (3). These can be configured by editing the values in `afk_monitor.toml` under the section `[LogLevels]`. Each event type is described in the config file.
@@ -148,6 +181,7 @@ You can pass the following arguments when launching AFK Monitor:
 --telegram-chat <id>                         Override Telegram chat ID
 --no-follow                                 Monitor only the selected journal
 --plain                                     Plain text without colours, emojis or live status
+--missions                                  Print saved massacre-mission spread and exit
 ```
 
 ## Common Issues

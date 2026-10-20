@@ -15,6 +15,7 @@ from journal_reader import JournalReader, read_complete_line, commander_from_lin
 from terminal_output import StatusLogger
 from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
 from outbox import Outbox, profile_directory_name
+from missions import MissionLedger
 
 try:
     from discord_webhook import DiscordWebhook
@@ -81,6 +82,7 @@ parser.add_argument("-d", "--debug", action="store_true", default=None, help="Pr
 parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED_AFK_TELEGRAM_TOKEN environment variable)")
 parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
 parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
+parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
 file_group = parser.add_mutually_exclusive_group()
 file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
@@ -89,30 +91,49 @@ args = parser.parse_args()
 
 msg = StatusLogger(plain=args.plain)
 
-# Update check
+# Update check (skipped for the offline mission report)
 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 latest_version = 0
-try:
-    with urlopen(url, timeout=1) as response:
-        if response.status == 200:
-            release_data = json.loads(response.read())
-            latest_version = int(release_data["tag_name"][1:])
-except Exception:
-    pass
+if not args.missions:
+    try:
+        with urlopen(url, timeout=1) as response:
+            if response.status == 200:
+                release_data = json.loads(response.read())
+                latest_version = int(release_data["tag_name"][1:])
+    except Exception:
+        pass
 
-# Print header
-title = f"ED AFK Monitor v{VERSION} by CMDR PSIPAB"
-msg.log(f"{Col.CYAN}{'='*len(title)}")
-msg.log(f"{title}")
-msg.log(f"{'='*len(title)}{Col.END}\n")
-if VERSION < latest_version:
-    msg.log(f"{Col.YELL}Update v{latest_version} is available!{Col.END}\n{Col.WHITE}Download:{Col.END} https://github.com/{GITHUB_REPO}/releases\n")
+    # Print header
+    title = f"ED AFK Monitor v{VERSION} by CMDR PSIPAB"
+    msg.log(f"{Col.CYAN}{'='*len(title)}")
+    msg.log(f"{title}")
+    msg.log(f"{'='*len(title)}{Col.END}\n")
+    if VERSION < latest_version:
+        msg.log(f"{Col.YELL}Update v{latest_version} is available!{Col.END}\n{Col.WHITE}Download:{Col.END} https://github.com/{GITHUB_REPO}/releases\n")
 
 # Config loading and first run setup
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     config_file_path = Path(__file__).parents[1]
 else:
     config_file_path = Path(__file__).parent
+
+
+def show_mission_ledgers(directory):
+    paths = sorted(Path(directory).glob("*.json")) if Path(directory).is_dir() else []
+    if not paths:
+        msg.log("No mission ledger found. Start the monitor with massacre missions active to record them.")
+        return
+    for path in paths:
+        ledger = MissionLedger(path)
+        for warning in ledger.warnings:
+            msg.log(warning)
+        msg.log("")
+        msg.log(ledger.report_text(include_missions=True, title=True))
+
+
+if args.missions:
+    show_mission_ledgers(config_file_path / "mission_ledger")
+    sys.exit()
 
 config_file = Path(config_file_path / "afk_monitor.toml")
 config_ready = False
@@ -227,8 +248,6 @@ class Tracking:
         self.logged = 0
         self.lines = 0
         self.missions = False
-        self.missionsactive = []
-        self.missionredirects = 0
         self.lasteventname = None
         self.thiseventtime = None
         self.dupeevent = ""
@@ -385,11 +404,18 @@ msg.log(f"{Col.YELL}Config profile:{Col.END} {profile if profile else 'Default'}
 if profile:
     debug(f"Using profile: {profile}")
 
+mission_ledger = MissionLedger(
+    config_file_path / "mission_ledger" / f"{profile_directory_name(profile)}.json",
+    commander=track.cmdrname or "", profile=profile or "")
+for warning in mission_ledger.warnings:
+    msg.log(warning)
+
 # Get settings from config
 conf_settings = getconfig("Settings", DEFAULTS_SETTINGS)
 conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
+conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 1}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
 telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
 telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
@@ -732,6 +758,8 @@ def processevent(line):
                 kills_d = f"x{session.kills} " if conf_settings["ExtendedStats"] else ""
                 bountyvalue = f" [{num_format(bountyvalue)} cr]" if conf_settings["BountyValue"] else ""
                 victimfaction = j["VictimFaction_Localised"] if "VictimFaction_Localised" in j else j["VictimFaction"]
+                if j["event"] == "Bounty":
+                    mission_ledger.kill(victimfaction, j.get("VictimFaction"))
                 session.factions[victimfaction] = session.factions.get(victimfaction, 0) + 1
                 total.factions[victimfaction] = total.factions.get(victimfaction, 0) + 1
                 factioncount = f" x{session.factions[victimfaction]}" if conf_settings["ExtendedStats"] else ""
@@ -747,15 +775,16 @@ def processevent(line):
                 if session.kills % 10 == 0:
                     summary(session, logtime=logtime)
             case "MissionRedirected" if "Mission_Massacre" in j["Name"]:
-                track.missionredirects += 1
-                type = "a mission"
-                missions = f"{track.missionredirects}/{len(track.missionsactive)}"
-                if len(track.missionsactive) != track.missionredirects:
-                    log = conf_log_levels["Missions"]
-                else:
+                mission = mission_ledger.redirected(j.get("MissionID"))
+                done, mission_total = mission_ledger.progress()
+                if mission_total and done == mission_total:
                     log = conf_log_levels["MissionsAll"]
                     type = "all missions!"
-                logevent(msg_term=f"Completed kills for {type} ({missions})",
+                else:
+                    log = conf_log_levels["Missions"]
+                    type = "a mission"
+                detail = f" ({mission.target})" if mission and mission.target else ""
+                logevent(msg_term=f"Completed kills for {type} ({done}/{mission_total}){detail}",
                         emoji="✅", timestamp=logtime, loglevel=log)
                 update_status()
             case "ReservoirReplenished":
@@ -836,8 +865,6 @@ def processevent(line):
                 track.fighterhull = 0
                 track.live_update = None
                 track.missions = False
-                track.missionsactive.clear()
-                track.missionredirects = 0
                 # Duplicate suppression must not carry a previous session's counter over.
                 track.dupeevent = ""
                 track.duperepeats = 1
@@ -878,25 +905,24 @@ def processevent(line):
             case "Progress":
                 track.cmdrcombatprogress = j["Combat"]
             case "Missions" if "Active" in j and not track.missions:
-                track.missionsactive.clear()
-                track.missionredirects = 0
-                for mission in j["Active"]:
-                    if "Mission_Massacre" in mission["Name"] and mission["Expires"] > 0:
-                        track.missionsactive.append(mission["MissionID"])
+                mission_ledger.reconcile(j["Active"], logtime)
                 track.missions = True
-                logevent(msg_term=f"Missions loaded (active massacres: {len(track.missionsactive)})",
+                logevent(msg_term=f"Missions loaded (active massacres: {mission_ledger.count()})",
                         emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
-            case "MissionAccepted" if "Mission_Massacre" in j["Name"] and track.missions:
-                track.missionsactive.append(j["MissionID"])
-                logevent(msg_term=f"Accepted massacre mission (active: {len(track.missionsactive)})",
-                        emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
-            case "MissionAbandoned" | "MissionCompleted" | "MissionFailed" if track.missions and j["MissionID"] in track.missionsactive:
-                track.missionsactive.remove(j["MissionID"])
-                if track.missionredirects > 0:
-                    track.missionredirects -= 1
-                event = j["event"][7:].lower()
-                logevent(msg_term=f"Massacre mission {event} (active: {len(track.missionsactive)})",
-                        emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
+            case "MissionAccepted" if "Mission_Massacre" in j["Name"]:
+                mission = mission_ledger.accept(j)
+                if mission:
+                    detail = f": {mission.target} x{mission.kill_count}" if mission.known else ""
+                    wing = " (wing)" if mission.wing else ""
+                    logevent(msg_term=f"Accepted massacre mission{detail}{wing} (active: {mission_ledger.count()})",
+                            emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
+            case "MissionAbandoned" | "MissionCompleted" | "MissionFailed":
+                mission = mission_ledger.close(j.get("MissionID"))
+                if mission:
+                    event = j["event"][7:].lower()
+                    detail = f": {mission.target}" if mission.target else ""
+                    logevent(msg_term=f"Massacre mission {event}{detail} (active: {mission_ledger.count()})",
+                            emoji="🎯", timestamp=logtime, loglevel=conf_log_levels["Missions"])
             case "PowerplayMerits":
                 if session.meritstoreport > 0 and j["MeritsGained"] < 500:
                     session.merits += j["MeritsGained"]
@@ -1017,7 +1043,7 @@ def update_status(reset=False):
             else:
                 s_scans = f"{scans_hour}/h (+{lastscan}) [x{session.scansin}]"
             
-            s_missions = f"{track.missionredirects}/{len(track.missionsactive)}"
+            s_missions = mission_ledger.status_line()
             
             if conf_settings["LiveStatus"]:
                 msg.set_status(f"{status_col}[{time_clock:>8}]💥 {s_kills:<23} | 📦 {s_scans:<23} | ⏱️ {time_sesh:<5} | 🎯 {s_missions}")
@@ -1039,7 +1065,8 @@ def summary(stats, logtime=None, session=True, live=False):
     log_levels = {"Kills": conf_log_levels["SummaryKills"], "Faction": conf_log_levels["SummaryFaction"],
                   kill_type: conf_log_levels["SummaryBounties"], "Merits": conf_log_levels["SummaryMerits"],
                   "Scans": conf_log_levels["SummaryScans"]}
-    log_max = max(log_levels.values())
+    mission_level = int(conf_log_levels.get("SummaryMissions", 0))
+    log_max = max(list(log_levels.values()) + [mission_level])
     
     if stats.kills < 2 or log_max == 0:
         return
@@ -1103,7 +1130,7 @@ def summary(stats, logtime=None, session=True, live=False):
         type = "Session" if session else "Total"
         
         session_time = f" ({time_format(session_seconds)})"
-        missions_completed = f" [{track.missionredirects}/{len(track.missionsactive)}]" if len(track.missionsactive) > 0 else ""
+        missions_completed = f" [{mission_ledger.status_line()}]" if mission_ledger.has_missions() else ""
         
         out_terminal = f"{type} Stats{session_time}{missions_completed}"
         out_discord = f"**{type} Stats**{session_time}{missions_completed}"
@@ -1124,6 +1151,12 @@ def summary(stats, logtime=None, session=True, live=False):
             discord_ts = round(time.time())
             live_stats = f"{out_discord}\n-# Updated: <t:{discord_ts}:t> (<t:{discord_ts}:R>)"
             discord_live_update(live_stats)
+    
+    if not live and mission_level > 0 and mission_ledger.has_missions():
+        logevent(msg_term=mission_ledger.report_text(),
+                msg_discord=mission_ledger.report_discord(),
+                msg_telegram=mission_ledger.report_text(),
+                emoji="🎯", timestamp=logtime, loglevel=mission_level)
 
 def journal_rotated(path):
     global journal_file
@@ -1139,6 +1172,7 @@ if __name__ == "__main__":
         preload_position = 0
         # Journal preloading
         if track.preloading:
+            mission_ledger.preloading = True
             with open(journal_dir / journal_file, mode="r", encoding="utf-8", errors="replace") as file:
                 while True:
                     line = read_complete_line(file)
@@ -1148,6 +1182,7 @@ if __name__ == "__main__":
                     track.lines += 1
                 preload_position = file.tell()
             track.preloading = False
+            mission_ledger.end_preload()
             if args.resetsession:
                 session.reset()
                 track.sessionstart(reset=True)
@@ -1239,6 +1274,7 @@ if __name__ == "__main__":
                             trackingerror = repr(e)
                     
                     time.sleep(1)
+                    mission_ledger.maybe_save()
                     update_status()
                     continue
 
@@ -1247,6 +1283,7 @@ if __name__ == "__main__":
 
     except (KeyboardInterrupt, SystemExit):
         track.sessionend()
+        mission_ledger.save()
         summary(total, session=False)
         logevent(msg_term=f"Monitor stopped ({journal_file})",
             msg_discord=f"**Monitor stopped** ({journal_file})",
@@ -1268,6 +1305,7 @@ if __name__ == "__main__":
         input("Press ENTER to exit")
 
     finally:
+        mission_ledger.save()
         notifications.close()
         notification_reports()
         msg.show_cursor()
