@@ -1,6 +1,6 @@
 # Elite Dangerous AFK Monitor
 
-Real-time monitoring of Elite Dangerous journal files for logging AFK massacre farming events as they happen. Output is to terminal, Discord channel/thread or Discord with a user ping and each level can be configured on a per-event basis.
+Real-time monitoring of Elite Dangerous journal files for logging AFK massacre farming events as they happen. Output is to terminal, Telegram, Discord channel/thread or Discord with a user ping and each level can be configured on a per-event basis.
 
 | Terminal output | Discord output |
 | --- | --- |
@@ -16,6 +16,8 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
   - [Getting started](#getting-started)
     - [Standalone (EXE) version](#standalone-exe-version)
     - [Python version](#python-version)
+  - [Telegram and reliable delivery](#telegram-and-reliable-delivery)
+  - [Following game restarts](#following-game-restarts)
   - [Configuring log levels](#configuring-log-levels)
   - [Launch Arguments](#launch-arguments)
   - [Common Issues](#common-issues)
@@ -24,6 +26,7 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
     - [Ships scans are reported when manually scanned](#ships-scans-are-reported-when-manually-scanned)
     - [Ship or fighter hull damage not logged](#ship-or-fighter-hull-damage-not-logged)
     - [Stolen cargo notifications when ejecting cargo](#stolen-cargo-notifications-when-ejecting-cargo)
+    - [Telegram certificate verification fails](#telegram-certificate-verification-fails)
     - [Garbled characters or repeated lines in terminal output](#garbled-characters-or-repeated-lines-in-terminal-output)
 
 ## Events and information logged
@@ -50,6 +53,11 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
 
 ## Getting started
 
+The Telegram, journal-following and plain-output changes in this fork are available
+from this branch's source code. Upstream standalone releases do not include them.
+Keep `afk_monitor.py`, `notifications.py`, `journal_reader.py`, and `terminal_output.py`
+together when running from source.
+
 **Standalone (EXE) version**: Recommended for Windows users that aren't familiar with Python.  
 **Python version**: For everyone else, including Linux users.
 
@@ -67,14 +75,49 @@ For more detailed instructions see [Basic Setup](https://github.com/PsiPab/ED-AF
 ### Python version
 
 Requirements: [Python 3.12+](https://www.python.org/downloads/), [discord-webhook](https://github.com/lovvskillz/python-discord-webhook) (optional, required for Discord support)
-- Download `Source code (zip)` from [releases](https://github.com/PsiPab/ED-AFK-Monitor/releases) and extract the contents to a folder
+- Download or clone [this fork's source](https://github.com/sidonsoft/ED-AFK-Monitor), select the branch you want to test, and keep the entire extracted folder
 - Copy `afk_monitor.example.toml` and rename the copy to `afk_monitor.toml`
 - (Optional) For Discord support edit `WebhookURL` and `UserID` under `[Discord]` in `afk_monitor.toml`
 - Start Elite Dangerous then double-click `afk_monitor.py` *or* open a terminal and run `py afk_monitor.py`
   
+## Telegram and reliable delivery
+
+Telegram support is included without additional Python dependencies. Create a bot with
+[@BotFather](https://t.me/BotFather), open a chat with your bot, and send `/start`.
+Set `BotToken` and your numeric `ChatID` under `[Telegram]` in `afk_monitor.toml`.
+Group chat IDs may be negative. You can supply the token through the
+`ED_AFK_TELEGRAM_TOKEN` environment variable instead of saving it in the config.
+Profile overrides work the same way as Discord settings.
+
+Events at log level 2 or 3 are delivered to both configured services. Telegram uses
+plain text; level 3 adds a mention only on Discord. Run with `--test` to preview
+Discord, Telegram, and Discord live updates without sending notifications.
+
+Each destination has an independent background worker, a 200-message queue, and a
+five-second request timeout. Temporary connection errors, HTTP 429, and server errors
+are retried up to three attempts. Server-requested retry delays are respected and can be interrupted at shutdown. Permanent
+errors and full queues are reported in the terminal. Queues are kept in memory;
+shutdown allows six seconds to finish delivery and reports any pending messages.
+A timeout after a service accepted a message can result in a duplicate on retry.
+
+## Following game restarts
+
+Normal monitoring follows newer journals automatically, reading each from the start
+after draining the previous file. It stays running after the game exits, ready for
+the next launch. Session statistics end on game shutdown; cumulative totals remain
+for the monitor's lifetime. A commander change stops the monitor so it can be restarted
+with the correct configuration profile. Discord forum logging continues in its existing
+thread for the monitor's lifetime.
+
+Use `--no-follow`, `--setfile`, or `--fileselect` to keep monitoring a single journal.
+An unfinished final event is retained until its terminating newline arrives. If a newer
+journal appears while a line is unfinished, the monitor waits briefly for the writer and
+then switches, so an abandoned partial write cannot block following; that unfinished
+event is discarded.
+
 ## Configuring log levels
 
-Each type of event can be set to one of four additive output levels - nothing (0), terminal (1), Discord (2) or Discord plus user ping (3). These can be configured by editing the values in `afk_monitor.toml` under the section `[LogLevels]`. Each event type is described in the config file.
+Each type of event can be set to one of four additive output levels: nothing (0), terminal (1), terminal plus configured Discord and Telegram destinations (2), or the same with a Discord user ping (3). These can be configured by editing the values in `afk_monitor.toml` under the section `[LogLevels]`. Each event type is described in the config file.
 
 Defaults are intended to be sensible for those new to AFK. For example, scans of hard ships are logged to Discord to aid with avoiding difficult instances.
 
@@ -88,17 +131,21 @@ You can pass the following arguments when launching AFK Monitor:
 -j, --journal <journal_folder_path>           Override for path to journal folder
 -w, --webhook <webhook_url>                   Override for Discord webhook URL
 -r, --resetsession                            Reset session stats after preloading
--t, --test                                    Re-routes Discord messages to terminal
+-t, --test                                    Preview notifications in terminal without sending
 -d, --debug                                   Print information for debugging
 -s, --setfile <journal_file_path>             Set specific journal file to use
 -f, --fileselect                              Show list of recent journals to chose from
+--telegram-token <token>                     Override Telegram bot token
+--telegram-chat <id>                         Override Telegram chat ID
+--no-follow                                 Monitor only the selected journal
+--plain                                     Plain text without colours, emojis or live status
 ```
 
 ## Common Issues
 
 ### No new terminal output during a live session
 
-By default AFK Monitor watches your latest journal, so make sure to start it after loading the game. To monitor a different journal pass `--fileselect` when starting AFK Monitor and a list of recent journals will be provided to chose from.
+By default AFK Monitor starts with your latest journal and follows newer files automatically, including while waiting for the game to load. Check the journal folder/file printed at startup if events are missing. Use `--journal <folder>` for a different journal folder, `--setfile <full-path>` for a particular file, or `--fileselect` to choose from recent journals. Explicit file selections stay fixed rather than following new files. A journal folder with no journal files yet still requires starting the game once.
 
 ### Some kills are not being logged
 
@@ -106,7 +153,7 @@ ED does not log all bounties either in-game or to the journal (anywhere from 0-3
 
 ### Ships scans are reported when manually scanned
 
-Scans by your NPC pilot are logged just like any other scans. To avoid erroneous logging of scans (e.g. of system security) while using AFK Monitor set and use a key bind for 'select next hostile target' instead of scanning any target. Alternatively, outgoing scan logs can be disabled by config.
+Scans by your NPC pilot are logged just like any other scans. To avoid erroneous logging of scans (e.g. of system security) while using AFK Monitor set and use a key bind for 'select next hostile target' instead of scanning any target. To silence all outgoing scan notifications, set `ScanEasy = 0`, `ScanHard = 0`, and `SecurityScan = 0` under `[LogLevels]`. Incoming pirate cargo scans are controlled separately by `ScanIncoming`.
 
 ### Ship or fighter hull damage not logged
 
@@ -114,8 +161,27 @@ ED only records hull damage in 20% increments, so if your ship or fighter hull w
 
 ### Stolen cargo notifications when ejecting cargo
 
-ED's journal does not differentiate between individual units of cargo jettisoned by the player or stolen by hatch breaker limpets. As a workaround if you want to get rid of cargo with AFK Monitor running and not be notified you can use 'Abandon' instead of 'Jettison', or jettison more than one unit at a time.
+ED's journal does not distinguish a single unit jettisoned by the player from cargo stolen by a hatch breaker limpet. These notifications now say **Cargo lost or jettisoned (possible theft)**. To avoid a warning when disposing of cargo, use 'Abandon' instead of 'Jettison', or jettison more than one unit at a time. Set `CargoLost = 0` under `[LogLevels]` to disable these alerts entirely.
+
+### Telegram certificate verification fails
+
+Some bundled Python runtimes do not have a working root-certificate store. Certificate
+failures are reported as a setup error rather than retried as a temporary outage.
+Repair the runtime's certificate installation, or set `SSL_CERT_FILE` to the full path
+of a trusted PEM CA bundle before starting the monitor. Python/OpenSSL uses this
+[certificate-file setting](https://docs.python.org/3/library/ssl.html#ssl.get_default_verify_paths)
+for its default HTTPS context. A bundle already installed with Requests/Certifi may
+be suitable; the path is specific to the Python environment. Certificate and hostname
+verification remain enabled. Discord and Telegram can use different certificate
+stores, so working Discord delivery does not establish that Telegram's store works.
 
 ### Garbled characters or repeated lines in terminal output
 
-The Windows 10 console doesn't support some of the modern terminal features AFK Monitor uses. It is recommended to install and use [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) instead. For more information see [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support).
+Use `--plain` for text without colours, emojis, cursor controls, or the live status line. Plain output is selected automatically for redirected output, `TERM=dumb`, or Windows consoles where virtual-terminal support cannot be enabled. It uses ASCII text, so accented names are simplified in the terminal; notifications retain their original text. This avoids registry edits and repeated status lines. Modern consoles keep formatted live output, and narrow/resized windows are handled safely. [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701) remains an option for full formatting; the upstream [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support) page describes older releases.
+
+## Development checks
+
+Run `python -m unittest discover -s tests -v` with Python 3.12 or newer.
+Tests use simulated journals and mocked transports; they do not send notifications.
+
+Automated regression checks run on Windows, macOS and Linux with Python 3.12 and 3.13.

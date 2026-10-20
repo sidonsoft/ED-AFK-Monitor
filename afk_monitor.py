@@ -7,11 +7,13 @@ import sys
 import time
 import tomllib
 import traceback
-import unicodedata
 from bisect import bisect_left
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.request import urlopen
+from journal_reader import JournalReader, read_complete_line, commander_from_line
+from terminal_output import StatusLogger
+from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
 
 try:
     from discord_webhook import DiscordWebhook
@@ -48,6 +50,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
 DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
+DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
 
 class Col:
@@ -63,113 +66,27 @@ class Col:
 
 WARNING = f"{Col.WARN}Warning:{Col.END}"
 
-class StatusLogger:
-    """Logs messages to console, with support for a persistent status line
-    Supports emojis, ANSI colours, padding and truncation based on terminal width
-    Imports: sys, unicodedata, re"""
-    
-    ANSI_CLEAR_LINE =  "\x1b[2K"
-    ANSI_COL_END = "\x1b[0m"
-    ANSI_CURSOR_UP = "\x1b[A"
-    ANSI_HIDE_CURSOR = "\x1b[?25l"
-    ANSI_SHOW_CURSOR = "\x1b[?25h"
-    ANSI_REGEX_STRIP = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-    
-    def __init__(self, clear_cols=False, pad_char="", safe_margin=2):
-        self.endcol = self.ANSI_COL_END if clear_cols else ""
-        self.pad = "" if not pad_char else str(pad_char)
-        self.safe = safe_margin
-        self._stream = sys.stdout
-        self._status = ""
-        self._prev = False
-        self._con_prev = 0
+# Command line overrides
+parser = argparse.ArgumentParser(
+    prog="ED AFK Monitor",
+    description="Live monitoring of Elite Dangerous AFK sessions to terminal, Discord and Telegram")
+parser.add_argument("-p", "--profile", help="Load a specific profile for config settings")
+parser.add_argument("-j", "--journal", help="Override for path to journal folder")
+parser.add_argument("-w", "--webhook", help="Override for Discord logging webhook URL")
+parser.add_argument("-wl", "--webhooklive", help="Override for Discord live webhook URL")
+parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
+parser.add_argument("-t", "--test", action="store_true", default=None, help="Preview all notifications in the terminal without sending")
+parser.add_argument("-d", "--debug", action="store_true", default=None, help="Print information for debugging")
+parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED_AFK_TELEGRAM_TOKEN environment variable)")
+parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
+parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
+parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
+file_group = parser.add_mutually_exclusive_group()
+file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
+file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
+args = parser.parse_args()
 
-    def _write(self, text):
-        self._stream.write(text)
-        self._stream.flush()
-    
-    def get_columns(self, input: str):
-        """Returns string column width, accounting for ANSI escape sequences and emojis"""
-        
-        length = 0
-        
-        # Strip ANSI sequences
-        input = self.ANSI_REGEX_STRIP.sub("", input)  
-        
-        # Calculate width including emojis
-        for char in input:
-            width = unicodedata.east_asian_width(char)
-            length += 2 if width in ["F", "W"] else 1
-        
-        return length
-    
-    def _clear_lines(self):
-        """Calculate line clears based on lines previous status now occupies"""
-        
-        con_width = os.get_terminal_size().columns
-        prev_width = self.get_columns(self._status)
-        prev_lines = prev_width // con_width
-        clear_lines = self.ANSI_CLEAR_LINE
-        
-        # Clear another line for every wrap
-        for _ in range(prev_lines):
-            clear_lines += f"{self.ANSI_CURSOR_UP}{self.ANSI_CLEAR_LINE}"
-        
-        return clear_lines
-
-    def set_status(self, msg):
-        """Sets/updates a persistent status line"""
-        
-        # Get line clears 
-        clear_lines = self._clear_lines()
-        
-        # Truncate status as needed based on terminal width
-        con_width = os.get_terminal_size().columns
-        msg_width = self.get_columns(msg)
-        output = f"{msg}"
-        msg_width = self.get_columns(msg)
-        
-        if msg_width > (con_width - self.safe):
-            # Shrink status by 1 character until actual width fits within terminal
-            while not self.get_columns(output) <= (con_width - self.safe - 1):
-                output = output[:-1]
-            output = output + ">"
-        else:
-            output = msg + (self.pad * (con_width - msg_width - self.safe))
-
-        self._write(f"{clear_lines}\r{output}{self.endcol}")
-        self._status = output
-        self._prev = True
-        self._con_prev = con_width
-
-    def clear_status(self):
-        if self._prev:
-            # Clear status line
-            self._write(f"{self.ANSI_CLEAR_LINE}\r")
-            self._status = ""
-            self._prev = False
-
-    def log(self, msg):
-        """Outputs a new line, while clearing and repeating status if set"""
-        
-        # Get line clears 
-        clear_lines = self._clear_lines()
-        
-        log_line = str(msg)
-        if self._prev:
-            # Overwrite existing status line with new log + status
-            out = f"{clear_lines}\r{log_line}\n{self._status}{self.endcol}"
-            self._write(out)
-        else:
-            self._write(f"{log_line}\n")
-    
-    def hide_cursor(self):
-        self._write(self.ANSI_HIDE_CURSOR)
-
-    def show_cursor(self):
-        self._write(self.ANSI_SHOW_CURSOR)
-
-msg = StatusLogger()
+msg = StatusLogger(plain=args.plain)
 
 # Update check
 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
@@ -231,22 +148,6 @@ while not config_ready:
             msg.log("\nQuitting...")
             sys.exit()
 
-# Command line overrides
-parser = argparse.ArgumentParser(
-    prog="ED AFK Monitor",
-    description="Live monitoring of Elite Dangerous AFK sessions to terminal and Discord")
-parser.add_argument("-p", "--profile", help="Load a specific profile for config settings")
-parser.add_argument("-j", "--journal", help="Override for path to journal folder")
-parser.add_argument("-w", "--webhook", help="Override for Discord logging webhook URL")
-parser.add_argument("-wl", "--webhooklive", help="Override for Discord live webhook URL")
-parser.add_argument("-r", "--resetsession", action="store_true", default=None, help="Reset session stats after preloading")
-parser.add_argument("-t", "--test", action="store_true", default=None, help="Re-routes Discord messages to terminal")
-parser.add_argument("-d", "--debug", action="store_true", default=None, help="Print information for debugging")
-file_group = parser.add_mutually_exclusive_group()
-file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
-file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
-args = parser.parse_args()
-
 # Get settings from config
 def getconfig(category: str, defaults: dict, warn_missing = True) -> dict:
     settings = {}
@@ -285,8 +186,7 @@ def debug(message):
     if debug_mode:
         msg.log(f"{Col.WHITE}[Debug]{Col.END} {message} [{datetime.strftime(datetime.now(), '%H:%M:%S')}]")
 
-debug(f"Arguments: {args}")
-debug(f"Config: {config}")
+debug(f"Profile argument: {args.profile}")
 
 class Stats:
     def __init__(self):
@@ -376,6 +276,8 @@ if not setting_journal_dir:
     journal_dir = Path.home() / "Saved Games" / "Frontier Developments" / "Elite Dangerous"
 else:
     journal_dir = Path(setting_journal_dir)
+if setting_journal_file and Path(setting_journal_file).expanduser().is_absolute():
+    journal_dir = Path(setting_journal_file).expanduser().parent
 if not journal_dir.is_dir():
     fallover(f"Directory {journal_dir} not found")
 
@@ -411,14 +313,10 @@ if not setting_journal_file:
         commanders = []
         for i, filename in enumerate(journals, start=1):
             commander = None
-            with open(Path(journal_dir / filename), mode="r", encoding="utf-8") as file:
-                for line in file:
-                    try:
-                        entry = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        msg.log(f"[Fileselect] JSON error in {filename}: {e}")
-                    if entry["event"] == "Commander":
-                        commander =  entry["Name"]
+            with open(Path(journal_dir / filename), mode="r", encoding="utf-8", errors="replace") as file:
+                while line := read_complete_line(file):
+                    commander = commander_from_line(line)
+                    if commander:
                         break
 
             num = f"{i:>{len(str(len(journals)))}}"
@@ -431,7 +329,7 @@ if not setting_journal_file:
         if selection:
             try:
                 selection = int(selection)
-                if 1 <= selection <= setting_recent_files:
+                if 1 <= selection <= len(journals):
                     journal_file = journals[selection-1]
                     track.cmdrname = commanders[selection-1]
                 else:
@@ -442,41 +340,32 @@ if not setting_journal_file:
             journal_file = journals[0]
             track.cmdrname = commanders[0]
 elif setting_journal_file:
-    # Set specific journal file
-    journal_file = setting_journal_file if bool(re.search(REG_JOURNAL, setting_journal_file)) else None
-    if not journal_file or not (journal_dir / journal_file).is_file():
+    selected = Path(setting_journal_file).expanduser()
+    selected = selected if selected.is_absolute() else journal_dir / selected
+    if not re.fullmatch(REG_JOURNAL, selected.name) or not selected.is_file():
         fallover(f"Journal file '{setting_journal_file}' invalid or not found")
+    journal_dir = selected.parent
+    journal_file = selected.name
 
 msg.log(f"{Col.YELL}Journal file:{Col.END} {journal_file}")
 
-# Get commander name if not already known
+# Wait for complete Commander events, following restarts even before game load.
 if not track.cmdrname:
     try:
-        with open(Path(journal_dir / journal_file), mode="r", encoding="utf-8") as file:
-            for line in file:
-                entry = json.loads(line)
-                if entry["event"] == "Commander":
-                    track.cmdrname = entry["Name"]
-                    break
-            
-            # If we *still* don't have a commander name wait for it
-            if not track.cmdrname:
-                msg.log("Waiting for game load... (Press Ctrl+C to stop)")
-                file.seek(0, 2)
-                while True:
-                    line = file.readline()
-                    
-                    if not line:
-                        time.sleep(1)
-                        continue
-                    
-                    entry = json.loads(line)
-                    if entry["event"] == "Commander":
-                        track.cmdrname = entry["Name"]
-                        break
-    except json.JSONDecodeError as e:
-        msg.log(f"[CMDR Name] JSON error in {journal_file}: {e}")
-    except(KeyboardInterrupt):
+        with JournalReader(journal_dir / journal_file,
+                           follow=not (args.no_follow or args.setfile or args.fileselect)) as file:
+            waiting = False
+            while not track.cmdrname:
+                line = file.readline()
+                journal_file = file.path.name
+                if line:
+                    track.cmdrname = commander_from_line(line)
+                else:
+                    if not waiting:
+                        msg.log("Waiting for game load... (Press Ctrl+C to stop)")
+                        waiting = True
+                    time.sleep(1)
+    except KeyboardInterrupt:
         fallover("Quitting...")
 
 msg.log(f"{Col.YELL}Commander name:{Col.END} {track.cmdrname}")
@@ -493,13 +382,20 @@ if profile and profile not in config:
 
 msg.log(f"{Col.YELL}Config profile:{Col.END} {profile if profile else 'Default'}{config_info}")
 if profile:
-    debug(f"Profile '{profile}': {config[profile]}")
+    debug(f"Using profile: {profile}")
 
 # Get settings from config
 conf_settings = getconfig("Settings", DEFAULTS_SETTINGS)
 conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
+conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
+telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
+telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
+telegram_enabled = bool(telegram_token and telegram_chat)
+follow_journals = not (args.no_follow or args.setfile or args.fileselect)
+if bool(telegram_token) != bool(telegram_chat):
+    msg.log("Telegram: both BotToken and ChatID are required; Telegram disabled")
 
 # Configure status line
 status_col = f"\x1b[48;{conf_settings['StatusColBG']}m" if conf_settings["StatusColBG"] else ""
@@ -509,7 +405,7 @@ msg.safe = conf_settings["StatusSafeMargin"]
 msg.pad = conf_settings["StatusPadChar"]
 
 debug(f"Settings: {conf_settings}")
-debug(f"Discord: {conf_discord}")
+debug(f"Discord logging configured: {bool(conf_discord['WebhookURL'])}; live configured: {bool(conf_discord['WebhookLiveURL'])}")
 debug(f"Log levels: {conf_log_levels}")
 
 msg.log("\nStarting... (Press Ctrl+C to stop)\n")
@@ -523,7 +419,7 @@ webhook_live = None if not discord_test else True
 if discord_available:
     # Logging webhook
     if discord_webhook_log and re.search(REG_WEBHOOK, discord_webhook_log):
-        webhook_log = DiscordWebhook(url=discord_webhook_log)
+        webhook_log = DiscordWebhook(url=discord_webhook_log, timeout=5)
         if conf_discord["Identity"]:
             webhook_log.username = "ED AFK Monitor"
             webhook_log.avatar_url = WEBHOOK_AVATAR
@@ -540,7 +436,7 @@ if discord_available:
 
     # Live stats webhook
     if discord_webhook_live and re.search(REG_WEBHOOK, discord_webhook_live):
-        webhook_live = DiscordWebhook(url=discord_webhook_live)
+        webhook_live = DiscordWebhook(url=discord_webhook_live, timeout=5)
         if conf_discord["Identity"]:
             webhook_live.username = "ED AFK Monitor Live"
             webhook_live.avatar_url = WEBHOOK_AVATAR
@@ -549,40 +445,73 @@ if discord_available:
 elif discord_webhook_log or discord_webhook_live:
     msg.log(f"{Col.WARN}Warning:{Col.END} discord-webhook module unavailable; operating with terminal output only\n")
 
-# Send a webhook message or (don"t) die trying
+# These transports run only on their own background workers.
 def discordsend(message=""):
-    if webhook_log and message and not discord_test:
-        try:
-            webhook_log.content = message
-            response = webhook_log.execute()
-            if response is not None and not (200 <= response.status_code < 300):
-                msg.log(f"Discord: Webhook (logging) send failed (HTTP {response.status_code})")
-            if conf_discord["ForumChannel"] and webhook_log.thread_name and not webhook_log.thread_id:
-                webhook_log.thread_name = None
-                webhook_log.thread_id = webhook_log.id
-                #debug(f"webhook_log.thread_id: {webhook_log.thread_id}")
-        except Exception as e:
-            msg.log(f"{Col.WHITE}Discord:{Col.END} Webhook (logging) send error: {e}")
-    elif message and discord_test:
-        msg.log(f"{Col.WHITE}DISCORD:{Col.END} {message}")
+    webhook_log.content = message
+    try:
+        response = webhook_log.execute()
+    except Exception:
+        raise DeliveryError("connection failed or timed out", retryable=True) from None
+    if response is None:
+        raise DeliveryError("no response", retryable=True)
+    check_response(response.status_code, response.headers.get("Retry-After") if hasattr(response, "headers") else None)
+    if conf_discord["ForumChannel"] and webhook_log.thread_name and not webhook_log.thread_id:
+        webhook_log.thread_name = None
+        webhook_log.thread_id = webhook_log.id
+
+
+live_delivery_generation = None
+live_generation = 0
+
+
+def discord_live_send(update):
+    global live_delivery_generation
+    webhook_live.content = update.text
+    try:
+        response = webhook_live.execute() if update.generation != live_delivery_generation else webhook_live.edit()
+    except Exception:
+        raise DeliveryError("connection failed or timed out", retryable=True) from None
+    if response is None:
+        raise DeliveryError("no response", retryable=True)
+    check_response(response.status_code, response.headers.get("Retry-After") if hasattr(response, "headers") else None)
+    live_delivery_generation = update.generation
+
+
+senders = {}
+if webhook_log:
+    senders["discord"] = discordsend
+if webhook_live:
+    senders["discord_live"] = discord_live_send
+if telegram_enabled:
+    senders["telegram"] = lambda message: telegram_send(telegram_token, telegram_chat, message)
+notifications = NotificationDispatcher(senders, preview=discord_test)
+
+
+def notification_reports():
+    for report in notifications.drain_reports():
+        msg.log(report)
+
+
+def sendmessage(message="", telegram_message=None):
+    notifications.submit("discord", message)
+    if telegram_enabled:
+        text = message if telegram_message is None else telegram_message
+        for offset in range(0, len(text), 4096):
+            notifications.submit("telegram", text[offset:offset + 4096])
+    notification_reports()
+
 
 def discord_live_update(message=""):
-    if webhook_live and message and not discord_test:
-        try:
-            cmdr_name = "" if not conf_discord["PrependCmdrName"] else f"**{track.cmdrname}** "
-            webhook_live.content = f"{cmdr_name}{message}"
-            if not track.live_reset:
-                webhook_live.edit()
-            else:
-                webhook_live.execute()
-                track.live_reset = False
-        except Exception as e:
-            msg.log(f"{Col.WHITE}Discord:{Col.END} Webhook (live) send error: {e}")
-    elif message and discord_test:
-        msg.log(f"{Col.WHITE}DISCORD_LIVE:{Col.END} {message} {{{datetime.now().strftime("%H:%M:%S")}}}")
+    global live_generation
+    if track.live_reset:
+        live_generation += 1
+        track.live_reset = False
+    cmdr_name = "" if not conf_discord["PrependCmdrName"] else f"**{track.cmdrname}** "
+    notifications.submit("discord_live", LiveUpdate(f"{cmdr_name}{message}", live_generation))
+    notification_reports()
 
 # Log events
-def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2, event=None):
+def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2, event=None, msg_telegram=None):
     emoji = f"{emoji} " if emoji else ""
     loglevel = int(loglevel)
     if track.preloading and not discord_test:
@@ -598,8 +527,8 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
     if loglevel > 0 and not discord_test:
         msg.log(f"[{logtime}]{emoji}{msg_term}")
     
-    # Discord
-    if webhook_log and loglevel > 1:
+    # Remote notifications
+    if (webhook_log or telegram_enabled) and loglevel > 1:
         if event is not None and track.dupeevent == event:
             track.duperepeats += 1
         else:
@@ -610,10 +539,13 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
         ping = f" <@{conf_discord['UserID']}>" if loglevel > 2 and track.duperepeats == 1 else ""
         logtime = f" {{{logtime}}}" if conf_discord["Timestamp"] else ""
         cmdrname = "" if not conf_discord["PrependCmdrName"] else f"[{track.cmdrname}] "
+        telegram_message = msg_term if msg_telegram is None else msg_telegram
         if track.duperepeats <= DUPE_MAX:
-            discordsend(f"{cmdrname}{emoji}{discord_message}{logtime}{ping}")
+            sendmessage(f"{cmdrname}{emoji}{discord_message}{logtime}{ping}",
+                        telegram_message=re.sub(r"\x1b\[[0-9;]*m", "", f"{track.cmdrname}: {emoji}{telegram_message}{logtime}"))
         elif not track.dupewarn:
-            discordsend(f"{cmdrname}⏸️ **Suppressing further duplicate messages**{logtime}")
+            sendmessage(f"{cmdrname}⏸️ **Suppressing further duplicate messages**{logtime}",
+                        telegram_message=f"⏸️ Suppressing further duplicate messages{logtime}")
             track.dupewarn = True
 
 # Calculate somethings per hour
@@ -663,15 +595,6 @@ def truncate(input: str, chars: int) -> str:
         return input
     else:
         return f"{input[:chars].rstrip()}…"
-
-def read_complete_line(file):
-    """Leave an unfinished journal event available until its newline is written."""
-    position = file.tell()
-    line = file.readline()
-    if line and not line.endswith("\n"):
-        file.seek(position)
-        return ""
-    return line
 
 # Process incoming journal entries
 def processevent(line):
@@ -896,7 +819,23 @@ def processevent(line):
                 track.sessionend()
                 logevent(msg_term="Exited to main menu",
                     emoji="🚪", timestamp=logtime, loglevel=2)
+            case "Commander":
+                if track.cmdrname and j["Name"] != track.cmdrname:
+                    msg.log("Commander changed; restart the monitor to load the correct profile")
+                    raise SystemExit()
+                track.cmdrname = j["Name"]
             case "LoadGame":
+                track.sessionend()
+                session.reset()
+                track.fighterhull = 0
+                track.live_update = None
+                track.missions = False
+                track.missionsactive.clear()
+                track.missionredirects = 0
+                # Duplicate suppression must not carry a previous session's counter over.
+                track.dupeevent = ""
+                track.duperepeats = 1
+                track.dupewarn = False
                 if "Ship_Localised" in j:
                     track.cmdrship = j["Ship_Localised"]
                 elif "Ship" in j:
@@ -925,8 +864,8 @@ def processevent(line):
                 debug(f"Deploy time by supercruise drop: {track.deploytime}")
             case "EjectCargo" if not j["Abandoned"] and j["Count"] == 1:
                 name = j["Type_Localised"] if "Type_Localised" in j else j["Type"].title()
-                logevent(msg_term=f"{Col.BAD}Cargo stolen!{Col.END} ({name})",
-                        msg_discord=f"**Cargo stolen!** ({name})",
+                logevent(msg_term=f"{Col.BAD}Cargo lost or jettisoned (possible theft){Col.END} ({name})",
+                        msg_discord=f"**Cargo lost or jettisoned (possible theft)** ({name})",
                         emoji="🪓", timestamp=logtime, loglevel=conf_log_levels["CargoLost"], event="CargoLost")
             case "Rank":
                 track.cmdrcombatrank = COMBAT_RANKS[j["Combat"]]
@@ -971,7 +910,8 @@ def processevent(line):
             case "Shutdown":
                 logevent(msg_term="Quit to desktop",
                         emoji="🛑", timestamp=logtime, loglevel=2)
-                if __name__ == "__main__":
+                track.sessionend()
+                if __name__ == "__main__" and not track.preloading and not follow_journals:
                     sys.exit()
             case "SupercruiseEntry" | "FSDJump":
                 if j["event"] == "SupercruiseEntry":
@@ -1077,12 +1017,12 @@ def update_status(reset=False):
                 msg.set_status(f"{status_col}[{time_clock:>8}]💥 {s_kills:<23} | 📦 {s_scans:<23} | ⏱️ {time_sesh:<5} | 🎯 {s_missions}")
             
             # Window title (Windows only)
-            if conf_settings["DynamicTitle"] and os.name=="nt":
+            if conf_settings["DynamicTitle"] and os.name=="nt" and not msg.plain:
                 cmdr_name = "" if not conf_settings["WinTitleCmdrName"] else f"{track.cmdrname} "
                 ctypes.windll.kernel32.SetConsoleTitleW(f"{cmdr_name}💥{kills_hour}/h ⌚{last_kill} 🎯 {s_missions}")
 
         elif reset:
-            if conf_settings["DynamicTitle"] and os.name=="nt":
+            if conf_settings["DynamicTitle"] and os.name=="nt" and not msg.plain:
                 ctypes.windll.kernel32.SetConsoleTitleW(f"ED AFK Monitor v{VERSION}")
             if conf_settings["LiveStatus"]:
                 msg.clear_status()
@@ -1161,21 +1101,30 @@ def summary(stats, logtime=None, session=True, live=False):
         
         out_terminal = f"{type} Stats{session_time}{missions_completed}"
         out_discord = f"**{type} Stats**{session_time}{missions_completed}"
+        out_telegram = out_terminal
         
         for k, v in stats_out.items():
             if log_levels[k] >= 1:
                 out_terminal += f"\n{' '*10}-> {k}: {v}"
             if log_levels[k] >= 2:
                 out_discord += f"\n:white_small_square: **{k}:** {v}"
+                out_telegram += f"\n  -> {k}: {v}"
 
         if not live:
             logevent(msg_term=f"{out_terminal}",
-                msg_discord=f"{out_discord}",
+                msg_discord=f"{out_discord}", msg_telegram=out_telegram,
                 emoji="📝", timestamp=logtime, loglevel=log_max)
         else:
             discord_ts = round(time.time())
             live_stats = f"{out_discord}\n-# Updated: <t:{discord_ts}:t> (<t:{discord_ts}:R>)"
             discord_live_update(live_stats)
+
+def journal_rotated(path):
+    global journal_file
+    journal_file = path.name
+    track.lines = 0
+    logevent(msg_term=f"Following journal {journal_file}", emoji="📖", loglevel=2)
+
 
 if __name__ == "__main__":
     try:
@@ -1184,7 +1133,7 @@ if __name__ == "__main__":
         preload_position = 0
         # Journal preloading
         if track.preloading:
-            with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
+            with open(journal_dir / journal_file, mode="r", encoding="utf-8", errors="replace") as file:
                 while True:
                     line = read_complete_line(file)
                     if not line:
@@ -1200,18 +1149,15 @@ if __name__ == "__main__":
                         emoji="🔄", loglevel=1)
             update_status(True)
 
-        # Send Discord startup
+        # Queue startup notifications
         update_notice = f"\n:arrow_up: Update **[v{latest_version}](https://github.com/{GITHUB_REPO}/releases)** available!" if VERSION < latest_version else ""
 
-        if webhook_log:
-            if conf_discord["ForumChannel"]:
-                discordsend(f"💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}")
-                if not discord_test:
-                    webhook_log.content += f" <@{conf_discord['UserID']}>"
-                    webhook_log.edit()
-            else:
-                discordsend(f"# 💥 ED AFK Monitor 💥\n-# **by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}**")
-        
+        startup_message = f"💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}"
+        if conf_discord["ForumChannel"] and conf_discord["UserID"]:
+            startup_message += f" <@{conf_discord['UserID']}>"
+        sendmessage(startup_message,
+                    telegram_message=f"ED AFK Monitor v{VERSION} started for {track.cmdrname}")
+
         logevent(msg_term=f"Monitor started ({journal_file})",
                     msg_discord=f"**Monitor started** ({journal_file})",
                     emoji="📖", loglevel=2)
@@ -1220,11 +1166,12 @@ if __name__ == "__main__":
         trackingerror = None
         cooldown = conf_settings["WarnCooldown"]
         
-        with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
-            file.seek(preload_position)
+        with JournalReader(journal_dir / journal_file, position=preload_position,
+                           follow=follow_journals, on_rotate=journal_rotated) as file:
 
             while True:
-                line = read_complete_line(file)
+                notification_reports()
+                line = file.readline()
                 if not line:
                     try:
                         if track.deploytime:
@@ -1301,10 +1248,20 @@ if __name__ == "__main__":
         debug(f"\nTrack: {track.__dict__}")
         msg.show_cursor()
         
+        notifications.close()
+        notification_reports()
         if sys.argv[0].count("\\") > 1:
             input("\nPress ENTER to exit")	# This is *still* horrible
             sys.exit()
     except Exception as e:
         msg.log(f"{Col.WARN}Warning:{Col.END} Something went wrong: {e} (journal line #{track.lines})")
         traceback.print_tb(e.__traceback__)
+        notifications.close()
+        notification_reports()
+        msg.show_cursor()
         input("Press ENTER to exit")
+
+    finally:
+        notifications.close()
+        notification_reports()
+        msg.show_cursor()

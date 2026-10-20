@@ -4,6 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from notifications import DeliveryError, check_response
+from journal_reader import read_complete_line
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "afk_monitor.py"
@@ -16,8 +18,6 @@ def load_function(name, namespace=None):
     exec(compile(ast.Module(body=[function], type_ignores=[]), str(SOURCE), "exec"), scope)
     return scope[name]
 
-
-read_complete_line = load_function("read_complete_line")
 
 
 class JournalReaderTests(unittest.TestCase):
@@ -68,19 +68,22 @@ class JournalReaderTests(unittest.TestCase):
         messages = []
         webhook = SimpleNamespace(execute=lambda: RejectedResponse())
         send = load_function("discordsend", {
+            "DeliveryError": DeliveryError, "check_response": check_response,
             "webhook_log": webhook,
             "discord_test": False,
             "conf_discord": {"ForumChannel": False},
             "msg": SimpleNamespace(log=messages.append),
         })
-        send("test event")
+        with self.assertRaises(DeliveryError) as error:
+            send("test event")
+        self.assertIn("HTTP 403", str(error.exception))
         self.assertEqual(webhook.content, "test event")
-        self.assertEqual(len(messages), 1)
-        self.assertIn("HTTP 403", messages[0])
+        self.assertEqual(messages, [])
 
     def test_successful_discord_response_does_not_log_error(self):
         messages = []
         send = load_function("discordsend", {
+            "DeliveryError": DeliveryError, "check_response": check_response,
             "webhook_log": SimpleNamespace(execute=lambda: SimpleNamespace(status_code=200)),
             "discord_test": False,
             "conf_discord": {"ForumChannel": False},
@@ -88,6 +91,109 @@ class JournalReaderTests(unittest.TestCase):
         })
         send("test event")
         self.assertEqual(messages, [])
+
+
+class LiveDeliveryTests(unittest.TestCase):
+    def test_new_session_creates_new_message_and_updates_edit_it(self):
+        from notifications import LiveUpdate
+        calls = []
+        webhook = SimpleNamespace(
+            execute=lambda: (calls.append('create') or SimpleNamespace(status_code=200)),
+            edit=lambda: (calls.append('edit') or SimpleNamespace(status_code=200)))
+        send = load_function('discord_live_send', {
+            'webhook_live': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'live_delivery_generation': None})
+        send(LiveUpdate('first session', 1))
+        send(LiveUpdate('first update', 1))
+        send(LiveUpdate('second session', 2))
+        send(LiveUpdate('second update', 2))
+        self.assertEqual(calls, ['create', 'edit', 'create', 'edit'])
+
+    def test_failed_creation_is_retried_as_creation(self):
+        from notifications import LiveUpdate
+        calls = []
+        def execute():
+            calls.append('create')
+            return SimpleNamespace(status_code=500 if len(calls) == 1 else 200)
+        send = load_function('discord_live_send', {
+            'webhook_live': SimpleNamespace(execute=execute), 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'live_delivery_generation': None})
+        with self.assertRaises(DeliveryError):
+            send(LiveUpdate('session', 1))
+        send(LiveUpdate('session', 1))
+        self.assertEqual(calls, ['create', 'create'])
+
+
+class DiscordForumTests(unittest.TestCase):
+    def test_successful_forum_creation_keeps_original_thread_for_later_events(self):
+        calls = []
+        webhook = SimpleNamespace(thread_name='session', thread_id=None, id=None)
+        def execute():
+            calls.append((webhook.thread_name, webhook.thread_id, webhook.content))
+            webhook.id = str(len(calls))
+            return SimpleNamespace(status_code=200)
+        webhook.execute = execute
+        send = load_function('discordsend', {
+            'webhook_log': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'conf_discord': {'ForumChannel': True}})
+        send('startup')
+        send('kill')
+        self.assertEqual(calls, [('session', None, 'startup'), (None, '1', 'kill')])
+        self.assertEqual(webhook.thread_id, '1')
+
+    def test_failed_forum_creation_does_not_advance_thread_state(self):
+        webhook = SimpleNamespace(thread_name='session', thread_id=None, id=None,
+                                  execute=lambda: SimpleNamespace(status_code=429))
+        send = load_function('discordsend', {
+            'webhook_log': webhook, 'DeliveryError': DeliveryError,
+            'check_response': check_response, 'conf_discord': {'ForumChannel': True}})
+        with self.assertRaises(DeliveryError):
+            send('startup')
+        self.assertEqual(webhook.thread_name, 'session')
+        self.assertIsNone(webhook.thread_id)
+
+
+class SummaryRoutingTests(unittest.TestCase):
+    def test_telegram_summary_omits_terminal_only_fields(self):
+        from datetime import datetime, timezone
+        calls = []
+        stats = SimpleNamespace(kills=2, factions={'Private Faction': 2}, bounties=0,
+                                scansin=0, merits=0, kill_times=[])
+        summarize = load_function('summary', {
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
+                                     missionredirects=0, missionsactive=[]),
+            'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 1,
+                                'SummaryBounties': 0, 'SummaryMerits': 0, 'SummaryScans': 0},
+            'conf_settings': {'ExtendedStats': False},
+            'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
+            'time_format': lambda seconds: '1h',
+            'logevent': lambda **kwargs: calls.append(kwargs),
+        })
+        summarize(stats, logtime=datetime.now(timezone.utc), session=False)
+        self.assertIn('Private Faction', calls[0]['msg_term'])
+        self.assertNotIn('Private Faction', calls[0]['msg_discord'])
+        self.assertNotIn('Private Faction', calls[0]['msg_telegram'])
+        self.assertIn('Kills:', calls[0]['msg_telegram'])
+
+    def test_event_uses_explicit_telegram_text_and_respects_terminal_only_level(self):
+        import re
+        from datetime import datetime, timezone
+        calls = []
+        log = load_function('logevent', {
+            'datetime': datetime, 'timezone': timezone, 're': re,
+            'track': SimpleNamespace(preloading=False, logged=0, dupeevent=None),
+            'discord_test': False, 'webhook_log': None, 'telegram_enabled': True,
+            'conf_settings': {'UseUTC': True},
+            'conf_discord': {'UserID': 0, 'Timestamp': False, 'PrependCmdrName': False},
+            'DUPE_MAX': 5, 'msg': SimpleNamespace(log=lambda _: None),
+            'sendmessage': lambda *args, **kwargs: calls.append(kwargs),
+        })
+        log.__globals__['track'].cmdrname = 'Test'
+        log('private terminal details', msg_telegram='remote summary', loglevel=2)
+        self.assertIn('remote summary', calls[0]['telegram_message'])
+        self.assertNotIn('private terminal details', calls[0]['telegram_message'])
+        log('terminal-only event', loglevel=1)
+        self.assertEqual(len(calls), 1)
 
 
 if __name__ == "__main__":
