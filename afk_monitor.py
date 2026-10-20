@@ -827,6 +827,8 @@ def processevent(line):
             case "LoadGame":
                 track.sessionend()
                 session.reset()
+                track.fighterhull = 0
+                track.live_update = None
                 track.missions = False
                 track.missionsactive.clear()
                 track.missionredirects = 0

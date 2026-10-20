@@ -111,13 +111,15 @@ class MonitorIntegrationTests(unittest.TestCase):
                 wait_for('TELEGRAM PREVIEW: Test Commander: 📖 Monitor started')
                 # The update check is unrelated to notification test mode; clear its marker.
                 (root / 'network-attempted').unlink(missing_ok=True)
-                write(first, [{'event': 'Shutdown'}], mode='a')
+                write(first, [{'event': 'HullDamage', 'PlayerPilot': False, 'Fighter': True, 'Health': 0.8},
+                              {'event': 'Shutdown'}], mode='a')
                 wait_for('Quit to desktop')
                 self.assertIsNone(process.poll())
                 second = journals / 'Journal.2026-10-20T130000.01.log'
                 write(second, [{'event': 'Commander', 'Name': 'Test Commander'},
                                {'event': 'LoadGame', 'Ship': 'Anaconda', 'GameMode': 'Solo'},
                                {'event': 'HullDamage', 'PlayerPilot': True, 'Fighter': False, 'Health': 0.6},
+                               {'event': 'HullDamage', 'PlayerPilot': False, 'Fighter': True, 'Health': 0.8},
                                {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': False, 'Count': 1},
                                {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': True, 'Count': 1},
                                {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': False, 'Count': 2}])
@@ -140,6 +142,7 @@ class MonitorIntegrationTests(unittest.TestCase):
                     self.assertNotIn('\r', combined)
                 self.assertIn('DISCORD PREVIEW:', combined)
                 self.assertEqual(combined.count('possible theft'), 2)
+                self.assertEqual(combined.count('Fighter hull damaged!'), 4)
                 self.assertNotIn('Cargo stolen!', combined)
                 self.assertNotIn('TEST_SECRET_TOKEN', combined)
                 self.assertNotIn('Process event error', combined)
