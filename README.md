@@ -148,14 +148,25 @@ Mission spread: 0/3 complete | 2 wing | 57 kills left
 
 - `--missions` prints every saved ledger (including mission IDs) and exits without
   starting the monitor, reading the journal or contacting Discord/Telegram.
+  `--missions --json` prints the same data as JSON for other tools.
+- `--import-missions <file>` adds a mission list to the ledger and exits (`-` reads
+  stdin). One mission per line as `TargetFaction, Kills [, wing]`, or
+  `MissionID, TargetFaction, Kills [, wing]`, or CSV with a header such as
+  `Target Faction,Kills,Wing`. Re-importing a list replaces the imported rows but keeps
+  their kill progress when the target faction, kill count and wing flag still match.
+  Imported rows are shown as `imported` and are marked complete when their kills reach
+  the requirement.
+- When `Missions` lists a mission the monitor has never seen, it searches up to 20 recent
+  journals for that `MissionAccepted` event to recover the faction and kill count.
 - `SummaryMissions` under `[LogLevels]` sets where the spread is reported; the default
   is 1 (terminal only), while 2 or 3 also sends it to Discord and Telegram.
 - Wing missions progress from every wing member's kills, but the journal only records
   your own kills, so `Done` is your contribution. `MissionRedirected` still marks a
   mission complete when the wing finishes it.
 - Not every wanted ship of the target faction is a mission target, so kill credit is an
-  estimate. Missions accepted before the monitor first recorded them have no saved
-  details and show as "unknown target" without kill credit.
+  estimate. Missions accepted before the monitor first recorded them are recovered from
+  recent journals where possible; otherwise they show as "unknown target" and can be
+  added with `--import-missions`.
 
 ## Configuring log levels
 
@@ -182,6 +193,8 @@ You can pass the following arguments when launching AFK Monitor:
 --no-follow                                 Monitor only the selected journal
 --plain                                     Plain text without colours, emojis or live status
 --missions                                  Print saved massacre-mission spread and exit
+--json                                      With --missions, print machine-readable JSON
+--import-missions <file>                    Import a mission list (CSV or text) and exit
 ```
 
 ## Common Issues
