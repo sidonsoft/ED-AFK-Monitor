@@ -160,8 +160,8 @@ class SummaryRoutingTests(unittest.TestCase):
         stats = SimpleNamespace(kills=2, factions={'Private Faction': 2}, bounties=0,
                                 scansin=0, merits=0, kill_times=[])
         summarize = load_function('summary', {
-            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
-                                     missionredirects=0, missionsactive=[]),
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600),
+            'mission_ledger': SimpleNamespace(has_missions=lambda: False, status_line=lambda: '0/0'),
             'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 1,
                                 'SummaryBounties': 0, 'SummaryMerits': 0, 'SummaryScans': 0},
             'conf_settings': {'ExtendedStats': False},
