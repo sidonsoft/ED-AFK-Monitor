@@ -554,7 +554,9 @@ def discordsend(message=""):
     if webhook_log and message and not discord_test:
         try:
             webhook_log.content = message
-            webhook_log.execute()
+            response = webhook_log.execute()
+            if response is not None and not (200 <= response.status_code < 300):
+                msg.log(f"Discord: Webhook (logging) send failed (HTTP {response.status_code})")
             if conf_discord["ForumChannel"] and webhook_log.thread_name and not webhook_log.thread_id:
                 webhook_log.thread_name = None
                 webhook_log.thread_id = webhook_log.id
@@ -661,6 +663,15 @@ def truncate(input: str, chars: int) -> str:
         return input
     else:
         return f"{input[:chars].rstrip()}…"
+
+def read_complete_line(file):
+    """Leave an unfinished journal event available until its newline is written."""
+    position = file.tell()
+    line = file.readline()
+    if line and not line.endswith("\n"):
+        file.seek(position)
+        return ""
+    return line
 
 # Process incoming journal entries
 def processevent(line):
@@ -1170,12 +1181,17 @@ if __name__ == "__main__":
     try:
         msg.hide_cursor()
         
+        preload_position = 0
         # Journal preloading
         if track.preloading:
             with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
-                for line in file:
+                while True:
+                    line = read_complete_line(file)
+                    if not line:
+                        break
                     processevent(line)
                     track.lines += 1
+                preload_position = file.tell()
             track.preloading = False
             if args.resetsession:
                 session.reset()
@@ -1200,15 +1216,15 @@ if __name__ == "__main__":
                     msg_discord=f"**Monitor started** ({journal_file})",
                     emoji="📖", loglevel=2)
         
-        # Open journal from end and watch for new lines
+        # Resume after history, including events appended during startup.
         trackingerror = None
         cooldown = conf_settings["WarnCooldown"]
         
         with open(journal_dir / journal_file, mode="r", encoding="utf-8") as file:
-            file.seek(0, 2)
+            file.seek(preload_position)
 
             while True:
-                line = file.readline()
+                line = read_complete_line(file)
                 if not line:
                     try:
                         if track.deploytime:
