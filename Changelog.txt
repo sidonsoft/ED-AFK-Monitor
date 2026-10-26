@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: mission value projections (2026-10-26)
+------------------------------------------------
+- Session and live summaries now include a projection line: mission
+  cr/hour at the current kill rate, estimated time until the stack
+  completes, and credits ready to turn in.
+- Validation: 119 tests passed.
+
 Fork: mission expiry alarms (2026-10-26)
 ------------------------------------------------
 - Warn when an unfinished massacre mission expires within WarnMissionExpiry

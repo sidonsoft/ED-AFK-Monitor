@@ -621,6 +621,21 @@ class MissionLedger:
                 "kill_ratio": sum(m.kill_count for m in self.missions.values() if m.known) / need if need else 0,
                 "next_completion": min(next_by_issuer.values(), default=0)}
 
+    def projections(self, kills_per_hour):
+        """Mission income projections at the current kill rate; {} when unavailable.
+
+        cr_per_hour uses average mission reward per unique required kill, so it
+        already accounts for stacks that share kills between issuers.
+        """
+        data = self.spread()
+        if not data["total"] or not kills_per_hour or kills_per_hour <= 0:
+            return {}
+        return {
+            "cr_per_hour": round(data["average_per_kill"] * kills_per_hour) if data["average_per_kill"] else 0,
+            "finish_secs": int(data["left"] / kills_per_hour * 3600) if data["left"] else 0,
+            "turn_in": data["turn_in"],
+        }
+
     def report_text(self, include_missions=False, title=False):
         data = self.spread()
         lines = []

@@ -21,7 +21,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 5. **Session database + history** (★★★ / ††) — SQLite log of sessions (duration, kill/scan rates,
    bounties/hr, merits, mission value); `--history` trend report; answers "is this ring better
    than last week?"
-6. **Projected income per hour** (★★★ / †) — combine live kill rate with mission reward/kill
+6. ✅ **Projected income per hour** (★★★ / †) — combine live kill rate with mission reward/kill
    estimates (already in the ledger) to show live cr/h *including* mission turn-in value, plus
    "stack completes in ~X min at current rate" projections.
 7. ✅ **Mission expiry alarms** (★★ / †) — expiry dates are already stored; warn when an incomplete

@@ -200,7 +200,8 @@ class SummaryRoutingTests(unittest.TestCase):
                                               status_line=lambda: '0/1',
                                               report_text=lambda **kwargs: '',
                                               report_discord=lambda: '',
-                                              report_live=lambda: '**Mission spread** 0/1 complete'),
+                                              report_live=lambda: '**Mission spread** 0/1 complete',
+                                              projections=lambda rate: {}),
             'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
             'time_format': lambda seconds: '1h',
             'logevent': lambda **kwargs: calls.append(('log', kwargs)),
@@ -257,7 +258,10 @@ class SummaryRoutingTests(unittest.TestCase):
                                               status_line=lambda: '0/1',
                                               report_text=lambda **kwargs: 'Mission spread text',
                                               report_discord=lambda: 'Mission spread discord',
-                                              report_live=lambda: '**Mission spread** live'),
+                                              report_live=lambda: '**Mission spread** live',
+                                              projections=lambda rate: {'cr_per_hour': 500000,
+                                                                       'finish_secs': 3600,
+                                                                       'turn_in': 123}),
             'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
             'time_format': lambda seconds: '1h',
             'logevent': lambda **kwargs: calls.append(kwargs),
@@ -267,6 +271,9 @@ class SummaryRoutingTests(unittest.TestCase):
         self.assertIn('Mission spread text', calls[0]['msg_term'])
         self.assertIn('**Mission spread** live', calls[0]['msg_discord'])
         self.assertIn('Mission spread text', calls[0]['msg_telegram'])
+        self.assertIn('Projection at current rate: 500,000 cr/h from mission rewards', calls[0]['msg_discord'])
+        self.assertIn('stack completes in 1h', calls[0]['msg_discord'])
+        self.assertIn('123 cr ready to turn in', calls[0]['msg_telegram'])
 
     def test_event_uses_explicit_telegram_text_and_respects_terminal_only_level(self):
         import re

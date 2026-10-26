@@ -1232,9 +1232,23 @@ def summary(stats, logtime=None, session=True, live=False):
 
         if mission_level > 0 and mission_ledger.has_missions():
             mission_text = mission_ledger.report_text()
+            mission_rate = (stats.kills / session_seconds * 3600) if session_seconds > 0 else 0
+            projection = mission_ledger.projections(mission_rate)
+            projection_line = ""
+            if projection:
+                projection_line = f"Projection at current rate: {projection['cr_per_hour']:,} cr/h from mission rewards"
+                if projection["finish_secs"]:
+                    projection_line += f" | stack completes in {time_format(projection['finish_secs'])}"
+                if projection["turn_in"]:
+                    projection_line += f" | {projection['turn_in']:,} cr ready to turn in"
+            if projection_line:
+                mission_text = f"{mission_text}\n{projection_line}"
             out_terminal += f"\n\n{mission_text}"
             if mission_level >= 2:
-                out_discord += f"\n\n{mission_ledger.report_live()}"
+                live_missions = mission_ledger.report_live()
+                if projection_line:
+                    live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
+                out_discord += f"\n\n{live_missions}"
                 out_telegram += f"\n\n{mission_text}"
 
         if not live:

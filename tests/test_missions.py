@@ -436,3 +436,40 @@ class MissionExpiryTests(unittest.TestCase):
             self.accept(ledger, 1, (self.NOW + timedelta(minutes=10)).replace(tzinfo=None).isoformat())
             found = ledger.expiring(30, now=self.NOW)
             self.assertEqual([mission.mission_id for mission, _ in found], [1])
+
+
+class MissionProjectionTests(unittest.TestCase):
+    def ledger(self, folder):
+        ledger = MissionLedger(Path(folder) / "missions.json")
+        ledger.accept({"event": "MissionAccepted", "Name": "Mission_Massacre", "MissionID": 1,
+                       "Faction": "Issuer", "TargetFaction": "Pirates", "KillCount": 50,
+                       "Reward": 1_000_000})
+        ledger.accept({"event": "MissionAccepted", "Name": "Mission_Massacre", "MissionID": 2,
+                       "Faction": "Issuer", "TargetFaction": "Pirates", "KillCount": 50,
+                       "Reward": 1_000_000})
+        return ledger
+
+    def test_projection_scales_average_reward_by_live_kill_rate(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.ledger(folder)
+            proj = ledger.projections(100)
+            self.assertEqual(proj["cr_per_hour"], 2_000_000)  # 2cr avg per unique kill
+            self.assertEqual(proj["finish_secs"], 100 * 36)    # 100 unique kills at 100/h
+
+    def test_projection_empty_without_rate_or_missions(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.ledger(folder)
+            self.assertEqual(ledger.projections(0), {})
+            self.assertEqual(ledger.projections(None), {})
+            empty = MissionLedger(Path(folder) / "other.json")
+            self.assertEqual(empty.projections(100), {})
+
+    def test_finished_stack_projection_has_no_time(self):
+        with TemporaryDirectory() as folder:
+            ledger = self.ledger(folder)
+            for mission in ledger.missions.values():
+                mission.done = True
+                mission.kills = mission.kill_count
+            proj = ledger.projections(100)
+            self.assertEqual(proj["finish_secs"], 0)
+            self.assertEqual(proj["turn_in"], 2_000_000)
