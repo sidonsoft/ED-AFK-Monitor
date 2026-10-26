@@ -327,6 +327,7 @@ class Tracking:
             else:
                 self.deploytime = self.thiseventtime - timedelta(seconds=delta)
             session.reset()
+            mission_ledger.reset_rates(self.deploytime)
             debug(f"Session started: {self.deploytime}")
             session.kill_times.append(self.deploytime)
             session.scan_times.append(self.deploytime)
@@ -825,7 +826,7 @@ def processevent(line):
                 bountyvalue = f" [{num_format(bountyvalue)} cr]" if conf_settings["BountyValue"] else ""
                 victimfaction = j["VictimFaction_Localised"] if "VictimFaction_Localised" in j else j["VictimFaction"]
                 if j["event"] == "Bounty":
-                    mission_ledger.kill(victimfaction, j.get("VictimFaction"))
+                    mission_ledger.kill(victimfaction, j.get("VictimFaction"), timestamp=logtime)
                 session.factions[victimfaction] = session.factions.get(victimfaction, 0) + 1
                 total.factions[victimfaction] = total.factions.get(victimfaction, 0) + 1
                 factioncount = f" x{session.factions[victimfaction]}" if conf_settings["ExtendedStats"] else ""
@@ -1218,9 +1219,19 @@ def summary(stats, logtime=None, session=True, live=False):
 
         if mission_level > 0 and mission_ledger.has_missions():
             mission_text = mission_ledger.report_text()
+            mission_eta = mission_ledger.estimate_text(logtime) if session else ""
+            if mission_eta:
+                mission_text += f"\n{mission_eta}"
             out_terminal += f"\n\n{mission_text}"
             if mission_level >= 2:
-                out_discord += f"\n\n{mission_ledger.report_live()}"
+                mission_live = mission_ledger.report_live()
+                # Leave room for the ETA and the live-message timestamp under Discord's limit.
+                budget = max(0, 1850 - len(out_discord) - len(mission_eta))
+                if len(mission_live) > budget:
+                    mission_live = mission_live[:max(0, budget - 24)].rsplit("\n", 1)[0] + "\nMore: --missions"
+                out_discord += f"\n\n{mission_live}"
+                if mission_eta:
+                    out_discord += f"\n{mission_eta}"
                 out_telegram += f"\n\n{mission_text}"
 
         if not live:

@@ -135,7 +135,9 @@ event is discarded.
 Track massacre missions using the game's journals, with an Elite Tracker style
 breakdown in terminal and notification summaries. Elite Tracker does not need to run.
 The report includes issuer stacks, required and estimated kills, remaining kills,
-stack differences, total/shareable rewards and value ready to turn in. The detailed
+stack differences, total/shareable rewards and value ready to turn in. Session stats
+also estimate the next mission and full-stack completion time from recent target
+kills, with warmup and stalled-rate handling. The detailed
 mission list also shows origins, destinations, expiry and individual payouts.
 
 ```powershell

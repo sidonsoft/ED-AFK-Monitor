@@ -62,6 +62,39 @@ added together in the overall kills-left figure.
 Unknown issuers are treated as independent estimates rather than assuming they are
 the same faction. Supply the issuer when importing missions for useful stack totals.
 
+## Time estimates in session stats
+
+Session stats include a line such as:
+
+```text
+Mission ETA: next ~12m | full stack ~48m (recent local target kills)
+```
+
+The same estimate appears in terminal, Telegram and Discord session summaries,
+including the edited live Discord post, under `SummaryMissions`. Total/lifetime stats
+and offline `--missions` reports do not forecast a running session.
+
+The monitor measures matching local bounty kills over the last 30 minutes, or since
+the session started if shorter. It needs at least three kills for each unfinished
+target faction and two minutes of observation. Unrelated kills and combat bonds do
+not increase the rate. New sessions reset the rate history without clearing mission
+progress. Current-session journal preloading can provide samples, but samples older
+than the window are ignored.
+
+The next-mission estimate respects each issuer's acceptance queue. The full-stack
+estimate uses the largest remaining issuer requirement for each target. For multiple
+target factions, their wall-clock forecasts overlap: the longest forecast determines
+completion. This assumes you continue the recent mix of target kills.
+
+`Insufficient data` replaces a forecast when samples or mission details are missing.
+After ten minutes without a matching kill in a sampled unfinished target faction,
+the line reports a stall instead of a finish time. When the sample window has no
+usable history it returns to insufficient data. A locally estimated zero remaining
+shows `awaiting game confirmation`; only objective completion events confirm
+journal-linked missions. Other wing members' contributions and missing journal kills
+can make both progress and timing differ from the game. Times are rounded up to
+whole minutes and are estimates, not deadlines.
+
 ## Reading the fields
 
 | Field | Meaning |

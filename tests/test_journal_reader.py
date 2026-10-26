@@ -200,7 +200,8 @@ class SummaryRoutingTests(unittest.TestCase):
                                               status_line=lambda: '0/1',
                                               report_text=lambda **kwargs: '',
                                               report_discord=lambda: '',
-                                              report_live=lambda: '**Mission spread** 0/1 complete'),
+                                              report_live=lambda: '**Mission spread** 0/1 complete',
+                                              estimate_text=lambda now: 'Mission ETA: next ~12m | full stack ~48m'),
             'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
             'time_format': lambda seconds: '1h',
             'logevent': lambda **kwargs: calls.append(('log', kwargs)),
@@ -211,6 +212,13 @@ class SummaryRoutingTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][0], 'live')
         self.assertIn('**Mission spread** 0/1 complete', calls[0][1])
+        self.assertIn('Mission ETA: next ~12m | full stack ~48m', calls[0][1])
+        calls.clear()
+        summarize.__globals__['mission_ledger'].report_live = lambda: ('issuer detail ' * 200)
+        summarize(stats, logtime=now)
+        self.assertLessEqual(len(calls[0][1]['msg_discord']), 2000)
+        for key in ('msg_term', 'msg_discord', 'msg_telegram'):
+            self.assertIn('Mission ETA: next ~12m | full stack ~48m', calls[0][1][key])
 
     def test_deleted_live_message_is_reposted(self):
         from types import SimpleNamespace

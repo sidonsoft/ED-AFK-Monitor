@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: session mission estimates (2026-10-26)
+------------------------------------------
+- Add next-mission and full-stack ETA to session stats and live Discord updates.
+- Use recent local target-faction bounty kills, with a 30-minute rolling window.
+- Require three samples and two minutes of observation; suppress stale forecasts.
+- Keep estimates separate from game-confirmed completion and reset rates per session.
+
 Fork: wing mission stack test build (2026-10-26)
 ------------------------------------------------
 - Add issuer stacks, estimated kill progress, remaining kills and stack differences.

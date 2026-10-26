@@ -1,5 +1,6 @@
 """Track massacre missions, their target factions and local kill progress."""
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -10,6 +11,10 @@ from time import time
 FILE_VERSION = 1
 SAVE_INTERVAL = 5
 MAX_IMPORT = 100
+RATE_WINDOW_SECONDS = 30 * 60
+RATE_MIN_SECONDS = 120
+RATE_MIN_KILLS = 3
+RATE_STALE_SECONDS = 10 * 60
 
 HEADER_ALIASES = {
     "id": {"id", "missionid"},
@@ -275,6 +280,8 @@ class MissionLedger:
         self.profile = profile or ""
         self.save_interval = save_interval
         self.details_lookup = details_lookup
+        self.rate_started = None
+        self.recent_target_kills = {}
         self.origin_system = ""
         self.origin_station = ""
         self.missions = {}
@@ -405,11 +412,23 @@ class MissionLedger:
         self.save()
         return removed
 
-    def kill(self, victim_faction, alternate=None):
+    def reset_rates(self, started):
+        """Session-local rate history is independent of persisted mission progress."""
+        self.rate_started = started
+        self.recent_target_kills.clear()
+
+    def kill(self, victim_faction, alternate=None, timestamp=None):
         keys = {faction_key(victim_faction), faction_key(alternate)}
         keys.discard("")
         if not keys:
             return []
+        if isinstance(timestamp, datetime):
+            targets = {faction_key(m.target) for m in self.missions.values() if m.known}
+            for key in keys & targets:
+                history = self.recent_target_kills.setdefault(key, [])
+                cutoff = timestamp - timedelta(seconds=RATE_WINDOW_SECONDS)
+                history[:] = [when for when in history if when >= cutoff]
+                history.append(timestamp)
         credited = []
         issuers = set()
         for mission in sorted(self.missions.values(), key=lambda m: (m.accepted, m.mission_id)):
@@ -597,6 +616,56 @@ class MissionLedger:
                 "average_per_mission": reward / total if total else 0,
                 "kill_ratio": sum(m.kill_count for m in self.missions.values() if m.known) / need if need else 0,
                 "next_completion": min(next_by_issuer.values(), default=0)}
+
+    def estimate_text(self, now):
+        """Forecast objectives from recent local target-faction kills, never confirmations."""
+        if not self.missions:
+            return ""
+        if all(m.done for m in self.missions.values()):
+            return "Mission ETA: objectives complete"
+        pending = [m for m in self.missions.values() if not m.done]
+        if any(not m.known for m in pending):
+            return "Mission ETA: insufficient data (unknown mission details)"
+        data = self.spread()
+        if data['left'] == 0:
+            return "Mission ETA: awaiting game confirmation"
+        if not isinstance(now, datetime) or not isinstance(self.rate_started, datetime):
+            return "Mission ETA: insufficient data"
+        start = max(self.rate_started, now - timedelta(seconds=RATE_WINDOW_SECONDS))
+        elapsed = (now - start).total_seconds()
+        if elapsed < RATE_MIN_SECONDS:
+            return "Mission ETA: insufficient data"
+        rates = {}
+        stalled = False
+        for row in data['rows']:
+            if row['left'] <= 0:
+                continue
+            key = faction_key(row['faction'])
+            history = [when for when in self.recent_target_kills.get(key, [])
+                       if start <= when <= now]
+            if history and (now - max(history)).total_seconds() >= RATE_STALE_SECONDS:
+                stalled = True
+            if len(history) < RATE_MIN_KILLS:
+                return "Mission ETA: insufficient data"
+            rates[key] = len(history) / elapsed
+        if stalled:
+            return "Mission ETA: stalled (no matching kills for 10m); waiting for activity"
+        # Per-target rates already include time spent killing other factions. Their
+        # wall-clock forecasts overlap, so completion is the longest, not their sum.
+        full = max(row['left'] / rates[faction_key(row['faction'])]
+                   for row in data['rows'] if row['left'] > 0)
+        next_by_issuer = {}
+        for m in sorted(pending, key=lambda m: (m.accepted, m.mission_id)):
+            if m.kills < m.kill_count:
+                key = (faction_key(m.target), faction_key(m.faction) or m.mission_id)
+                next_by_issuer.setdefault(key, (m.kill_count - m.kills) / rates[key[0]])
+        def duration(seconds):
+            minutes = max(1, math.ceil(seconds / 60))
+            hours, minutes = divmod(minutes, 60)
+            return (f"{hours}h {minutes:02d}m" if hours else f"{minutes}m")
+        next_time = duration(min(next_by_issuer.values()))
+        return (f"Mission ETA: next ~{next_time} | full stack ~{duration(full)}"
+                " (recent local target kills)")
 
     def report_text(self, include_missions=False, title=False):
         data = self.spread()
