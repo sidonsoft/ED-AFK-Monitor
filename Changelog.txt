@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay PUTs are size-capped at 2 MB (2026-10-26)
+------------------------------------------------
+- A wingmate (or a script pointed at the wrong port) can no longer
+  fill your disk through the embedded relay: >2 MB answers 413,
+  >32 MB is refused without even ingesting the request.
+- Validation: 232 tests passed.
+
 Fork: [Wing] FetchTimeout - patience for slow wing links (2026-10-26)
 ------------------------------------------------
 - Every wingmate fetch gets FetchTimeout seconds (default 5, min 1),

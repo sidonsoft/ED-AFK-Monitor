@@ -171,6 +171,17 @@ class StaleNotesTests(unittest.TestCase):
 
 
 class WingServeTests(unittest.TestCase):
+    def test_oversized_put_is_rejected_before_hitting_disk(self):
+        big = json.dumps({"version": FILE_VERSION, "missions": [],
+                          "note": "x" * (3 * 1024 * 1024)}).encode()
+        request = Request(f"{self.base}/fat.json", method="PUT", data=big)
+        try:
+            urlopen(request, timeout=5)
+            self.fail("3 MB ledger should 413")
+        except urllib.error.HTTPError as caught:
+            self.assertEqual(caught.code, 413)
+        self.assertFalse((Path(self.folder.name) / "fat.json").exists())
+
     def test_directory_listing_covers_both_tiers(self):
         (Path(self.folder.name) / "own.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         from urllib.request import urlopen

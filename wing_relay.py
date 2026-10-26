@@ -118,6 +118,9 @@ def fetch_spread(url, timeout=5):
     return spread, name, ""
 
 
+MAX_LEDGER_BYTES = 2 * 1024 * 1024  # a fat wingmate PUT must not fill the disk
+
+
 class _WingRelayHandler(BaseHTTPRequestHandler):
     directories = []  # GET searches each in order; PUT lands in the first
     token = ""  # empty disables auth; mates carry it in the URL query
@@ -177,7 +180,19 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         try:
-            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            declared = int(self.headers.get("Content-Length", 0))
+            if declared > 16 * MAX_LEDGER_BYTES:
+                # absurd: answer without ingesting the request at all
+                self.send_response(413)
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.close_connection = True
+                return
+            body = self.rfile.read(declared)
+            if len(body) > MAX_LEDGER_BYTES:
+                self.send_response(413)
+                self.end_headers()
+                return
             json.loads(body.decode("utf-8"))  # only real ledgers on disk
         except (ValueError, UnicodeDecodeError):
             self.send_response(400)
