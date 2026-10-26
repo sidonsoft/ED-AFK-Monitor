@@ -84,11 +84,16 @@ def fetch_spread(url, timeout=5):
             data = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
         return None, "", f"Could not fetch {url}: {getattr(failure, 'reason', None) or failure}"
-    from missions import MissionLedger
+    from missions import FILE_VERSION, MissionLedger
     from urllib.parse import urlsplit, unquote
     name = unquote(urlsplit(url).path).rstrip("/").rsplit("/", 1)[-1] or "remote.json"
     if not name.endswith(".json"):
         name += ".json"
+    if not isinstance(data, dict):
+        return None, name, f"{name}: not a ledger file (JSON top level is not an object)"
+    if data.get("version") != FILE_VERSION:
+        return None, name, (f"{name}: ledger format v{data.get('version')}"
+                            f" needs an updated monitor (this is v{FILE_VERSION})")
     ledger = MissionLedger(Path(name))
     ledger.load_data(data)
     spread = ledger.spread()

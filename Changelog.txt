@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay fetch errors now say what is wrong (2026-10-26)
+------------------------------------------------
+- A shared URL returning an HTML page or list says 'JSON top level is
+  not an object' instead of 'no missions'; a wingmate on an older
+  ledger format sees 'needs an updated monitor (this is vNNNNNN)'.
+- Validation: 222 tests passed.
+
 Fork: wing merges survive garbage from wingmate ledgers (2026-10-26)
 ------------------------------------------------
 - merge_spreads now type-checks every remote number (top-level and

@@ -24,7 +24,8 @@ class RelayHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        body = json.dumps(RelayHandler.served.get(self.path, {})).encode()
+        value = RelayHandler.served.get(self.path, {})
+        body = (value if isinstance(value, str) else json.dumps(value)).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -64,6 +65,20 @@ class WingRelayTests(unittest.TestCase):
         self.assertEqual(name, "mate.json")
         self.assertEqual((spread["total"], spread["done"], spread["left"]), (1, 0, 2))
         self.assertTrue(spread["wing"])
+
+    def test_fetch_non_object_json_says_so(self):
+        RelayHandler.served["/list.json"] = "[1, 2, 3]"
+        spread, name, error = fetch_spread(f"http://127.0.0.1:{self.port}/list.json")
+        self.assertIsNone(spread)
+        self.assertIn("not an object", error)
+
+    def test_fetch_old_format_ledger_names_the_version(self):
+        stale = dict(LEDGER, version=990101)
+        RelayHandler.served["/old.json"] = stale
+        spread, name, error = fetch_spread(f"http://127.0.0.1:{self.port}/old.json")
+        self.assertIsNone(spread)
+        self.assertIn("v990101", error)
+        self.assertIn("updated monitor", error)
 
     def test_fetch_empty_or_broken_ledger_reports(self):
         RelayHandler.served["/empty.json"] = {"version": FILE_VERSION, "missions": []}
