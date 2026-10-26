@@ -57,15 +57,42 @@ def redact(url):
     return re.sub(r"([?&]token=)[^&]*", lambda m: m.group(1) + "\u2022", str(url))
 
 
+def _listing_entries(url, timeout=5):
+    """A FetchURL ending in '/' is a relay address, not a ledger: pull the
+    inventory and expand it into one URL per ledger. Tokens in the base
+    query are carried onto every entry."""
+    try:
+        with urlopen(Request(url, method="GET"), timeout=timeout) as response:
+            listing = json.loads(response.read().decode("utf-8"))
+    except Exception as failure:
+        return None, f"could not read relay listing: {getattr(failure, 'reason', None) or failure}"
+    entries = listing.get("ledgers") if isinstance(listing, dict) else None
+    if not isinstance(entries, list):
+        return None, "relay listing response has no 'ledgers' list"
+    base = urlsplit(url)
+    root = base.path if base.path.endswith("/") else base.path + "/"
+    return [urlunsplit((base.scheme, base.netloc, root + str(entry.get("name", "")),
+                        base.query, ""))
+            for entry in entries if isinstance(entry, dict) and entry.get("name")], ""
+
+
 def fetch_spreads(urls, timeout=5):
     """Fetch every URL; returns ([(name, spread)], [error strings])."""
     spreads, errors = [], []
     for url in as_url_list(urls):
-        spread, name, error = fetch_spread(url, timeout=timeout)
-        if error:
-            errors.append(f"{redact(url)}: {error}")
+        if not urlsplit(url).path.rsplit("/", 1)[-1].endswith(".json"):
+            targets, error = _listing_entries(url, timeout=timeout)
+            if targets is None:
+                errors.append(f"{redact(url)}: {error}")
+                continue
         else:
-            spreads.append((name, spread))
+            targets = [url]
+        for target in targets:
+            spread, name, error = fetch_spread(target, timeout=timeout)
+            if error:
+                errors.append(f"{redact(target)}: {error}")
+            else:
+                spreads.append((name, spread))
     return spreads, errors
 
 

@@ -150,6 +150,11 @@ slower, so `[Wing] FetchTimeout = 10` buys patience (per URL, both live and
 `GET http://<host>:8099/wing/` lists every ledger the relay carries with its
 last-save time - the fastest way to prove a URL (or a token) works.
 
+That listing doubles as config: point `FetchURL` at the relay address ending
+in `/` (e.g. `http://<host>:8099/wing/`) and the monitor pulls every ledger
+the host carries - no filenames, and a `?token=` on the base applies to them
+all.
+
 ## Sharing ledgers with wingmates
 
 Every commander keeps their own ledger; the monitor can fold copies together

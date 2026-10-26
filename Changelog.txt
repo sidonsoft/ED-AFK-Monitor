@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: point FetchURL at a relay root, get the whole wing (2026-10-26)
+------------------------------------------------
+- A FetchURL ending in '/' is now read as a relay address: the monitor
+  pulls the inventory and fetches every ledger it lists, token query
+  included. Wing setup for newcomers is one line, not a filename list.
+- Validation: 240 tests passed.
+
 Fork: token-denied pushes fail cleanly, not wedged (2026-10-26)
 ------------------------------------------------
 - The relay used to answer 401 before reading the PUT body, so the

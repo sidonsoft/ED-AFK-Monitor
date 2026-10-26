@@ -195,6 +195,16 @@ class WingServeTests(unittest.TestCase):
         self.assertEqual([name for name, _ in seen], ["buddy.json"])
         self.assertGreater(seen[0][1], 0)
 
+    def test_relay_root_fetchurl_expands_the_inventory(self):
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "second.json"
+            path.write_text(json.dumps(dict(LEDGER, commander="Second Wingmate")), encoding="utf-8")
+            self.assertEqual(push_ledger(path, self.base, timeout=3), "")
+        spreads, errors = fetch_spreads([f"{self.base}/"], timeout=3)
+        self.assertEqual(errors, [])
+        self.assertEqual(sorted(name for name, _ in spreads), ["mate.json", "second.json"])
+
     def test_directory_listing_covers_both_tiers(self):
         (Path(self.folder.name) / "own.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         from urllib.request import urlopen
