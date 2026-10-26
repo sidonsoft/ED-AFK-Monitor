@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-serve-dir points the relay at any ledger folder (2026-10-26)
+------------------------------------------------
+- Default stays mission_ledger/wing; a named folder (created if
+  missing) lets a shared drive, a mesh mount, or a test folder be the
+  serving root. The startup log now names the actual folder.
+- Validation: 253 tests passed.
+
 Fork: hosting monitors speak in summaries before any wingmate joins (2026-10-26)
 ------------------------------------------------
 - A serving monitor with no shared ledgers used to say nothing about

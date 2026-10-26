@@ -106,6 +106,9 @@ def main() -> None:
     parser.add_argument("--wing-serve", type=int, metavar="port",
                         help="Serve wing ledgers over HTTP from this port "
                              "(mates FetchURL/PushURL straight against this monitor)")
+    parser.add_argument("--wing-serve-dir", metavar="folder", default="",
+                        help="Folder of .json ledgers the relay serves and "
+                             "accepts pushes into (default: mission_ledger/wing)")
     parser.add_argument("--wing-serve-token", metavar="token", default="",
                         help="Require ?token=<value> on relay GETs/PUTs "
                              "(mates append it to their PushURL/FetchURL)")
@@ -786,8 +789,10 @@ def main() -> None:
     wing_host = args.wing_serve_host or str(conf_wing["ServeHost"] or "") or "127.0.0.1"
     wing_token = args.wing_serve_token or str(conf_wing["ServeToken"] or "")
     if wing_port:
-        wing_serve_dirs = [config_file_path / "mission_ledger" / "wing",
+        wing_serve_dirs = [Path(args.wing_serve_dir) if args.wing_serve_dir
+                           else config_file_path / "mission_ledger" / "wing",
                            config_file_path / "mission_ledger"]
+        wing_serve_dirs[0].mkdir(parents=True, exist_ok=True)
         wing_relay_server, wing_relay_error = start_wing_relay(
             wing_port, wing_serve_dirs,
             host=wing_host, token=wing_token,
@@ -798,7 +803,7 @@ def main() -> None:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:
             wing_serve_label = f"{wing_host}:{wing_port}"
-            msg.log(f"Wing relay: serving mission_ledger/wing on "
+            msg.log(f"Wing relay: serving {wing_serve_dirs[0]} on "
                     f"{wing_host}:{wing_port}")
             advice = serve_advice(wing_host, wing_token)
             if advice:

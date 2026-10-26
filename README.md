@@ -226,6 +226,7 @@ You can pass the following arguments when launching AFK Monitor:
 --no-hotkeys                                Disable [s]tatus [m]issions [u]mute [w]ing hotkeys
 --wing-serve <port>                          Serve wing ledgers over HTTP (mates fetch/push here)
 --wing-serve-host <host>                     Relay bind address; 0.0.0.0 = reachable by wingmates
+--wing-serve-dir <folder>                    Ledgers the relay serves (default mission_ledger/wing)
 --wing-serve-token <token>                   Relay also requires ?token= in mates' URLs
 --version                                      Print the version and exit
 --instance <label=folder>                 Watch several journal folders at once (repeatable)
