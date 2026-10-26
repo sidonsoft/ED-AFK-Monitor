@@ -4,6 +4,7 @@ Served with the standard library only. Keep handlers tiny: every payload
 comes from a provider callable supplied by the monitor, so this module has
 no state of its own and cannot block the journal loop.
 """
+import hmac
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -134,7 +135,8 @@ def make_handler(live_provider, missions_provider, token="", sessions_provider=N
             for part in query.split("&"):
                 if part.startswith("token="):
                     supplied = part[len("token="):]
-            if token and supplied != token:
+            if token and not hmac.compare_digest(supplied.encode("utf-8"),
+                                                    token.encode("utf-8")):
                 return self._send(401, json.dumps({"error": "use ?token=... or X-Dashboard-Token"}))
             if path in ("/", "/index.html"):
                 return self._send(200, PAGE, "text/html; charset=utf-8")

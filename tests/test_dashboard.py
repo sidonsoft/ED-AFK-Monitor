@@ -1,5 +1,8 @@
 import json
 import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 import urllib.error
 import urllib.request
@@ -121,3 +124,23 @@ class ShareWarningTests(unittest.TestCase):
         warning = share_warning("0.0.0.0", "")
         self.assertIn("token", warning)
         self.assertIn("0.0.0.0", warning)
+
+
+class PageScriptTests(unittest.TestCase):
+    """Keep the dashboard's inline JS syntactically valid on every OS."""
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_inline_script_parses(self):
+        import re
+        from dashboard import PAGE
+        script = re.search(r"<script>(.*)</script>", PAGE, re.S)
+        self.assertIsNotNone(script, "PAGE lost its <script> block")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as handle:
+            handle.write(script.group(1))
+            path = handle.name
+        try:
+            result = subprocess.run(["node", "--check", path],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stderr[:500])
+        finally:
+            os.unlink(path)
