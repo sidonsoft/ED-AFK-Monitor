@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay answers say 'no-store' (2026-10-26)
+------------------------------------------------
+- Ledger and listing GETs carry Cache-Control: no-store. Wingmates
+  poll these URLs for fresh data; a browser or proxy replaying an old
+  404 or stale listing hides pushes that already landed.
+- Validation: 246 tests passed.
+
 Fork: WingTurnInAlert - nudge when the wing's payout piles up (2026-10-26)
 ------------------------------------------------
 - Set a credit threshold under [Settings]; once per session the monitor

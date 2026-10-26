@@ -226,6 +226,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                                            for k in sorted(ledgers)]}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -238,6 +239,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         body = found.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 

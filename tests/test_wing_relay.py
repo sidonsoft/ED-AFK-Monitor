@@ -224,6 +224,15 @@ class WingServeTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(sorted(name for name, _ in spreads), ["mate.json", "second.json"])
 
+    def test_ledger_and_listing_responses_are_anti_cache(self):
+        # wingmates poll these URLs expecting fresh data; a browser or proxy
+        # replaying a 404 listing would hide a push that already landed
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        from urllib.request import urlopen
+        for url in (f"{self.base}/mate.json", f"{self.base}/"):
+            with urlopen(url, timeout=3) as response:
+                self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+
     def test_directory_listing_covers_both_tiers(self):
         (Path(self.folder.name) / "own.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         from urllib.request import urlopen
