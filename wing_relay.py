@@ -315,7 +315,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                                 f"<td>{when}{' - silent wingmate' if silent[name] else ''}</td></tr>")
                 body = ("<!doctype html><meta charset=utf-8><title>ED AFK Monitor "
                         "wing relay</title><h2>ED AFK Monitor wing relay</h2>"
-                        f"<p>{len(names)} ledger(s) served here. "
+                        + (f"<p><b>{html_escape(self.banner)}</b></p>" if self.banner else "")
+                        + f"<p>{len(names)} ledger(s) served here. "
                         "The JSON view is the same URL without a browser Accept "
                         "header (or via any monitor's --wing-test).</p>"
                         "<table border=1 cellpadding=4><tr><th>ledger</th>"
@@ -391,7 +392,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
 
 
 def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
-                   stale_hours=None):
+                   stale_hours=None, banner=""):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -407,7 +408,8 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                     # staticmethod: a plain callable in the class dict would
                     # bind as a method and hand the handler in as an argument
                     "on_put": staticmethod(on_put) if callable(on_put) else None,
-                    "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600)})
+                    "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600),
+                    "banner": str(banner or "")})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:

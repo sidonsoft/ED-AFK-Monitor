@@ -274,6 +274,18 @@ class WingServeTests(unittest.TestCase):
                        timeout=3).read().decode("utf-8")
         self.assertIn("silent wingmate", page)
 
+    def test_open_relay_advertises_its_own_exposure_on_the_page(self):
+        server, error = start_wing_relay(0, self.folder.name, host="0.0.0.0",
+                                         banner=serve_advice("0.0.0.0", ""))
+        self.assertEqual(error, "")
+        try:
+            page = urlopen(Request(f"http://127.0.0.1:{server.server_address[1]}/wing/",
+                                   headers={"Accept": "text/html"}), timeout=3).read().decode("utf-8")
+        finally:
+            server.shutdown()
+        self.assertIn("no token", page)
+        self.assertIn("ServeToken", page)
+
     def test_token_deny_pages_self_document_for_browsers(self):
         server, error = start_wing_relay(0, self.folder.name, token="sekret")
         self.assertEqual(error, "")

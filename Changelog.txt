@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: an open relay says so on its own page (2026-10-26)
+------------------------------------------------
+- Serving 0.0.0.0 without a token? The browser landing page now leads
+  with the same warning the console prints at startup - whoever
+  pastes the URL into a browser is exactly the person who might be
+  about to rely on it without protection.
+- Validation: 261 tests passed.
+
 Fork: --outbox shows what's waiting to be re-sent (2026-10-26)
 ------------------------------------------------
 - 'Outbox telegram: 2 waiting, oldest 11 min ago / next up: Session
