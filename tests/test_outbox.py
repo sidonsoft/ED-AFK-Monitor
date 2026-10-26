@@ -89,3 +89,17 @@ class SummarizePendingTests(unittest.TestCase):
         self.assertIn("next up: Session summary line", joined)
         self.assertIn("discord: 1 waiting, oldest 18 min ago", joined)
         self.assertEqual(warnings, [])
+
+
+class ClearTests(unittest.TestCase):
+    def test_clear_drops_and_reports_but_keeps_the_channel_usable(self):
+        with TemporaryDirectory() as folder:
+            store = Outbox(Path(folder), ["telegram"], max_age=3600)
+            store.load(now=1000)
+            store.add("telegram", "m1", "gone soon", created=999)
+            self.assertEqual(store.clear("telegram"), 1)
+            again = Outbox(Path(folder), ["telegram"], max_age=3600)
+            pending, warnings = again.load(now=1000)
+            self.assertEqual(pending["telegram"], [])
+            self.assertEqual(warnings, [])
+            self.assertEqual(store.clear("telegram"), 0)  # idempotent

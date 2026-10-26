@@ -2,6 +2,19 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --outbox-clear, and the docs guard learned both directions (2026-10-26)
+------------------------------------------------
+- --outbox-clear drops everything queued (shows the queue first when
+  combined with --outbox). A stale burst you'd rather not deliver is
+  one command away.
+- Catch of the round: --outbox's own CLI wiring had never actually
+  shipped - a patch script computed the afk edits and died before
+  writing them, and the one-way flag guard only checked
+  argparse->README, so a README-only flag stayed invisible. The guard
+  now checks README->argparse too, and it immediately caught the
+  missing line this round.
+- Validation: 263 tests passed.
+
 Fork: the relay page lists recent pushes, newest first (2026-10-26)
 ------------------------------------------------
 - A small ring (last 8) of accepted PUTs, shown under the ledger table

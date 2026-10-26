@@ -123,6 +123,10 @@ def main() -> None:
     parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
     parser.add_argument("--wing-url", action="append", default=[], metavar="URL",
                         help="With --wing, also merge ledgers fetched from these URLs (repeatable)")
+    parser.add_argument("--outbox", action="store_true",
+                        help="Show notifications waiting to be retried, then exit")
+    parser.add_argument("--outbox-clear", action="store_true",
+                        help="Also drop everything waiting (with --outbox: show first, then clear)")
     parser.add_argument("--wing-test", action="append", default=[], metavar="URL",
                         help="Check a relay URL (root or ledger .json), print "
                              "what it carries, and exit (repeatable)")
@@ -313,6 +317,25 @@ def main() -> None:
     if args.import_missions:
         sys.exit(import_missions(config_file_path / "mission_ledger",
                                  args.import_missions, args.profile))
+
+    if args.outbox or args.outbox_clear:
+        directory = (config_file_path / "pending_notifications"
+                     / profile_directory_name(args.profile))
+        channels = [f.stem for f in sorted(directory.glob("*.json"))] if directory.is_dir() else []
+        lines, warnings = summarize_pending(directory, channels)
+        for complaint in warnings:
+            msg.log(f"{WARNING} {complaint}")
+        for line in lines:
+            msg.log(f"Outbox {line}")
+        if not lines:
+            msg.log("Outbox: nothing waiting on any channel - "
+                    "every recent notification went out.")
+        if args.outbox_clear:
+            store = Outbox(directory, channels)
+            store.load()
+            dropped = sum(store.clear(channel) for channel in channels)
+            msg.log(f"Outbox: cleared {dropped} pending notification(s).")
+        sys.exit(0)
 
     if args.wing_test:
         # the config object is parsed later; read the timeout straight

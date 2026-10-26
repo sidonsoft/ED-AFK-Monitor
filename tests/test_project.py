@@ -42,6 +42,9 @@ class CliDocumentationTests(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         missing = [flag for flag in sorted(flags) if flag not in readme]
         self.assertEqual(missing, [])
+        documented = set(re.findall(r"^(--[a-z][\w-]*)", readme, re.M))
+        invented = sorted(flag for flag in documented if flag not in flags)
+        self.assertEqual(invented, [], "README lists flags argparse does not offer")
 
 
 class VersionFlagTests(unittest.TestCase):

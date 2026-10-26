@@ -150,6 +150,15 @@ class Outbox:
                 self._entries[channel] = remaining
                 self._write(channel)
 
+    def clear(self, channel):
+        """Drop every queued entry on one channel (deliberate --outbox-clear,
+        e.g. when a stale burst should never reach the channel)."""
+        with self._lock:
+            dropped = len(self._entries.get(channel, []))
+            self._entries[channel] = []
+            self._write(channel)
+        return dropped
+
     def _ensure_loaded(self):
         if not self._loaded:
             self.load()
