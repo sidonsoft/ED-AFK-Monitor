@@ -4,7 +4,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from missions import MissionLedger, merge_spreads, wing_spreads, parse_mission_list
+from missions import (MissionLedger, merge_spreads, turnin_notice,
+                        wing_spreads, parse_mission_list)
 
 
 def accepted(mission_id, target="Pirate Faction", kills=40, wing=True,
@@ -603,3 +604,13 @@ class MergeToleranceTests(unittest.TestCase):
         self.assertEqual(merged["updated"], 5.0)
         self.assertEqual(merged["rows"][0]["left"], 0)  # garbage row cells -> 0
         self.assertEqual(merged["ledgers"], 2)
+
+
+class TurninNoticeTests(unittest.TestCase):
+    def test_one_nudge_when_the_wing_banks_enough(self):
+        note = turnin_notice(2_500_000, 1_000_000, False)
+        self.assertIn("2,500,000 Cr", note)
+        self.assertIn("turn in", note)
+        self.assertEqual(turnin_notice(2_500_000, 1_000_000, True), "")
+        self.assertEqual(turnin_notice(999_999, 1_000_000, False), "")
+        self.assertEqual(turnin_notice(9_999_999, 0, False), "")  # 0 = off

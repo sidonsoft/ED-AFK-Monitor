@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: WingTurnInAlert - nudge when the wing's payout piles up (2026-10-26)
+------------------------------------------------
+- Set a credit threshold under [Settings]; once per session the monitor
+  calls out 'Wing has N Cr of completed missions ready to turn in'.
+  Wing turn-ins pay better together - the number makes it obvious when
+  to book the office visit. 0 (default) stays quiet.
+- Validation: 245 tests passed.
+
 Fork: the [w] hotkey counts the ledgers it serves (2026-10-26)
 ------------------------------------------------
 - 'this monitor serves the wing on 0.0.0.0:8099 (3 ledgers)' - console

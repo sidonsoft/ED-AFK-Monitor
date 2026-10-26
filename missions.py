@@ -876,6 +876,15 @@ class MissionLedger:
             mission.done = True
 
 
+def turnin_notice(total_turn_in, threshold, already_warned):
+    """One-shot nudge once the wing banks `threshold` credits of completed,
+    un-turned-in mission reward. 0 disables; pure for easy testing."""
+    if threshold <= 0 or already_warned or total_turn_in < threshold:
+        return ""
+    return (f"Wing has {total_turn_in:,} Cr of completed missions ready "
+            "to turn in - visit a recruitment office together")
+
+
 def merge_spreads(spreads):
     """Combine per-CMDR spread() dicts into one wing view (rows merged by faction)."""
     out = {"done": 0, "total": 0, "wing": 0, "left": 0, "reward": 0, "shareable_reward": 0,

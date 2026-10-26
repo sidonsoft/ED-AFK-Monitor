@@ -17,7 +17,7 @@ from terminal_output import StatusLogger
 from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
                        ntfy_send, telegram_send, webhook_send)
 from outbox import Outbox, profile_directory_name
-from missions import MissionLedger, merge_spreads, wing_spreads
+from missions import MissionLedger, merge_spreads, turnin_notice, wing_spreads
 from ship_pools import load_ship_pools
 from wing_relay import (fetch_spreads, push_ledger, serve_advice, served_count,
                         stale_notes, start_wing_relay)
@@ -65,6 +65,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
 DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none", "DriftIgnore": [],
+                       "WingTurnInAlert": 0,
                     "Dashboard": 0, "DashboardToken": "", "DashboardHost": "127.0.0.1"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
@@ -1573,6 +1574,11 @@ def main() -> None:
                 local_spread = mission_ledger.spread()
                 wing_combined = merge_spreads(([local_spread] if local_spread and local_spread.get("total") else [])
                                               + [spread for _, spread in wing_wings])
+                note = turnin_notice(wing_combined["turn_in"],
+                                     conf_settings["WingTurnInAlert"], track.turnin_warned)
+                if note:
+                    msg.log(f"{WARNING} {note}")
+                    track.turnin_warned = True
 
             if mission_level > 0 and mission_ledger.has_missions():
                 mission_text = mission_ledger.report_text()
