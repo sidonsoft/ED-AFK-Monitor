@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay listing flags silent wingmates (2026-10-26)
+------------------------------------------------
+- Entries past the StaleHours window carry stale:true in the JSON
+  listing, and read ' - silent wingmate' on the browser page. The
+  host can see who stopped pushing without opening a single ledger;
+  the same threshold the monitor's own staleness notes use.
+- Validation: 259 tests passed.
+
 Fork: a token-gated relay explains itself to browsers (2026-10-26)
 ------------------------------------------------
 - Visit a token-gated relay in a browser and the 401 is a page: '401 -

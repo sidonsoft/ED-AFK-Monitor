@@ -2,6 +2,7 @@ import json
 import threading
 import unittest
 import urllib.error
+from time import time
 from urllib.request import Request, urlopen
 from functools import partial
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -259,6 +260,19 @@ class WingServeTests(unittest.TestCase):
             self.assertIn("Unauthorized", fetch_spread(f"{base}/mate.json", timeout=3)[2])
         self.assertTrue((Path(self.folder.name) / "envmate.json").exists())
         server.shutdown()
+
+    def test_listing_marks_silent_wingmates(self):
+        quiet = dict(LEDGER, updated=time() - 100 * 3600)
+        (Path(self.folder.name) / "quiet.json").write_text(json.dumps(quiet), encoding="utf-8")
+        fresh = dict(LEDGER, updated=time() - 60)
+        (Path(self.folder.name) / "fresh.json").write_text(json.dumps(fresh), encoding="utf-8")
+        with urlopen(f"{self.base}/", timeout=3) as response:
+            entries = {e["name"]: e for e in json.loads(response.read())["ledgers"]}
+        self.assertTrue(entries["quiet.json"]["stale"])
+        self.assertFalse(entries["fresh.json"]["stale"])
+        page = urlopen(Request(f"{self.base}/", headers={"Accept": "text/html"}),
+                       timeout=3).read().decode("utf-8")
+        self.assertIn("silent wingmate", page)
 
     def test_token_deny_pages_self_document_for_browsers(self):
         server, error = start_wing_relay(0, self.folder.name, token="sekret")

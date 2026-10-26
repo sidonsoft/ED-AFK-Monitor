@@ -291,6 +291,16 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                         updated = entry.stat().st_mtime
                     ledgers[entry.name] = updated
             names = sorted(ledgers)
+            now = time()
+
+            def silent_for(updated):
+                try:
+                    return (now - float(updated)) / 3600
+                except (TypeError, ValueError):
+                    return None
+
+            silent = {name: (silent_for(ledgers[name]) or 0) > self.stale_hours
+                      for name in names}
             if "text/html" in self.headers.get("Accept", ""):
                 # a human pasting the relay URL into a browser deserves a
                 # page, not raw JSON; machines never send Accept: text/html
@@ -301,7 +311,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                     except (TypeError, ValueError, OSError, OverflowError):
                         when = "unknown"
                     rows.append(f'<tr><td><a href="{html_escape(name)}">'
-                                f"{html_escape(name)}</a></td><td>{when}</td></tr>")
+                                f"{html_escape(name)}</a></td>"
+                                f"<td>{when}{' - silent wingmate' if silent[name] else ''}</td></tr>")
                 body = ("<!doctype html><meta charset=utf-8><title>ED AFK Monitor "
                         "wing relay</title><h2>ED AFK Monitor wing relay</h2>"
                         f"<p>{len(names)} ledger(s) served here. "
@@ -314,8 +325,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
                 return
-            body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k]}
-                                           for k in names]}).encode()
+            body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k],
+                                           "stale": silent[k]} for k in names]}).encode()
             self._status(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -379,7 +390,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None):
+def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
+                   stale_hours=None):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -394,7 +406,8 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None):
                    {"directories": directories, "token": str(token or ""),
                     # staticmethod: a plain callable in the class dict would
                     # bind as a method and hand the handler in as an argument
-                    "on_put": staticmethod(on_put) if callable(on_put) else None})
+                    "on_put": staticmethod(on_put) if callable(on_put) else None,
+                    "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600)})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:
