@@ -16,7 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            binary: ed-afk-monitor-windows
+          - os: ubuntu-latest
+            binary: ed-afk-monitor-linux
+          - os: macos-latest
+            binary: ed-afk-monitor-macos
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -29,13 +35,13 @@ jobs:
         run: |
           sep=":"
           [ "$RUNNER_OS" = "Windows" ] && sep=";"
-          pyinstaller --onefile --name ed-afk-monitor \
+          pyinstaller --onefile --name "${{ matrix.binary }}" \
             --add-data "ships.json${sep}." \
             afk_monitor.py
       - uses: actions/upload-artifact@v4
         with:
-          name: ed-afk-monitor-${{ matrix.os }}
-          path: dist/ed-afk-monitor*
+          name: ${{ matrix.binary }}
+          path: dist/${{ matrix.binary }}*
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -46,4 +52,4 @@ jobs:
           # (the others harmlessly lose the race and just upload).
           gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ED AFK Monitor ${GITHUB_REF_NAME}" \
             --generate-notes --latest 2>/dev/null || true
-          gh release upload "${GITHUB_REF_NAME}" dist/ed-afk-monitor* --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/${{ matrix.binary }}* --clobber

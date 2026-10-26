@@ -148,7 +148,8 @@ class SessionStore:
             payload = buffer.getvalue()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(payload, encoding="utf-8")
+            # bytes avoids Windows newline translation doubling the CSV \r\n
+            path.write_bytes(payload.encode("utf-8"))
         except OSError as failure:
             return 0, f"Could not write {path}: {failure}"
         return len(rows), ""
