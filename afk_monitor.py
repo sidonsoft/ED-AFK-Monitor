@@ -620,6 +620,14 @@ def main() -> None:
                 return
         failure = push_ledger(mission_ledger.path, conf_wing["PushURL"])
         if failure:
+            # the wingmates' copy is only as fresh as the last successful
+            # push - one second chance covers transient network blips
+            if periodic:
+                time.sleep(2)  # mid-session: backing off is safe
+            else:
+                debug("Wing relay push failed at exit; retrying once immediately")
+            failure = push_ledger(mission_ledger.path, conf_wing["PushURL"])
+        if failure:
             msg.log(f"{WARNING} Wing relay push: {failure}")
         else:
             track.last_relay_push = time.monotonic()

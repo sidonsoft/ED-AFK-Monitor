@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing relay push gets a second chance (2026-10-26)
+------------------------------------------------
+- A failed relay push is retried once - with a 2s backoff mid-session,
+  immediately at session exit (no stalling shutdown). One dropped
+  packet no longer costs wingmates the whole session's ledger.
+- service-mode guide: containers can enable the dashboard via
+  [Settings] Dashboard + -p port mapping; the flags-vs-config note is
+  now in the headless tips too.
+- Validation: 216 tests passed.
+
 Fork: dashboard can start from the config file (service mode friendly) (2026-10-26)
 ------------------------------------------------
 - [Settings] Dashboard = <port> (0 = off) starts the web dashboard with

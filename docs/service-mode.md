@@ -76,7 +76,9 @@ launchctl load ~/Library/LaunchAgents/com.edafkmonitor.plist
 See the `Dockerfile` header comment: mount the Frontier journal folder
 read-only plus a named volume for config, ledgers and history. This is the
 simplest option for NAS boxes (Synology/QNAP container UI accepts the same
-volume mapping).
+volume mapping). Containers that can't pass CLI flags can still enable the
+web page: set `Dashboard = 8080` (plus `DashboardToken`/`DashboardHost`) in
+the config volume and publish the port, e.g. `-p 8080:8080`.
 
 ## Keeping a headless instance useful
 
@@ -85,4 +87,6 @@ volume mapping).
 - The notification outbox retries anything that failed while the network or
   Discord was down, so brief drops are not lost alerts.
 - `--dashboard <port> --dashboard-host 0.0.0.0 --dashboard-token <secret>`
-  exposes the live page on the LAN for the rest of the household/wing.
+  exposes the live page on the LAN for the rest of the household/wing - the
+  same settings live in `[Settings]` (`Dashboard`, `DashboardHost`,
+  `DashboardToken`) when flags are inconvenient.
