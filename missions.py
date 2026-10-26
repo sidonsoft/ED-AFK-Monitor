@@ -724,6 +724,39 @@ class MissionLedger:
             lines.append(f"Rewards: {data['reward']:,} cr")
         return "\n".join(lines)
 
+    def report_embed(self, projection_line=""):
+        """JSON-safe Discord embed payload; None when there are no missions."""
+        data = self.spread()
+        if not data["total"]:
+            return None
+        fields = [{"name": _short(row["faction"], 32),
+                   "value": f"{row['missions']} open · {row['done']}/{row['need']}\n{row['left']} left",
+                   "inline": True}
+                  for row in data["rows"][:15]]
+        hidden = len(data["rows"]) - 15
+        if hidden > 0:
+            fields.append({"name": "…and more",
+                           "value": f"{hidden} faction(s) not shown; run --missions for details",
+                           "inline": False})
+        if data["unknown"]:
+            fields.append({"name": "Unknown targets",
+                           "value": f"{data['unknown']} mission(s) with unknown target/faction",
+                           "inline": False})
+        if projection_line:
+            fields.append({"name": "Projection",
+                           "value": projection_line.replace("Projection at current rate: ", ""),
+                           "inline": False})
+        return {
+            "title": (f"Mission spread · {data['done']}/{data['total']} complete"
+                      f" · {data['wing']} wing · {data['left']} kills left"),
+            "description": (f"Stack: {data['reward']:,} cr · Shareable: {data['shareable_reward']:,} cr\n"
+                            f"Ready to turn in: {data['turn_in']:,} cr"
+                            f" · Shareable: {data['shareable_turn_in']:,} cr"),
+            "color": 15759020,
+            "fields": fields,
+            "footer": {"text": "Kill counts are estimates; objective completion is confirmed by the journal."},
+        }
+
     def report_live(self, max_factions=10, max_chars=1400):
         """Compact mission block for the edited live session-stats message."""
         data = self.spread()

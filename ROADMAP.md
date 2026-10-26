@@ -26,7 +26,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
    "stack completes in ~X min at current rate" projections.
 7. ✅ **Mission expiry alarms** (★★ / †) — expiry dates are already stored; warn when an incomplete
    mission or a high-value stack is about to expire while farming.
-8. **Discord embeds for mission spread** (★★ / †) — the live/summary blocks are plain text;
+8. ✅ **Discord embeds for mission spread** (★★ / †) — the live/summary blocks are plain text;
    embeds with fields, colours, and progress bars would make wing reports far scannable.
 9. ✅ **Better kill→mission attribution** (★★ / ††) — use `VictimFaction` + system match +
    `AwardingFaction` from FactionKillBond to reduce estimate error; surface confidence in the report.

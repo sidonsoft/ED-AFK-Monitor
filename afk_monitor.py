@@ -20,7 +20,7 @@ from ship_pools import load_ship_pools
 from session_store import SessionStore
 
 try:
-    from discord_webhook import DiscordWebhook
+    from discord_webhook import DiscordWebhook, DiscordEmbed
     discord_available = True
 except ImportError:
     discord_available = False
@@ -487,7 +487,7 @@ for warning in mission_ledger.warnings:
 conf_settings = getconfig("Settings", DEFAULTS_SETTINGS)
 conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
-conf_discord.update(getconfig("Discord", {"WebhookAvatarURL": WEBHOOK_AVATAR}, False))
+conf_discord.update(getconfig("Discord", {"WebhookAvatarURL": WEBHOOK_AVATAR, "DiscordEmbeds": True}, False))
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
 conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2, "MissionExpiry": 3}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
@@ -598,7 +598,13 @@ elif discord_webhook_log or discord_webhook_live:
 
 # These transports run only on their own background workers.
 def discordsend(message=""):
-    webhook_log.content = message
+    webhook_log.embeds = []
+    if isinstance(message, dict):
+        webhook_log.content = message.get("text", "")
+        for embed in message.get("embeds", []):
+            webhook_log.embeds.append(DiscordEmbed.from_dict(embed))
+    else:
+        webhook_log.content = message
     try:
         response = webhook_log.execute()
     except Exception:
@@ -703,7 +709,11 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
         cmdrname = "" if not conf_discord["PrependCmdrName"] else f"[{track.cmdrname}] "
         telegram_message = msg_term if msg_telegram is None else msg_telegram
         if track.duperepeats <= DUPE_MAX:
-            sendmessage(f"{cmdrname}{emoji}{discord_message}{logtime}{ping}",
+            discord_base = discord_message["text"] if isinstance(discord_message, dict) else discord_message
+            discord_out = f"{cmdrname}{emoji}{discord_base}{logtime}{ping}"
+            if isinstance(discord_message, dict):
+                discord_out = {"text": discord_out, "embeds": discord_message.get("embeds", [])}
+            sendmessage(discord_out,
                         telegram_message=re.sub(r"\x1b\[[0-9;]*m", "", f"{track.cmdrname}: {emoji}{telegram_message}{logtime}"))
         elif not track.dupewarn:
             sendmessage(f"{cmdrname}⏸️ **Suppressing further duplicate messages**{logtime}",
@@ -1299,15 +1309,19 @@ def summary(stats, logtime=None, session=True, live=False):
                 mission_text = f"{mission_text}\n{projection_line}"
             out_terminal += f"\n\n{mission_text}"
             if mission_level >= 2:
-                live_missions = mission_ledger.report_live()
-                if projection_line:
-                    live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
-                out_discord += f"\n\n{live_missions}"
                 out_telegram += f"\n\n{mission_text}"
+                embed = mission_ledger.report_embed(projection_line) if not live and conf_discord["DiscordEmbeds"] else None
+                if embed:
+                    out_discord = {"text": out_discord, "embeds": [embed]}
+                else:
+                    live_missions = mission_ledger.report_live()
+                    if projection_line:
+                        live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
+                    out_discord += f"\n\n{live_missions}"
 
         if not live:
             logevent(msg_term=f"{out_terminal}",
-                msg_discord=f"{out_discord}", msg_telegram=out_telegram,
+                msg_discord=out_discord, msg_telegram=out_telegram,
                 emoji="📝", timestamp=logtime, loglevel=log_max)
         else:
             discord_ts = round(time.time())

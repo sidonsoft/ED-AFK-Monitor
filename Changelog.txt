@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: Discord embeds for mission reports (2026-10-26)
+------------------------------------------------
+- Session/live summaries send the mission spread as a Discord embed with
+  per-faction progress fields, reward totals and the projection line.
+  Plain-text mission blocks remain available via 'DiscordEmbeds = false'.
+- Validation: 133 tests passed.
+
 Fork: mission kill attribution accuracy (2026-10-26)
 ------------------------------------------------
 - Combat bond events (FactionKillBond) now advance mission stacks too, and

@@ -201,6 +201,7 @@ class SummaryRoutingTests(unittest.TestCase):
                                               report_text=lambda **kwargs: '',
                                               report_discord=lambda: '',
                                               report_live=lambda: '**Mission spread** 0/1 complete',
+                                              report_embed=lambda line=None: None,
                                               projections=lambda rate: {}),
             'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
             'time_format': lambda seconds: '1h',
@@ -252,6 +253,7 @@ class SummaryRoutingTests(unittest.TestCase):
             'track': SimpleNamespace(killtype='bounties', totaltime=3600,
                                      deploytime=now, missionredirects=0, missionsactive=[]),
             'conf_settings': {'ExtendedStats': False},
+            'conf_discord': {'DiscordEmbeds': False},
             'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 0, 'SummaryBounties': 0,
                                 'SummaryMerits': 0, 'SummaryScans': 0, 'SummaryMissions': 2},
             'mission_ledger': SimpleNamespace(has_missions=lambda: True,
@@ -259,6 +261,7 @@ class SummaryRoutingTests(unittest.TestCase):
                                               report_text=lambda **kwargs: 'Mission spread text',
                                               report_discord=lambda: 'Mission spread discord',
                                               report_live=lambda: '**Mission spread** live',
+                                              report_embed=lambda line=None: None,
                                               projections=lambda rate: {'cr_per_hour': 500000,
                                                                        'finish_secs': 3600,
                                                                        'turn_in': 123}),
@@ -354,3 +357,55 @@ class MissionOriginRecoveryTests(unittest.TestCase):
             self.assertEqual(found[1]['OriginStation'], 'Wheelock Port')
             self.assertEqual(found[2]['OriginStation'], '')
             self.assertEqual(found[2]['OriginSystem'], 'Anana')
+
+
+class EmbedRoutingTests(unittest.TestCase):
+    def test_summary_sends_missions_as_discord_embed_payload(self):
+        from datetime import datetime, timezone
+        calls = []
+        now = datetime.now(timezone.utc)
+        stats = SimpleNamespace(kills=2, factions={'Pirates': 2}, bounties=0,
+                                scansin=0, merits=0, kill_times=[])
+        summarize = load_function('summary', {
+            'track': SimpleNamespace(killtype='bounties', totaltime=3600,
+                                     deploytime=now, missionredirects=0, missionsactive=[]),
+            'conf_settings': {'ExtendedStats': False},
+            'conf_discord': {'DiscordEmbeds': True},
+            'conf_log_levels': {'SummaryKills': 2, 'SummaryFaction': 0, 'SummaryBounties': 0,
+                                'SummaryMerits': 0, 'SummaryScans': 0, 'SummaryMissions': 2},
+            'mission_ledger': SimpleNamespace(has_missions=lambda: True,
+                                              status_line=lambda: '0/1',
+                                              report_text=lambda **kwargs: 'Mission spread text',
+                                              report_discord=lambda: '',
+                                              report_live=lambda: 'should not be used',
+                                              report_embed=lambda line=None: {'title': 'spread', 'line': line},
+                                              projections=lambda rate: {'cr_per_hour': 1000,
+                                                                       'finish_secs': 0,
+                                                                       'turn_in': 0}),
+            'per_hour': lambda seconds, precision=None: round(3600 / seconds, precision),
+            'time_format': lambda seconds: '1h',
+            'logevent': lambda **kwargs: calls.append(kwargs),
+        })
+        summarize(stats, logtime=now, session=False)
+        payload = calls[0]['msg_discord']
+        self.assertIsInstance(payload, dict)
+        self.assertEqual(payload['embeds'][0]['title'], 'spread')
+        self.assertIn('Projection at current rate', payload['embeds'][0]['line'])
+        self.assertIn('Mission spread text', calls[0]['msg_term'])
+        self.assertIn('Mission spread text', calls[0]['msg_telegram'])
+
+    def test_discordsend_maps_dict_payload_to_webhook_content_and_embeds(self):
+        webhook = SimpleNamespace(content=None, embeds=[], id=None, thread_name=None, thread_id=None,
+                                  execute=lambda: SimpleNamespace(status_code=200, headers={}))
+        send = load_function('discordsend', {
+            'webhook_log': webhook,
+            'conf_discord': {'ForumChannel': False, 'ThreadCmdrNames': False},
+            'DiscordEmbed': SimpleNamespace(from_dict=staticmethod(lambda e: e)),
+            'DeliveryError': DeliveryError, 'check_response': check_response,
+        })
+        send({"text": "stats body", "embeds": [{"title": "spread"}]})
+        self.assertEqual(webhook.content, "stats body")
+        self.assertEqual(webhook.embeds, [{"title": "spread"}])
+        send("plain text")
+        self.assertEqual(webhook.content, "plain text")
+        self.assertEqual(webhook.embeds, [])

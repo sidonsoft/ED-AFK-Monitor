@@ -501,3 +501,40 @@ class MissionProjectionTests(unittest.TestCase):
             proj = ledger.projections(100)
             self.assertEqual(proj["finish_secs"], 0)
             self.assertEqual(proj["turn_in"], 2_000_000)
+
+
+class MissionEmbedTests(unittest.TestCase):
+    def ledger(self, folder):
+        ledger = MissionLedger(Path(folder) / "missions.json")
+        for mission_id, faction in ((1, "Pirates A"), (2, "Pirates B")):
+            ledger.accept({"event": "MissionAccepted", "Name": "Mission_Massacre",
+                           "MissionID": mission_id, "Faction": "Issuer",
+                           "TargetFaction": faction, "KillCount": 10, "Reward": 500000})
+        return ledger
+
+    def test_embed_structure_with_projection_field(self):
+        with TemporaryDirectory() as folder:
+            embed = self.ledger(folder).report_embed("Projection at current rate: 1,000 cr/h")
+            self.assertIn("Mission spread", embed["title"])
+            self.assertIn("Ready to turn in", embed["description"])
+            names = [field["name"] for field in embed["fields"]]
+            self.assertIn("Pirates A", names)
+            self.assertIn("Projection", names)
+            self.assertIn("footer", embed)
+            self.assertLessEqual(len(embed["fields"]), 25)
+
+    def test_embed_none_without_missions(self):
+        with TemporaryDirectory() as folder:
+            self.assertIsNone(MissionLedger(Path(folder) / "m.json").report_embed())
+
+    def test_many_rows_are_capped_with_more_note(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            for mission_id in range(1, 19):
+                ledger.accept({"event": "MissionAccepted", "Name": "Mission_Massacre",
+                               "MissionID": mission_id, "Faction": f"Issuer {mission_id}",
+                               "TargetFaction": f"Faction {mission_id}", "KillCount": 10})
+            embed = ledger.report_embed()
+            names = [field["name"] for field in embed["fields"]]
+            self.assertEqual(len(embed["fields"]), 16)
+            self.assertIn("…and more", names)

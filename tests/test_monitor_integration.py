@@ -36,9 +36,16 @@ class FakeWebhook:
     def __init__(self, **kwargs):
         self.thread_name = None
         self.thread_id = None
+        self.embeds = []
+    def add_embed(self, embed):
+        self.embeds.append(embed)
     execute = forbidden
     edit = forbidden
-sys.modules['discord_webhook'] = types.SimpleNamespace(DiscordWebhook=FakeWebhook)
+class FakeEmbed:
+    @staticmethod
+    def from_dict(data):
+        return data
+sys.modules['discord_webhook'] = types.SimpleNamespace(DiscordWebhook=FakeWebhook, DiscordEmbed=FakeEmbed)
 sys.argv = ['afk_monitor.py', '--test', '--debug', '-j', 'journals'] + sys.argv[1:]
 runpy.run_path('afk_monitor.py', run_name='__main__')
 '''
