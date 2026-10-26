@@ -9,6 +9,7 @@ from time import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+from collections import deque
 from html import escape as html_escape
 import re
 import threading
@@ -320,7 +321,12 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                         "The JSON view is the same URL without a browser Accept "
                         "header (or via any monitor's --wing-test).</p>"
                         "<table border=1 cellpadding=4><tr><th>ledger</th>"
-                        f"<th>last update</th></tr>{''.join(rows)}</table>").encode()
+                        f"<th>last update</th></tr>{''.join(rows)}</table>"
+                        + (("<h3>recent pushes</h3><ul>"
+                            + "".join(f"<li>{html_escape(n)} at "
+                                      f"{datetime.fromtimestamp(t).strftime('%H:%M:%S')}</li>"
+                                      for n, t in list(self.recent)) + "</ul>")
+                           if self.recent else "")).encode()
                 self._status(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -379,6 +385,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         (self.directories[0] / name).write_bytes(body)
+        # newest-first ring, shared by every thread of this bound handler
+        self.recent.appendleft((name, int(time())))
         if self.on_put:
             try:
                 self.on_put(name, len(body))
@@ -409,6 +417,7 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                     # bind as a method and hand the handler in as an argument
                     "on_put": staticmethod(on_put) if callable(on_put) else None,
                     "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600),
+                    "recent": deque(maxlen=8),
                     "banner": str(banner or "")})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)

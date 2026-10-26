@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay page lists recent pushes, newest first (2026-10-26)
+------------------------------------------------
+- A small ring (last 8) of accepted PUTs, shown under the ledger table
+  with the time each arrived - 'who pushed last night?' is now a page
+  refresh. Ring lives in the relay itself, so it works even without
+  the monitor's dashboard running alongside.
+- Validation: 262 tests passed.
+
 Fork: an open relay says so on its own page (2026-10-26)
 ------------------------------------------------
 - Serving 0.0.0.0 without a token? The browser landing page now leads

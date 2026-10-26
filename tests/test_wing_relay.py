@@ -274,6 +274,20 @@ class WingServeTests(unittest.TestCase):
                        timeout=3).read().decode("utf-8")
         self.assertIn("silent wingmate", page)
 
+    def test_page_lists_recent_pushes_newest_first(self):
+        req = Request(f"{self.base}/one.json", method="PUT",
+                      data=json.dumps(LEDGER).encode(), headers={"Content-Type": "application/json"})
+        with urlopen(req, timeout=3) as response:
+            self.assertEqual(response.status, 204)
+        req = Request(f"{self.base}/two.json", method="PUT",
+                      data=json.dumps(LEDGER).encode(), headers={"Content-Type": "application/json"})
+        with urlopen(req, timeout=3) as response:
+            self.assertEqual(response.status, 204)
+        page = urlopen(Request(f"{self.base}/", headers={"Accept": "text/html"}),
+                       timeout=3).read().decode("utf-8")
+        self.assertIn("recent pushes", page)
+        self.assertLess(page.index("two.json at"), page.index("one.json at"))
+
     def test_open_relay_advertises_its_own_exposure_on_the_page(self):
         server, error = start_wing_relay(0, self.folder.name, host="0.0.0.0",
                                          banner=serve_advice("0.0.0.0", ""))
