@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: ntfy, generic webhooks and local alert sounds (2026-10-26)
+------------------------------------------------
+- New 'Ntfy' section: push alerts to phones/desktops via ntfy (priority high).
+- New 'Webhook' section: generic JSON webhook ({'text': message}) for
+  Slack-style endpoints and Home Assistant webhooks; both persist to the
+  notification outbox like other channels.
+- 'AlertSound' setting plays a local sound on level-3 alerts: terminal
+  bell on any platform, 'beep' or a .wav file on Windows (default: none).
+- Validation: 141 tests passed.
+
 Fork: Discord embeds for mission reports (2026-10-26)
 ------------------------------------------------
 - Session/live summaries send the mission spread as a Discord embed with

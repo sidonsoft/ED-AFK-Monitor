@@ -36,7 +36,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 10. **`main()` refactor + typed core** (★★ / †† for future features) — config dataclass, event
     handlers as methods, injectable transports; unlocks unit-testing without the subprocess
     bootstrap and paves the way for everything below.
-11. **More channels** (★★ / † each) — ntfy, Pushover, generic JSON webhook, Home Assistant,
+11. ✅ **More channels** (★★ / † each) — ntfy, Pushover, generic JSON webhook, Home Assistant,
     email; reuse the dispatcher/outbox layer unchanged.
 12. **Local web dashboard** (★★★ / ††) — serve the existing `spread()`/`export()` JSON plus live
     stats as a localhost page; read-only, token-protected share link for wingmates without
@@ -57,7 +57,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
     not silent warnings.
 19. **Multi-instance watch mode** (★★ / ††) — one process tailing several journal folders
     (multi-CMDR setups, alpha + live), each with its own profile/outbox.
-20. **Audio/desktop alerts** (★ / †) — optional local sound on level-3 events for in-room
+20. ✅ **Audio/desktop alerts** (★ / †) — optional local sound on level-3 events for in-room
     notification alongside remote channels.
 
 ## Explicit non-goals (keep scope tight)

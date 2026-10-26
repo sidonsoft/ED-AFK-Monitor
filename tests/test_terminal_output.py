@@ -92,3 +92,34 @@ class TerminalOutputTests(unittest.TestCase):
             self.assertEqual(kernel.SetConsoleMode.call_args.args[1], 4)
             kernel.SetConsoleMode.return_value = 0
             self.assertFalse(supports_ansi(stream))
+
+
+class AlertSoundTests(unittest.TestCase):
+    def test_bell_writes_control_g(self):
+        stream = io.StringIO()
+        logger = StatusLogger(stream=stream)
+        self.assertTrue(logger.beep("bell"))
+        self.assertEqual(stream.getvalue(), "\a")
+
+    def test_none_and_empty_never_play(self):
+        stream = io.StringIO()
+        logger = StatusLogger(stream=stream)
+        self.assertFalse(logger.beep("none"))
+        self.assertFalse(logger.beep(""))
+        self.assertEqual(stream.getvalue(), "")
+
+    def test_non_bell_without_winsound_is_inert(self):
+        stream = io.StringIO()
+        logger = StatusLogger(stream=stream)
+        import builtins
+        real_import = builtins.__import__
+        def fake_import(name, *args, **kwargs):
+            if name == "winsound":
+                raise ImportError
+            return real_import(name, *args, **kwargs)
+        builtins.__import__ = fake_import
+        try:
+            self.assertFalse(logger.beep("alarm.wav"))
+        finally:
+            builtins.__import__ = real_import
+        self.assertEqual(stream.getvalue(), "")

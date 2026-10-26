@@ -13,7 +13,8 @@ from pathlib import Path
 from urllib.request import urlopen
 from journal_reader import JournalReader, read_complete_line, commander_from_line, find_mission_accepts
 from terminal_output import StatusLogger
-from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
+from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
+                       ntfy_send, telegram_send, webhook_send)
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
 from ship_pools import load_ship_pools
@@ -52,9 +53,11 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
+DEFAULTS_NTFY = {"URL": "", "Token": ""}
+DEFAULTS_WEBHOOK = {"URL": ""}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
 
 class Col:
@@ -491,6 +494,8 @@ conf_discord.update(getconfig("Discord", {"WebhookAvatarURL": WEBHOOK_AVATAR, "D
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
 conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2, "MissionExpiry": 3}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
+conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
+conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
 telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
 telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
 telegram_enabled = bool(telegram_token and telegram_chat)
@@ -648,13 +653,17 @@ if webhook_live:
     senders["discord_live"] = discord_live_send
 if telegram_enabled:
     senders["telegram"] = lambda message: telegram_send(telegram_token, telegram_chat, message)
+if conf_ntfy["URL"]:
+    senders["ntfy"] = lambda message: ntfy_send(conf_ntfy["URL"], message, conf_ntfy["Token"])
+if conf_webhook["URL"]:
+    senders["webhook"] = lambda message: webhook_send(conf_webhook["URL"], message)
 notifications_outbox = None
 if senders and not discord_test:
     notifications_outbox = Outbox(
         config_file_path / "pending_notifications" / profile_directory_name(profile),
         [name for name in senders if name != "discord_live"])
 notifications = NotificationDispatcher(senders, preview=discord_test, outbox=notifications_outbox,
-                                       max_lengths={"discord": 2000, "telegram": 4096})
+                                       max_lengths={"discord": 2000, "telegram": 4096, "webhook": 2000})
 
 
 def notification_reports():
@@ -719,6 +728,8 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
             sendmessage(f"{cmdrname}⏸️ **Suppressing further duplicate messages**{logtime}",
                         telegram_message=f"⏸️ Suppressing further duplicate messages{logtime}")
             track.dupewarn = True
+    if loglevel > 2 and conf_settings["AlertSound"] != "none":
+        msg.beep(conf_settings["AlertSound"])
 
 # Calculate somethings per hour
 def per_hour(seconds=0, precision=None):

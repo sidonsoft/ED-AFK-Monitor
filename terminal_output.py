@@ -25,6 +25,33 @@ def supports_ansi(stream):
         return False
 
 
+def play_alert(style, stream=None):
+    """Play a local alert for level-3 events: 'bell', or Windows 'beep'/sound file."""
+    style = str(style or "none").strip()
+    if style.lower() in ("", "none", "off", "false"):
+        return False
+    if style.lower() == "bell":
+        target = stream if stream is not None else __import__("sys").stdout
+        try:
+            target.write("\a")
+            target.flush()
+        except (OSError, ValueError):
+            return False
+        return True
+    try:
+        import winsound
+    except ImportError:
+        return False
+    try:
+        if style.lower() == "beep":
+            winsound.MessageBeep(winsound.MB_ICONHAND)
+        else:
+            winsound.PlaySound(style, winsound.SND_FILENAME | winsound.SND_ASYNC)
+    except RuntimeError:
+        return False
+    return True
+
+
 class StatusLogger:
     """Write log lines and an optional status line without requiring a modern console."""
     ANSI_CLEAR_LINE = "\x1b[2K"
@@ -110,6 +137,9 @@ class StatusLogger:
             self._write(f"{self._clear_lines()}\r{msg}\n{self._status}{self.endcol}")
         else:
             self._write(f"{msg}\n")
+
+    def beep(self, style="bell"):
+        return play_alert(style, self._stream)
 
     def hide_cursor(self):
         if not self.plain:

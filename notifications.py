@@ -114,6 +114,47 @@ def telegram_send(token, chat_id, message, timeout=5):
             raise DeliveryError("API rejected message")
 
 
+
+def _post(url, body, headers, timeout=5):
+    """POST a small body; map transport failures to retryable DeliveryErrors."""
+    request = Request(url, data=body, headers=headers)
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            check_response(getattr(response, "status", 200),
+                           response.headers.get("Retry-After") if response.headers else None)
+    except HTTPError as error:
+        delay = error.headers.get("Retry-After") if error.headers else None
+        try:
+            error.read()
+        except OSError:
+            pass
+        finally:
+            error.close()
+        check_response(error.code, delay)
+    except SSLCertVerificationError:
+        raise DeliveryError(CERTIFICATE_ERROR) from None
+    except URLError as error:
+        if isinstance(error.reason, SSLCertVerificationError):
+            raise DeliveryError(CERTIFICATE_ERROR) from None
+        raise DeliveryError("connection failed or timed out", retryable=True) from None
+    except (TimeoutError, socket.timeout, OSError):
+        raise DeliveryError("connection failed or timed out", retryable=True) from None
+
+
+def ntfy_send(url, message, token="", timeout=5):
+    """ntfy publish: raw text body, high priority so phones alert."""
+    headers = {"Content-Type": "text/plain; charset=utf-8",
+               "Title": "ED AFK Monitor", "Priority": "high"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    _post(url, message.encode("utf-8"), headers, timeout)
+
+
+def webhook_send(url, message, timeout=5):
+    """Generic JSON webhook: {"text": message} covers Slack-style and Home Assistant."""
+    _post(url, json.dumps({"text": message}).encode("utf-8"),
+          {"Content-Type": "application/json"}, timeout)
+
 class NotificationDispatcher:
     """One independent FIFO worker per channel; all terminal output stays on the caller."""
     def __init__(self, senders, preview=False, capacity=200, attempts=3, outbox=None, max_lengths=None):

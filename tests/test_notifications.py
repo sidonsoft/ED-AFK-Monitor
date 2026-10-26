@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
 from notifications import (DeliveryError, LiveUpdate, NotificationDispatcher, check_response,
-                       split_message, telegram_send)
+                       ntfy_send, split_message, telegram_send, webhook_send)
 from outbox import Outbox
 
 
@@ -355,3 +355,45 @@ class MessageLengthTests(unittest.TestCase):
         dispatcher.submit("discord_live", update)
         dispatcher.close()
         self.assertEqual(calls, [update])
+
+
+class SimpleChannelSendTests(unittest.TestCase):
+    def make_response(self, status=200, headers=None):
+        response = Mock()
+        response.status = status
+        response.headers = headers or {}
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        return response
+
+    def test_ntfy_posts_text_with_priority_and_token(self):
+        with patch("notifications.urlopen") as open_url:
+            open_url.return_value = self.make_response()
+            ntfy_send("https://ntfy.sh/mytopic", "hull damage", "secret")
+            request = open_url.call_args.args[0]
+            self.assertEqual(request.full_url, "https://ntfy.sh/mytopic")
+            self.assertEqual(request.data, b"hull damage")
+            self.assertEqual(request.get_header("Authorization"), "Bearer secret")
+            self.assertEqual(request.get_header("Priority"), "high")
+
+    def test_ntfy_rate_limit_is_retryable_with_delay(self):
+        error = HTTPError("https://ntfy.sh/x", 429, "Too Many Requests", {"Retry-After": "7"}, None)
+        with patch("notifications.urlopen", side_effect=error):
+            with self.assertRaises(DeliveryError) as caught:
+                ntfy_send("https://ntfy.sh/x", "text")
+        self.assertTrue(caught.exception.retryable)
+        self.assertEqual(caught.exception.retry_after, 7.0)
+
+    def test_webhook_posts_json_text_body(self):
+        with patch("notifications.urlopen") as open_url:
+            open_url.return_value = self.make_response()
+            webhook_send("https://example.invalid/hook", "a message")
+            request = open_url.call_args.args[0]
+            self.assertEqual(json.loads(request.data), {"text": "a message"})
+            self.assertEqual(request.get_header("Content-type"), "application/json")
+
+    def test_connection_failure_is_retryable(self):
+        with patch("notifications.urlopen", side_effect=URLError("refused")):
+            with self.assertRaises(DeliveryError) as caught:
+                webhook_send("https://example.invalid/hook", "text")
+        self.assertTrue(caught.exception.retryable)

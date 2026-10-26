@@ -409,3 +409,24 @@ class EmbedRoutingTests(unittest.TestCase):
         send("plain text")
         self.assertEqual(webhook.content, "plain text")
         self.assertEqual(webhook.embeds, [])
+
+
+class AlertRoutingTests(unittest.TestCase):
+    def test_level_three_event_beeps_even_without_remote_channels(self):
+        import re as re_module
+        from datetime import datetime, timezone
+        beeps = []
+        logger = load_function('logevent', {
+            'conf_settings': {'AlertSound': 'bell', 'UseUTC': False},
+            'conf_discord': {'UserID': 0, 'Timestamp': True, 'PrependCmdrName': False},
+            'track': SimpleNamespace(duperepeats=1, dupeevent=None, dupewarn=False,
+                                     cmdrname='Test', preloading=False, logged=0),
+            'msg': SimpleNamespace(log=lambda *_: None, beep=beeps.append),
+            'webhook_log': None, 'telegram_enabled': False, 'discord_test': False,
+            'sendmessage': lambda **kwargs: None, 're': re_module,
+            'datetime': datetime, 'timezone': timezone,
+        })
+        logger('shields down', loglevel=3)
+        self.assertEqual(beeps, ['bell'])
+        logger('shields down', loglevel=2)
+        self.assertEqual(beeps, ['bell'])

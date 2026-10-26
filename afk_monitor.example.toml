@@ -106,6 +106,17 @@ SummaryMissions = 2    # Issuer mission stacks, estimated kills and reward total
 # MissionExpiry = 3 (default) warns when an unfinished mission nears or passes its expiry (see WarnMissionExpiry in the optional config)
 MissionExpiry = 3
 
+[Ntfy]
+# Push phone/desktop alerts with ntfy: create a topic at ntfy.app (or your own server) and paste the URL
+# URL = 'https://ntfy.sh/my-ed-afk-topic'
+URL = ''
+# Token = ''  # optional access token for self-hosted/private topics
+
+[Webhook]
+# Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks
+# URL = 'https://example.com/api/webhook/abcdef'
+URL = ''
+
 # Custom profiles (advanced)
 # You can set additional profiles to override settings as per the examples below
 # - Profiles are loaded automatically if they exactly match the loaded commander name
