@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
 from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
-                        redact,
+                        redact, serve_advice,
                         stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
@@ -348,3 +348,15 @@ class FetchTimeoutTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class ServeAdviceTests(unittest.TestCase):
+    def test_open_bind_without_token_warns_once_named(self):
+        advice = serve_advice("0.0.0.0", "")
+        self.assertIn("0.0.0.0", advice)
+        self.assertIn("ServeToken", advice)
+        self.assertEqual(serve_advice("0.0.0.0", "sekret"), "")
+
+    def test_loopback_stays_quiet(self):
+        for host in ("127.0.0.1", "localhost", "::1", ""):
+            self.assertEqual(serve_advice(host, ""), "")

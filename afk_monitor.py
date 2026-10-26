@@ -19,7 +19,8 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
-from wing_relay import fetch_spreads, push_ledger, stale_notes, start_wing_relay
+from wing_relay import (fetch_spreads, push_ledger, serve_advice, stale_notes,
+                        start_wing_relay)
 from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -774,6 +775,9 @@ def main() -> None:
             wing_serve_label = f"{wing_host}:{wing_port}"
             msg.log(f"Wing relay: serving mission_ledger/wing on "
                     f"{wing_host}:{wing_port}")
+            advice = serve_advice(wing_host, wing_token)
+            if advice:
+                msg.log(f"{WARNING} {advice}")
 
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(

@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: a token-less relay bound to the world says so at startup (2026-10-26)
+------------------------------------------------
+- Serving on 0.0.0.0 (or any non-loopback interface) with no token now
+  logs a warning naming the exposure and the fix (ServeToken /
+  --wing-serve-token). Loopback relays stay quiet.
+- Validation: 243 tests passed.
+
 Fork: wing totals can't double-count the same URL (2026-10-26)
 ------------------------------------------------
 - FetchURL lists that mix a relay root with explicit entries (or repeat

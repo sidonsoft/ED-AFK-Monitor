@@ -57,6 +57,17 @@ def as_url_list(value):
     return [str(url).strip() for url in value if str(url).strip()]
 
 
+def serve_advice(host, token):
+    """One-line safety note for a serving monitor; '' when nothing to say."""
+    if token:
+        return ""
+    if str(host).strip() not in ("", "127.0.0.1", "localhost", "::1"):
+        return (f"wing relay is open on {host} with no token: anyone who can "
+                "reach this port can read and replace ledgers "
+                "(set ServeToken or --wing-serve-token)")
+    return ""
+
+
 def redact(url):
     """Hide relay ?token= values: wing summaries log failing URLs verbatim,
     and every wingmate reads those summaries."""
