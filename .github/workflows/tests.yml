@@ -1,77 +1,42 @@
-name: Regression tests
+name: Dell Linux runner smoke test
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
-    inputs:
-      reason:
-        description: why a manual re-run happened
-        required: false
-        default: ""
 
 permissions:
   contents: read
-  actions: write  # rerun-failed-jobs + workflow_dispatch bump
 
 jobs:
   tests:
-    name: Python ${{ matrix.python }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    # timeout-minutes includes QUEUE time, and a busy pool can hold jobs
-    # queued for an hour. Cancelled-before-start jobs never reach the retry
-    # wrapper (nothing runs), so the budget must absorb realistic queueing;
-    # healthy suites still finish in ~3 minutes.
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ['3.12', '3.13']
+    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && github.actor == 'sidonsoft' && github.ref == 'refs/heads/ci/dell-runner-smoke'
+    runs-on: [dell-ed-afk-linux-x64]
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          python-version: ${{ matrix.python }}
-      - name: Install optional extras used by card rendering
-        run: python -m pip install pillow
-      - name: Run regression tests without notification credentials
-        run: python -m unittest discover -s tests -v
-
-      - name: Retry jobs cancelled by runner-pool eviction
-        if: always()
+          persist-credentials: false
+      - name: Check runner isolation
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          # macOS pool congestion cancels queued jobs before any step runs
-          # (zero logs). rerun-failed-jobs can't touch a still-active run, so
-          # the heal is a fresh workflow_dispatch for this branch tip - capped
-          # to one dispatch per sha so congestion can't loop runs forever.
-          attempt=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} -q .run_attempt)
-          if [ "$attempt" -ge 2 ]; then exit 0; fi
-          own="Python ${{ matrix.python }} on ${{ matrix.os }}"
-          sleep 20
-          statuses=""
-          for i in $(seq 1 40); do
-            statuses=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
-              --jq '.check_runs[] | select(.name | startswith("Python")) | .name + " " + .status + " " + .conclusion')
-            # this very job is still running while we wait; never block on it
-            if ! grep -v "^$own " <<<"$statuses" | grep -q ' in_progress\| queued'; then break; fi
-            sleep 30
-          done
-          if grep -q ' cancelled' <<<"$statuses"; then
-            dispatched=$(gh run list --workflow tests.yml -L 15 --json headSha,event \
-              --jq "[.[] | select(.headSha==\"${{ github.sha }}\" and .event==\"workflow_dispatch\")] | length")
-            if [ "${dispatched:-0}" -ge 1 ]; then
-              echo "::notice::dispatch for this sha already exists; not looping"
-            elif gh workflow run tests.yml --ref "${{ github.ref_name }}" -f reason="wrapper-cancelled"; then
-              echo "::notice::dispatched a fresh run for ${{ github.ref_name }} (cancelled jobs heal)"
-            else
-              echo "::error::dispatch failed; run stays honestly red"
-              exit 1
-            fi
-          fi
-            # stay green: the retried attempt (run_attempt>=2) reports honestly
-          fi
+          set -eu
+          test "$(id -u)" -ne 0
+          ! sudo -n true 2>/dev/null
+          ! test -w /etc/edafk-runner/trusted-linux-job.sh
+          ! test -w /home/runner/actions-runner/bin/Runner.Listener
+          ! findmnt -rn -t 9p,virtiofs,cifs
+          python3 --version
+      - name: Run full credential-free regression suite
+        shell: bash
+        run: |
+          set -eu
+          python3 -m venv .venv
+          .venv/bin/python -m pip install '.[discord,card]'
+          .venv/bin/python -m unittest discover -s tests -v
+      - name: Build Linux executable
+        shell: bash
+        run: |
+          set -eu
+          .venv/bin/python -m pip install pyinstaller
+          .venv/bin/pyinstaller --onefile --name ed-afk-monitor-linux --add-data 'ships.json:.' afk_monitor.py
+          test -x dist/ed-afk-monitor-linux
+          file dist/ed-afk-monitor-linux
