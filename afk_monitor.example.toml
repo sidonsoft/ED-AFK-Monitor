@@ -103,6 +103,8 @@ SummaryFaction = 0      # As above but for the most-killed faction
 SummaryBounties = 2     # Credits earned from bounties or bonds
 SummaryMerits = 2       # Merits (powerplay, only shown if merits earned)
 SummaryMissions = 2    # Issuer mission stacks, estimated kills and reward totals (see docs/wing-missions.md)
+# Set to 3 to also merge shared wing ledgers: wingmates copy their ledger file
+# (mission_ledger/<profile>.json) into mission_ledger/wing via a shared folder
 # MissionExpiry = 3 (default) warns when an unfinished mission nears or passes its expiry (see WarnMissionExpiry in the optional config)
 MissionExpiry = 3
 

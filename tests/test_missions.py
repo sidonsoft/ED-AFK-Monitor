@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from missions import MissionLedger, parse_mission_list
+from missions import MissionLedger, merge_spreads, wing_spreads, parse_mission_list
 
 
 def accepted(mission_id, target="Pirate Faction", kills=40, wing=True,
@@ -538,3 +538,44 @@ class MissionEmbedTests(unittest.TestCase):
             names = [field["name"] for field in embed["fields"]]
             self.assertEqual(len(embed["fields"]), 16)
             self.assertIn("…and more", names)
+
+
+class WingMergeTests(unittest.TestCase):
+    def test_merge_spreads_combines_rows_and_totals(self):
+        first = {"done": 1, "total": 2, "wing": 1, "left": 3, "reward": 2000,
+                 "shareable_reward": 1000, "turn_in": 500, "shareable_turn_in": 0,
+                 "unknown": 0,
+                 "rows": [{"faction": "Pirates", "missions": 2, "done": 4, "need": 7, "left": 3}]}
+        second = {"done": 0, "total": 1, "wing": 0, "left": 2, "reward": 900,
+                  "shareable_reward": 0, "turn_in": 0, "shareable_turn_in": 0,
+                  "unknown": 1,
+                  "rows": [{"faction": "Pirates", "missions": 1, "done": 0, "need": 2, "left": 2},
+                           {"faction": "SLF", "missions": 1, "done": 0, "need": 5, "left": 5}]}
+        merged = merge_spreads([first, second])
+        self.assertEqual((merged["ledgers"], merged["done"], merged["total"],
+                          merged["left"], merged["unknown"]), (2, 1, 3, 5, 1))
+        rows = {row["faction"]: row for row in merged["rows"]}
+        self.assertEqual(rows["Pirates"], {"faction": "Pirates", "missions": 3,
+                                           "done": 4, "need": 9, "left": 5})
+        self.assertEqual(merged["rows"][0]["faction"], "Pirates")
+
+    def test_merge_spreads_tolerates_nothing(self):
+        merged = merge_spreads([{}, None])
+        self.assertEqual(merged["ledgers"], 1)
+        self.assertEqual(merged["left"], 0)
+
+    def test_wing_spreads_reads_saved_ledger_files_and_skips_broken(self):
+        with TemporaryDirectory() as folder:
+            wing = Path(folder) / "wing"
+            wing.mkdir()
+            ledger = MissionLedger(wing / "mate.json", commander="Mate")
+            ledger.accept(accepted(7, target="Pirate Faction", kills=3))
+            ledger.save()
+            (wing / "broken.json").write_text("{not json", encoding="utf-8")
+            entries = wing_spreads(wing)
+            self.assertEqual([name for name, _ in entries], ["mate.json"])
+            self.assertEqual(entries[0][1]["total"], 1)
+
+    def test_wing_spreads_missing_folder_is_empty(self):
+        with TemporaryDirectory() as folder:
+            self.assertEqual(wing_spreads(Path(folder) / "nope"), [])

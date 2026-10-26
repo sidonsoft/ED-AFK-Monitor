@@ -295,6 +295,17 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
             self.assertEqual(mission['kills'], 2)
             self.assertTrue(mission['wing'])
 
+            wing = root / 'mission_ledger' / 'wing'
+            wing.mkdir()
+            shutil.copyfile(ledgers[0], wing / 'wingmate.json')
+            listing = subprocess.run([sys.executable, 'bootstrap.py', '--missions', '--wing'],
+                                     cwd=root, env=env, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, text=True, timeout=15)
+            report = listing.stdout or ''
+            self.assertIn('Wing view: local + 1 shared ledger(s)', report)
+            self.assertIn('wingmate:', report)
+            self.assertIn('2 kills left across the wing', report)
+
 
 class MissionBackfillIntegrationTests(unittest.TestCase):
     def test_missions_from_an_older_journal_are_recovered(self):

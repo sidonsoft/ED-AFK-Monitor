@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing-shared mission ledgers (2026-10-26)
+------------------------------------------------
+- '--missions --wing' merges wingmate ledgers (mission_ledger/wing/*.json,
+  e.g. synced via Dropbox/Syncthing) with the local stack into one wing view.
+- SummaryMissions = 3 adds the combined wing line to live and exit summaries.
+- Validation: 168 tests passed.
+
 Fork: local web dashboard (2026-10-26)
 ------------------------------------------------
 - '--dashboard <port>' serves a read-only localhost page with live session

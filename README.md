@@ -193,6 +193,7 @@ You can pass the following arguments when launching AFK Monitor:
 --no-follow                                 Monitor only the selected journal
 --plain                                     Plain text without colours, emojis or live status
 --missions                                  Print saved massacre-mission spread and exit
+--wing                                      With --missions, merge shared wing ledgers
 --history                                   Print saved session history and exit
 --json                                      With --missions/--history, print JSON output
 --import-missions <file>                    Import a mission list (CSV or text) and exit

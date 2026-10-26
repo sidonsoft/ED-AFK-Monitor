@@ -16,7 +16,7 @@ from terminal_output import StatusLogger
 from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
                        ntfy_send, telegram_send, webhook_send)
 from outbox import Outbox, profile_directory_name
-from missions import MissionLedger
+from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
 from dashboard import start_dashboard
 from session_card import render_card
@@ -92,6 +92,7 @@ parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED
 parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
 parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
 parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
+parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
 parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
 parser.add_argument("--export", metavar="file", help="With --history, write sessions to a .json/.csv file or a .png recap card (profile name is appended)")
 parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")
@@ -123,25 +124,55 @@ def ledger_paths(directory):
     return sorted(Path(directory).glob("*.json")) if Path(directory).is_dir() else []
 
 
-def show_mission_ledgers(directory, as_json=False):
+def show_wing_ledgers(wings, local_spreads=(), local_names=()):
+    spreads = [spread for spread in local_spreads if spread and spread.get("total")]
+    spreads += [spread for _, spread in wings]
+    if not wings:
+        msg.log("\nWing view: no shared ledgers found in mission_ledger/wing. Wingmates can copy")
+        msg.log("  their ledger file (mission_ledger/<profile>.json) there via a shared folder.")
+        return
+    combined = merge_spreads(spreads)
+    msg.log(f"\nWing view: local + {len(wings)} shared ledger(s)"
+            f" ({len(spreads)} CMDR(s) counted)")
+    msg.log(f" · {combined['done']}/{combined['total']} missions complete"
+            f" · {combined['left']} kills left across the wing"
+            f" · {combined['turn_in'] + combined['shareable_turn_in']:,} cr accounted")
+    for name, data in wings:
+        msg.log(f"  {name[:-5]}: {data['done']}/{data['total']} complete"
+                f" · {data['left']} left · {data['turn_in']:,} cr ready")
+
+
+def show_mission_ledgers(directory, as_json=False, wing=False):
     paths = ledger_paths(directory)
+    wings = wing_spreads(Path(directory) / "wing") if wing else []
     if as_json:
         data = []
         for path in paths:
             payload = MissionLedger(path).export()
             payload["file"] = path.name
             data.append(payload)
+        if wing:
+            local = [MissionLedger(path).spread() for path in paths]
+            data.append({"file": "wing",
+                         "combined": merge_spreads(local + [spread for _, spread in wings]),
+                         "local": [path.name for path in paths],
+                         "sources": [name for name, _ in wings]})
         sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         return
     if not paths:
         msg.log("No mission ledger found. Start the monitor with massacre missions active to record them.")
-        return
+    local_spreads, local_names = [], []
     for path in paths:
         ledger = MissionLedger(path)
         for warning in ledger.warnings:
             msg.log(warning)
         msg.log("")
         msg.log(ledger.report_text(include_missions=True, title=True))
+        if wing:
+            local_spreads.append(ledger.spread())
+            local_names.append(path.stem)
+    if wing:
+        show_wing_ledgers(wings, local_spreads, local_names)
 
 
 def export_session_store(store, source_db, requested):
@@ -234,7 +265,7 @@ if args.import_missions:
                              args.import_missions, args.profile))
 
 if args.missions:
-    show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json)
+    show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json, wing=args.wing)
     sys.exit()
 
 if args.history:
@@ -1408,6 +1439,19 @@ def summary(stats, logtime=None, session=True, live=False):
                     if projection_line:
                         live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
                     out_discord += f"\n\n{live_missions}"
+
+        if mission_level >= 3:
+            wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
+            if wings:
+                local = mission_ledger.spread()
+                combined = merge_spreads(([local] if local and local.get("total") else [])
+                                         + [spread for _, spread in wings])
+                wing_line = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
+                             f" {combined['done']}/{combined['total']} complete"
+                             f" · {combined['left']} kills left across the wing")
+                out_terminal += f"\n{wing_line}"
+                if not live:
+                    out_telegram += f"\n{wing_line}"
 
         if not live:
             logevent(msg_term=f"{out_terminal}",

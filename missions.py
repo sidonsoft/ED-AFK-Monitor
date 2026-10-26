@@ -856,3 +856,41 @@ class MissionLedger:
             mission.kills = min(mission.kills, mission.kill_count)
         if mission.manual and mission.kill_count and mission.kills >= mission.kill_count:
             mission.done = True
+
+
+def merge_spreads(spreads):
+    """Combine per-CMDR spread() dicts into one wing view (rows merged by faction)."""
+    out = {"done": 0, "total": 0, "wing": 0, "left": 0, "reward": 0, "shareable_reward": 0,
+           "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 0, "rows": []}
+    merged = {}
+    for data in spreads:
+        if data is None:
+            continue
+        out["ledgers"] += 1
+        for key in ("done", "total", "wing", "left", "reward", "shareable_reward",
+                    "turn_in", "shareable_turn_in", "unknown"):
+            out[key] += data.get(key, 0)
+        for row in data.get("rows", []):
+            into = merged.setdefault(row.get("faction", "Unknown"),
+                                     {"faction": row.get("faction", "Unknown"),
+                                      "missions": 0, "done": 0, "need": 0, "left": 0})
+            for key in ("missions", "done", "need", "left"):
+                into[key] += row.get(key, 0)
+    out["rows"] = sorted(merged.values(), key=lambda row: (-row["left"], row["faction"]))
+    return out
+
+
+def wing_spreads(directory):
+    """Read wingmate ledgers (JSON files copied into a shared folder); [(name, spread)]."""
+    results = []
+    directory = Path(directory)
+    if not directory.is_dir():
+        return results
+    for path in sorted(directory.glob("*.json")):
+        try:
+            data = MissionLedger(path).spread()
+        except (OSError, ValueError, KeyError):
+            continue
+        if data and data.get("total"):
+            results.append((path.name, data))
+    return results
