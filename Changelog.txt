@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: live scenario covers the relay PUT tier end to end (2026-10-26)
+------------------------------------------------
+- The real monitor (started by config ServePort) now receives a
+  wingmate ledger over HTTP, serves it back, and lists it - inside
+  the same subprocess that pushes, fetches, and renders the dashboard.
+- Validation: 232 tests passed.
+
 Fork: relay PUTs are size-capped at 2 MB (2026-10-26)
 ------------------------------------------------
 - A wingmate (or a script pointed at the wrong port) can no longer

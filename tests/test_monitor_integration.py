@@ -755,6 +755,28 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         self.fail('ghost.json should 404')
                     except _ue.HTTPError as caught:
                         self.assertEqual(caught.code, 404)
+                    # the PUT tier end to end: a wingmate's ledger arrives,
+                    # is served back, and shows up in the inventory
+                    from urllib.request import Request as _Req
+                    mate_copy = {'version': FILE_VERSION, 'commander': 'PUT Wingmate',
+                                 'profile': 'default', 'updated': time.time(),
+                                 'missions': [{'id': 9009, 'name': 'Put Sweep', 'faction': 'Security',
+                                               'target': 'Pirates', 'kill_count': 2, 'wing': True,
+                                               'expiry': '', 'reward': 10000, 'accepted': 1761000000.0,
+                                               'kills': 0, 'done': False, 'known': True}]}
+                    put = _Req(f'http://127.0.0.1:{serve_port}/wing/putmate.json', method='PUT',
+                               data=json.dumps(mate_copy).encode('utf-8'))
+                    with urlopen(put, timeout=5) as response:
+                        self.assertEqual(response.status, 204)
+                    with urlopen(f'http://127.0.0.1:{serve_port}/wing/putmate.json', timeout=5) as response:
+                        back = json.loads(response.read())
+                    self.assertEqual(back['missions'][0]['id'], 9009)
+                    with urlopen(f'http://127.0.0.1:{serve_port}/wing/', timeout=5) as response:
+                        inventory = json.loads(response.read())
+                    self.assertIn('putmate.json', [e['name'] for e in inventory['ledgers']])
+                    # remove it again: the shutdown wing-view counts below must
+                    # stay about the fixture wing, not this plumbing probe
+                    (root / 'mission_ledger' / 'wing' / 'putmate.json').unlink()
                     # Periodic pushes ride the idle watchdog; the scenario
                     # shortens its cadence via WatchdogSeconds = 5.
                     deadline = time.monotonic() + 60
