@@ -17,7 +17,8 @@ from terminal_output import StatusLogger
 from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
                        ntfy_send, telegram_send, webhook_send)
 from outbox import Outbox, profile_directory_name
-from missions import MissionLedger, merge_spreads, turnin_notice, wing_spreads
+from missions import (MissionLedger, merge_spreads, turnin_notice,
+                        wing_spreads, wing_summary_line)
 from ship_pools import load_ship_pools
 from wing_relay import (fetch_spreads, push_ledger, serve_advice, served_count,
                         stale_notes, start_wing_relay)
@@ -1620,13 +1621,9 @@ def main() -> None:
                         out_discord += f"\n\n{live_missions}"
 
             if wing_wings and wing_combined and wing_combined.get("total"):
-                wing_line = (f"Wing view: local + {len(wing_wings)} shared ledger(s) ·"
-                             f" {wing_combined['done']}/{wing_combined['total']} complete"
-                             f" · {wing_combined['left']} kills left across the wing"
-                             + (f" · {wing_combined['turn_in']:,} Cr ready"
-                                if wing_combined["turn_in"] else "")
-                             + (f" · relay {wing_serve_label}"
-                                if wing_serve_label else ""))
+                wing_line = wing_summary_line(wing_combined, len(wing_wings),
+                                              wing_serve_label,
+                                              conf_settings["WingTurnInAlert"])
                 out_terminal += f"\n{wing_line}"
                 if not live:
                     out_telegram += f"\n{wing_line}"

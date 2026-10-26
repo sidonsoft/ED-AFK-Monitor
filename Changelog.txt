@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the turn-in nudge rides Discord and Telegram, not just consoles (2026-10-26)
+------------------------------------------------
+- The wing summary line moved into one pure builder (wing_summary_line);
+  when banked wing reward crosses WingTurnInAlert it now carries the
+  'ready to turn in' line into every channel the wing view reaches -
+  and keeps carrying it until the wing actually turns the missions in.
+  The one-shot console WARNING still fires the moment it crosses.
+- Validation: 251 tests passed.
+
 Fork: one-line wing-push to a relay address, documented (2026-10-26)
 ------------------------------------------------
 - --wing-push http://host:8099/wing/ uploads every local ledger and

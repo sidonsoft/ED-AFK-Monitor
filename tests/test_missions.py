@@ -5,7 +5,8 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from missions import (MissionLedger, merge_spreads, turnin_notice,
-                        wing_spreads, parse_mission_list)
+                        wing_spreads, wing_summary_line,
+                        parse_mission_list)
 
 
 def accepted(mission_id, target="Pirate Faction", kills=40, wing=True,
@@ -614,3 +615,18 @@ class TurninNoticeTests(unittest.TestCase):
         self.assertEqual(turnin_notice(2_500_000, 1_000_000, True), "")
         self.assertEqual(turnin_notice(999_999, 1_000_000, False), "")
         self.assertEqual(turnin_notice(9_999_999, 0, False), "")  # 0 = off
+
+
+class WingSummaryLineTests(unittest.TestCase):
+    COMBINED = {"done": 1, "total": 4, "left": 3, "turn_in": 250000}
+
+    def test_line_shape_and_channels(self):
+        line = wing_summary_line(self.COMBINED, 2)
+        self.assertEqual(line, "Wing view: local + 2 shared ledger(s) · 1/4 complete"
+                               " · 3 kills left across the wing · 250,000 Cr ready")
+        self.assertIn("relay 0.0.0.0:8099", wing_summary_line(self.COMBINED, 0, "0.0.0.0:8099"))
+
+    def test_alert_rides_the_line_until_resolved(self):
+        line = wing_summary_line(self.COMBINED, 2, turnin_alert=200000)
+        self.assertIn("\n  Wing has 250,000 Cr of completed missions ready", line)
+        self.assertNotIn("ready to turn in", wing_summary_line(self.COMBINED, 2, turnin_alert=300000))

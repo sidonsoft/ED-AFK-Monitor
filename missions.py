@@ -876,6 +876,18 @@ class MissionLedger:
             mission.done = True
 
 
+def wing_summary_line(combined, shared_count, serve_label="", turnin_alert=0):
+    """The recurring summary's wing line, shared by every channel."""
+    return (f"Wing view: local + {shared_count} shared ledger(s) ·"
+            f" {combined['done']}/{combined['total']} complete"
+            f" · {combined['left']} kills left across the wing"
+            + (f" · {combined['turn_in']:,} Cr ready"
+               if combined["turn_in"] else "")
+            + (f" · relay {serve_label}" if serve_label else "")
+            + ("\n  " + turnin_notice(combined["turn_in"], turnin_alert, False)
+               if turnin_notice(combined["turn_in"], turnin_alert, False) else ""))
+
+
 def turnin_notice(total_turn_in, threshold, already_warned):
     """One-shot nudge once the wing banks `threshold` credits of completed,
     un-turned-in mission reward. 0 disables; pure for easy testing."""
