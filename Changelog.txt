@@ -2,6 +2,18 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard missions.json gains a wing_view section (2026-10-26)
+------------------------------------------------
+- With SummaryMissions = 3 and wing sources configured, the dashboard's
+  /missions.json now embeds 'wing_view': combined totals, every source
+  ledger name and any relay errors - same numbers as summaries, hotkey
+  and Discord embeds.
+- wing_view() moved ahead of dashboard startup so the provider closure
+  never races the definitions; each URL times out on its own.
+- The live-relay scenario now also serves the dashboard on :18931 and
+  asserts its wing_view payload end-to-end (first dashboard scenario).
+- Validation: 206 tests passed.
+
 Fork: Discord mission embed carries the wing view (2026-10-26)
 ------------------------------------------------
 - With DiscordEmbeds on, summaries were the one place the wing view never

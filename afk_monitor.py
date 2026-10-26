@@ -647,12 +647,33 @@ def main() -> None:
         payload["top_factions"] = dict(sorted(stats.factions.items(), key=lambda item: -item[1])[:10])
         return payload
 
+    def wing_view():
+        """Shared wing sources: copied wing-folder ledgers plus configured relays."""
+        wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
+        fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
+        wings.extend(fetched)
+        return wings, errors
+
+    def dashboard_missions():
+        data = mission_ledger.spread()
+        if int(conf_log_levels.get("SummaryMissions", 0)) >= 3:
+            # relay fetches run per request; each URL times out quickly on its own
+            wings, errors = wing_view()
+            if wings:
+                local = mission_ledger.spread()
+                combined = merge_spreads(([local] if local.get("total") else [])
+                                         + [spread for _, spread in wings])
+                data["wing_view"] = {"combined": {key: combined[key] for key in ("done", "total", "left")},
+                                     "sources": [name for name, _ in wings],
+                                     "errors": errors}
+        return data
+
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(
             args.dashboard,
             lambda: {"monitor": "ED AFK Monitor", "version": VERSION, "cmdrname": track.cmdrname,
                      "session": stats_payload(session), "total": stats_payload(total)},
-            lambda: mission_ledger.spread(),
+            dashboard_missions,
             args.dashboard_token, args.dashboard_host)
         if dashboard_error:
             msg.log(f"{WARNING} Dashboard: {dashboard_error}")
@@ -1291,13 +1312,6 @@ def main() -> None:
 
     def hotkey_status_report():
         return track.laststatusline
-
-    def wing_view():
-        """Shared wing sources: copied wing-folder ledgers plus configured relays."""
-        wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
-        fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
-        wings.extend(fetched)
-        return wings, errors
 
     def hotkey_wing_report():
         wings, errors = wing_view()

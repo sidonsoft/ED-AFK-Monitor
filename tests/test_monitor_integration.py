@@ -672,7 +672,8 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
 
                 env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
-                process = subprocess.Popen([sys.executable, 'bootstrap.py'], cwd=root, env=env,
+                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', '18931'],
+                                           cwd=root, env=env,
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                            text=True, stdin=subprocess.DEVNULL, encoding='utf-8')
                 lines = []
@@ -686,6 +687,12 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     deadline = time.monotonic() + 15
                     while 'Monitor started' not in ''.join(output) and time.monotonic() < deadline:
                         time.sleep(0.2)
+                    deadline = time.monotonic() + 15
+                    while 'Dashboard:' not in ''.join(output) and time.monotonic() < deadline:
+                        time.sleep(0.2)
+                    from urllib.request import urlopen
+                    with urlopen('http://127.0.0.1:18931/missions.json', timeout=5) as response:
+                        dash = json.loads(response.read())
                     (root / 'stop-requested').touch()
                     process.wait(timeout=20)
                 finally:
@@ -697,6 +704,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
                 self.assertIn('Wing relay fetch', combined)  # the missing URL warns once
                 self.assertIn("'name': 'Wing view'", combined)  # the Discord embed carries it too
+                self.assertIn('mate.json', dash['wing_view']['sources'])
+                self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5})
+                self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
                 self.assertIn('/wing/default.json', store)
                 pushed = json.loads(store['/wing/default.json'])
                 self.assertEqual(pushed['missions'][0]['id'], 4242)
