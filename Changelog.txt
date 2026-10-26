@@ -2,6 +2,12 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the [w] hotkey names the last wingmate push (2026-10-26)
+------------------------------------------------
+- 'last push: putmate.json (4,096 bytes) at 21:04' - console parity
+  with the dashboard panel.
+- Validation: 247 tests passed.
+
 Fork: the dashboard shows the relay's last accepted push (2026-10-26)
 ------------------------------------------------
 - The wing panel gains 'last push putmate.json at 21:04' - hosts watch

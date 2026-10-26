@@ -35,6 +35,8 @@ def load_hotkey(serve_label, wings=(), errors=None, local_total=3, turn_in=25000
         "wing_serve_label": serve_label,
         "wing_serve_dirs": [],
         "served_count": lambda dirs: 2,
+        "wing_last_push": {"name": "putmate.json", "size": 4096, "at": 1761500000},
+        "time": __import__("time"),
     }
     exec(body, namespace)
     return namespace["hotkey_wing_report"]()
@@ -58,6 +60,7 @@ class HotkeyWingRelayTests(unittest.TestCase):
         text = load_hotkey("0.0.0.0:8099")
         self.assertIn("serves the wing on 0.0.0.0:8099", text)
         self.assertIn("(2 ledgers)", text)
+        self.assertIn("last push: putmate.json (4,096 bytes) at", text)
         self.assertIn("250,000 Cr ready", text)
         self.assertIn("no updates for 30h", text)
 

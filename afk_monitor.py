@@ -1458,6 +1458,10 @@ def main() -> None:
         if wing_serve_label:
             text += (f"\n  this monitor serves the wing on {wing_serve_label}"
                      f" ({served_count(wing_serve_dirs)} ledgers)")
+            if wing_last_push:
+                text += (f"\n  last push: {wing_last_push['name']} "
+                         f"({wing_last_push['size']:,} bytes) at "
+                         f"{time.strftime('%H:%M', time.localtime(wing_last_push['at']))}")
         return text
 
     def hotkey_missions_report():
