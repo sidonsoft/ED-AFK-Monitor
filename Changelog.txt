@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: ED_AFK_WING_TOKEN keeps relay secrets out of config files (2026-10-26)
+------------------------------------------------
+- Same precedent as ED_AFK_TELEGRAM_TOKEN: set it in the environment
+  and every fetch, listing probe and push carries the secret as the
+  X-Wing-Token header. A ?token= written in a specific URL still wins.
+  Great for service-mode deployments where the toml is world-readable.
+- Validation: 255 tests passed.
+
 Fork: relay tokens can travel in an X-Wing-Token header (2026-10-26)
 ------------------------------------------------
 - curl and scripted checks can send the secret as a header instead of a

@@ -239,6 +239,26 @@ class WingServeTests(unittest.TestCase):
             self.assertEqual(failure.code, 401)
         server.shutdown()
 
+    def test_env_token_authorizes_without_touching_urls(self):
+        import os
+        from unittest import mock
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        server, error = start_wing_relay(0, self.folder.name, token="sekret")
+        self.assertEqual(error, "")
+        base = f"http://127.0.0.1:{server.server_address[1]}/wing"
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "envmate.json"
+            path.write_text(json.dumps(LEDGER), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"ED_AFK_WING_TOKEN": "sekret"}):
+                spread, _, err = fetch_spread(f"{base}/mate.json", timeout=3)
+                self.assertEqual(err, "")
+                self.assertEqual(spread["total"], 1)  # the fixture mission
+                self.assertEqual(push_ledger(path, base, timeout=3), "")
+            # no env: same URLs are denied again
+            self.assertIn("Unauthorized", fetch_spread(f"{base}/mate.json", timeout=3)[2])
+        self.assertTrue((Path(self.folder.name) / "envmate.json").exists())
+        server.shutdown()
+
     def test_same_ledger_via_two_urls_counts_once(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         spreads, errors = fetch_spreads([f"{self.base}/", f"{self.base}/mate.json"], timeout=3)

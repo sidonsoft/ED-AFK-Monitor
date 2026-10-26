@@ -155,6 +155,10 @@ shell history and proxy logs: `curl -H 'X-Wing-Token: sekret'
 http://<host>:8099/wing/`. The 401 body names both forms; the monitor's own
 `FetchURL`/`PushURL` configs keep using `?token=` in the URL.
 
+For systemd/Docker deployments set `ED_AFK_WING_TOKEN` in the environment and
+the monitor sends it as the header automatically - no secret in the config
+file at all. An explicit `?token=` in a URL still wins for that one URL.
+
 When a wingmate's config looks right but the wing view stays empty, run the
 diagnostic: `--wing-test http://<host>:8099/wing/` (or a single ledger URL)
 prints what that address actually carries and exits nonzero if nothing

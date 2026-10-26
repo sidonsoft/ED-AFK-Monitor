@@ -7,6 +7,7 @@ from hmac import compare_digest
 from time import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 import re
 import threading
 from pathlib import Path
@@ -109,7 +110,8 @@ def _listing_entries(url, timeout=5):
     inventory and expand it into one URL per ledger. Tokens in the base
     query are carried onto every entry."""
     try:
-        with urlopen(Request(url, method="GET"), timeout=timeout) as response:
+        with urlopen(Request(url, method="GET",
+                             headers=wing_auth_headers(url)), timeout=timeout) as response:
             listing = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
         return None, f"could not read relay listing: {getattr(failure, 'reason', None) or failure}"
@@ -163,8 +165,9 @@ def push_ledger(path, base_url, timeout=5):
     url = urlunsplit((base.scheme, base.netloc,
                       base.path + "/" + Path(path).name, base.query, ""))
     try:
+        headers = {"Content-Type": "application/json", **wing_auth_headers(url)}
         with urlopen(Request(url, data=body, method="PUT",
-                             headers={"Content-Type": "application/json"}), timeout=timeout) as response:
+                             headers=headers), timeout=timeout) as response:
             if not 200 <= response.status < 300:
                 return f"Relay rejected {redact(url)}: HTTP {response.status}"
     except Exception as failure:
@@ -173,10 +176,21 @@ def push_ledger(path, base_url, timeout=5):
     return ""
 
 
+def wing_auth_headers(url):
+    """ED_AFK_WING_TOKEN (like ED_AFK_TELEGRAM_TOKEN before it) carries the
+    relay secret in the environment; URLs keep working with ?token=, and an
+    in-URL token always wins over the env fallback."""
+    token = os.environ.get("ED_AFK_WING_TOKEN", "")
+    if token and "token=" not in urlsplit(url).query:
+        return {"X-Wing-Token": token}
+    return {}
+
+
 def fetch_spread(url, timeout=5):
     """GET one ledger JSON and return (spread, name, error) for wing merging."""
     try:
-        with urlopen(Request(url, method="GET"), timeout=timeout) as response:
+        with urlopen(Request(url, method="GET",
+                             headers=wing_auth_headers(url)), timeout=timeout) as response:
             if response.status != 200:
                 return None, "", f"HTTP {response.status} from {url}"
             data = json.loads(response.read().decode("utf-8"))
