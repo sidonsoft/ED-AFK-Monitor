@@ -37,6 +37,7 @@ def load_hotkey(serve_label, wings=(), errors=None, local_total=3, turn_in=25000
         "wing_serve_dirs": [],
         "served_count": lambda dirs: 2,
         "wing_last_push": {"name": "putmate.json", "size": 4096, "at": 1761500000},
+        "wing_last_reject": {"name": "old.json", "why": "ledger format 99", "at": 1761500000},
         "time": __import__("time"),
         "conf_settings": {"WingTurnInAlert": turnin_alert},
         "turnin_notice": __import__("missions").turnin_notice,
@@ -65,6 +66,7 @@ class HotkeyWingRelayTests(unittest.TestCase):
         self.assertIn("serves the wing on 0.0.0.0:8099", text)
         self.assertIn("(2 ledgers)", text)
         self.assertIn("last push: putmate.json (4,096 bytes) at", text)
+        self.assertIn("last refusal: old.json - ledger format 99 at", text)
 
     def test_turnin_alert_shown_when_configured(self):
         text = load_hotkey("", turnin_alert=100000)

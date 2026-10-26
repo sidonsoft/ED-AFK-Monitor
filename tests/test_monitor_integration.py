@@ -771,6 +771,14 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     with urlopen(f'http://127.0.0.1:{serve_port}/wing/putmate.json', timeout=5) as response:
                         back = json.loads(response.read())
                     self.assertEqual(back['missions'][0]['id'], 9009)
+                    bad_copy = dict(mate_copy, version=FILE_VERSION + 7, commander='Old Monitor')
+                    bad = _Req(f'http://127.0.0.1:{serve_port}/wing/putbad.json', method='PUT',
+                               data=json.dumps(bad_copy).encode('utf-8'))
+                    try:
+                        urlopen(bad, timeout=5)
+                        self.fail('wrong-format PUT should be refused')
+                    except _ue.HTTPError as refused:
+                        self.assertEqual(refused.code, 409)
                     with urlopen(f'http://127.0.0.1:{serve_port}/wing/', timeout=5) as response:
                         inventory = json.loads(response.read())
                     self.assertIn('putmate.json', [e['name'] for e in inventory['ledgers']])
@@ -782,6 +790,11 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         push_note = json.loads(response.read())['wing_view']['last_push']
                     self.assertEqual(push_note['name'], 'putmate.json')
                     self.assertGreater(push_note['size'], 0)
+                    # ... and the refusal of the wrong-format push, same window
+                    with urlopen(f'http://127.0.0.1:{dash_port}/missions.json', timeout=5) as response:
+                        refused_note = json.loads(response.read())['wing_view']['last_reject']
+                    self.assertEqual(refused_note['name'], 'putbad.json')
+                    self.assertIn('ledger format', refused_note['why'])
                     # the panel footer shows the running build: a remote
                     # dashboard doubles as a release-deployment check
                     with urlopen(f'http://127.0.0.1:{dash_port}/live.json', timeout=5) as response:

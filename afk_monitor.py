@@ -789,6 +789,7 @@ def main() -> None:
                                      "serve": wing_serve_label,
                                      "served": served_count(wing_serve_dirs),
                                      "last_push": dict(wing_last_push) or None,
+                                     "last_reject": dict(wing_last_reject) or None,
                                      "errors": errors}
         return data
 
@@ -810,6 +811,7 @@ def main() -> None:
     wing_serve_label = ""
     wing_serve_dirs = []
     wing_last_push = {}  # last ledger the relay accepted, for the panel
+    wing_last_reject = {}  # ... and the last one it refused, same reason
     # the relay can also be switched on from config alone (service/Docker
     # deployments have no convenient place for CLI flags)
     wing_port = args.wing_serve or int(conf_wing["ServePort"] or 0)
@@ -827,8 +829,9 @@ def main() -> None:
             stale_hours=conf_wing["StaleHours"],
             banner=serve_advice(wing_host, wing_token),
             build=VERSION,
-            on_reject=lambda name, why: msg.log(
-                f"{WARNING} Wing relay: refused {name} - {why}"),
+            on_reject=lambda name, why: (
+                wing_last_reject.update(name=name, why=why, at=int(time.time())),
+                msg.log(f"{WARNING} Wing relay: refused {name} - {why}"))[0],
             on_put=lambda name, size: (
                 wing_last_push.update(name=name, size=size, at=int(time.time())),
                 msg.log(f"Wing relay: received {name} ({size:,} bytes)"))[0])
@@ -1523,6 +1526,10 @@ def main() -> None:
                 text += (f"\n  last push: {wing_last_push['name']} "
                          f"({wing_last_push['size']:,} bytes) at "
                          f"{time.strftime('%H:%M', time.localtime(wing_last_push['at']))}")
+            if wing_last_reject:
+                text += (f"\n  last refusal: {wing_last_reject['name']} - "
+                         f"{wing_last_reject['why']} at "
+                         f"{time.strftime('%H:%M', time.localtime(wing_last_reject['at']))}")
         return text
 
     def hotkey_missions_report():

@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the host's dashboard and [w] hotkey name the last refused push (2026-10-26)
+------------------------------------------------
+- 'last refusal putbad.json (ledger format 8) at 08:47:12' rides the
+  wing headline; the hotkey gets its own line under last push. Live
+  end-to-end: the scenario now PUTs a wrong-format ledger, watches
+  the 409, and reads the refusal back out of the panel's payload.
+- Validation: 274 tests passed.
+
 Fork: refused wing pushes now surface in the host's own log (2026-10-26)
 ------------------------------------------------
 - 'Wing relay: refused old.json - ledger format 99' appears in the

@@ -83,6 +83,9 @@ fetch('missions.json' + query).then(r => r.json()).then(d => {
       + (wing.serve ? ' · ' + fmt(wing.served || 0) + ' ledger(s) on the relay' : '')
       + (wing.serve && wing.last_push ? ' · last push ' + esc(wing.last_push.name)
           + ' at ' + new Date(wing.last_push.at * 1000).toLocaleTimeString() : '')
+      + (wing.serve && wing.last_reject ? ' · last refusal ' + esc(wing.last_reject.name)
+          + ' (' + esc(wing.last_reject.why) + ') at '
+          + new Date(wing.last_reject.at * 1000).toLocaleTimeString() : '')
       + '<br>sources: '
       + esc(wing.sources.join(', ') || 'none');
     if (wing.errors && wing.errors.length)
