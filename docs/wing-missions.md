@@ -143,6 +143,10 @@ wingmates append `?token=<value>` to their `PushURL`/`FetchURL` (the filename
 splices in before the query, so a base ending in `?token=…` works). Requests
 without the right token are refused with 401; comparison is timing-safe.
 
+Wingmate fetches time out after 5 seconds each; mesh and VPN links can be
+slower, so `[Wing] FetchTimeout = 10` buys patience (per URL, both live and
+`--missions --wing`).
+
 `GET http://<host>:8099/wing/` lists every ledger the relay carries with its
 last-save time - the fastest way to prove a URL (or a token) works.
 

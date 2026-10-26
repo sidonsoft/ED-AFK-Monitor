@@ -255,3 +255,29 @@ class RedactTests(unittest.TestCase):
         _, _, error = fetch_spread("http://127.0.0.1:1/nobody.json?token=s3cret", timeout=1)
         self.assertNotIn("s3cret", error)
         self.assertIn("nobody.json", error)
+
+
+class SlowRelayHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        import time as _time
+        _time.sleep(1.5)
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+class FetchTimeoutTests(unittest.TestCase):
+    def test_fetch_timeout_is_honoured(self):
+        server = HTTPServer(("127.0.0.1", 0), SlowRelayHandler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            spreads, errors = fetch_spreads([f"http://127.0.0.1:{port}/m.json"], timeout=0.4)
+            self.assertEqual(spreads, [])
+            self.assertIn("timed out", errors[0])
+        finally:
+            server.shutdown()
+            server.server_close()

@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: [Wing] FetchTimeout - patience for slow wing links (2026-10-26)
+------------------------------------------------
+- Every wingmate fetch gets FetchTimeout seconds (default 5, min 1),
+  live and offline views alike; Tailscale/VPN hops past a home relay
+  often sit near the old fixed limit.
+- Validation: 231 tests passed.
+
 Fork: wing relay answers 'GET /wing/' with an inventory (2026-10-26)
 ------------------------------------------------
 - Lists the ledgers a host carries (pushed copies and its own) with

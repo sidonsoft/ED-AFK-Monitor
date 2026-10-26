@@ -173,11 +173,12 @@ def main() -> None:
 
 
     def show_mission_ledgers(directory, as_json=False, wing=False, wing_urls=(),
-                             stale_hours=None):
+                             stale_hours=None, fetch_timeout=None):
         paths = ledger_paths(directory)
         wings = wing_spreads(Path(directory) / "wing") if wing else []
         if wing:
-            fetched, errors = fetch_spreads(wing_urls)
+            fetched, errors = (fetch_spreads(wing_urls, timeout=fetch_timeout)
+                               if fetch_timeout else fetch_spreads(wing_urls))
             wings.extend(fetched)
             errors.extend(stale_notes(wings, stale_hours))
             for error in errors:
@@ -322,14 +323,20 @@ def main() -> None:
     if args.missions:
         # this offline exit predates the nested getconfig; read the one knob
         # the wing view needs ([Wing] StaleHours) straight from the config file
-        stale_hours = 24
+        wing_settings, fetch_timeout = {}, 5
         try:
             with config_file.open("rb") as handle:
-                stale_hours = tomllib.load(handle).get("Wing", {}).get("StaleHours", 24)
+                wing_settings = tomllib.load(handle).get("Wing", {})
         except Exception:
             pass
+        try:
+            fetch_timeout = max(1, int(wing_settings.get("FetchTimeout", 5)))
+        except (TypeError, ValueError):
+            pass
         show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json, wing=args.wing,
-                             wing_urls=args.wing_url, stale_hours=stale_hours)
+                             wing_urls=args.wing_url,
+                             stale_hours=wing_settings.get("StaleHours", 24),
+                             fetch_timeout=fetch_timeout)
         sys.exit()
 
     if args.history:
@@ -556,7 +563,8 @@ def main() -> None:
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
     conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0,
                                "StaleHours": 24, "ServePort": 0,
-                               "ServeHost": "", "ServeToken": ""}, False)
+                               "ServeHost": "", "ServeToken": "",
+                               "FetchTimeout": 5}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -694,7 +702,9 @@ def main() -> None:
     def wing_view():
         """Shared wing sources: copied wing-folder ledgers plus configured relays."""
         wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
-        fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
+        fetched, errors = (fetch_spreads(conf_wing["FetchURL"],
+                                         timeout=max(1, int(conf_wing["FetchTimeout"] or 5)))
+                           if conf_wing["FetchURL"] else ([], []))
         wings.extend(fetched)
         errors.extend(stale_notes(wings, conf_wing["StaleHours"]))
         return wings, errors
