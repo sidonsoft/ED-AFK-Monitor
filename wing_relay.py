@@ -15,6 +15,7 @@ import re
 import threading
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -108,6 +109,22 @@ def wing_test_lines(urls, timeout=5):
     return lines, ok
 
 
+def _describe_failure(failure, url):
+    """HTTP errors from our own relay carry a JSON 'error' explaining the
+    fix (a 401 says 'needs ?token=...'); surface it instead of the bare
+    'Unauthorized' the status line alone gives."""
+    if isinstance(failure, HTTPError):
+        try:
+            payload = json.loads(failure.read(400).decode("utf-8"))
+            detail = payload.get("error") if isinstance(payload, dict) else None
+        except Exception:
+            detail = None
+        if detail:
+            return f"{failure.code} - {detail}"
+        return f"HTTP {failure.code} ({failure.reason})"
+    return f"{getattr(failure, 'reason', None) or failure}"
+
+
 def _listing_entries(url, timeout=5):
     """A FetchURL ending in '/' is a relay address, not a ledger: pull the
     inventory and expand it into one URL per ledger. Tokens in the base
@@ -117,7 +134,7 @@ def _listing_entries(url, timeout=5):
                              headers=wing_auth_headers(url)), timeout=timeout) as response:
             listing = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
-        return None, f"could not read relay listing: {getattr(failure, 'reason', None) or failure}"
+        return None, f"could not read relay listing: {_describe_failure(failure, url)}"
     entries = listing.get("ledgers") if isinstance(listing, dict) else None
     if not isinstance(entries, list):
         return None, "relay listing response has no 'ledgers' list"
@@ -174,8 +191,7 @@ def push_ledger(path, base_url, timeout=5):
             if not 200 <= response.status < 300:
                 return f"Relay rejected {redact(url)}: HTTP {response.status}"
     except Exception as failure:
-        return (f"Could not push {redact(url)}: "
-                f"{getattr(failure, 'reason', None) or failure}")
+        return f"Could not push {redact(url)}: {_describe_failure(failure, url)}"
     return ""
 
 
@@ -210,8 +226,7 @@ def fetch_spread(url, timeout=5):
                 return None, "", f"HTTP {response.status} from {url}"
             data = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
-        return None, "", (f"Could not fetch {redact(url)}: "
-                          f"{getattr(failure, 'reason', None) or failure}")
+        return None, "", f"Could not fetch {redact(url)}: {_describe_failure(failure, url)}"
     from missions import FILE_VERSION, MissionLedger
     from urllib.parse import urlsplit, unquote
     name = unquote(urlsplit(url).path).rstrip("/").rsplit("/", 1)[-1] or "remote.json"

@@ -10,10 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
-                        redact, serve_advice, served_count, url_shape_warnings,
-                        wing_test_lines,
-                        stale_notes, stale_spread, start_wing_relay)
+from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger, redact, serve_advice, served_count, stale_notes, stale_spread, start_wing_relay, url_shape_warnings, wing_test_lines, _listing_entries)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -257,7 +254,7 @@ class WingServeTests(unittest.TestCase):
                 self.assertEqual(spread["total"], 1)  # the fixture mission
                 self.assertEqual(push_ledger(path, base, timeout=3), "")
             # no env: same URLs are denied again
-            self.assertIn("Unauthorized", fetch_spread(f"{base}/mate.json", timeout=3)[2])
+            self.assertIn("401 -", fetch_spread(f"{base}/mate.json", timeout=3)[2])
         self.assertTrue((Path(self.folder.name) / "envmate.json").exists())
         server.shutdown()
 
@@ -390,7 +387,7 @@ class WingServeTests(unittest.TestCase):
         base = f"http://127.0.0.1:{self.server.server_address[1]}/wing"
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         _, _, error = fetch_spread(f"{base}/mate.json")
-        self.assertIn("Unauthorized", error)
+        self.assertIn("401 -", error)
         from urllib.request import urlopen as _open
         try:
             _open(f"{base}/mate.json", timeout=3)
@@ -407,14 +404,14 @@ class WingServeTests(unittest.TestCase):
             self.assertEqual(push_ledger(path, f"{base}?token=secret", timeout=3), "")
             self.assertTrue((Path(self.folder.name) / "mate2.json").is_file())
         _, _, error = fetch_spread(f"{base}/mate2.json?token=wrong")
-        self.assertIn("Unauthorized", error)
+        self.assertIn("401 -", error)
         # a wrong-token PUSH must also surface as a clean 401, not a wedged
         # connection: the body has to be drained before the verdict
         with TemporaryDirectory() as folder:
             path = Path(folder) / "mate3.json"
             path.write_text(json.dumps(LEDGER), encoding="utf-8")
             failure = push_ledger(path, f"{base}?token=wrong", timeout=3)
-        self.assertIn("Unauthorized", failure)
+        self.assertIn("401 -", failure)
         self.assertFalse((Path(self.folder.name) / "mate3.json").exists())
 
     """The monitor-embedded relay (start_wing_relay) round-trips ledgers."""
@@ -534,3 +531,20 @@ class UrlShapeWarningTests(unittest.TestCase):
         self.assertEqual(len(warns), 2)  # empty entries are dropped upstream
         self.assertTrue(any("host:8099/wing" in w for w in warns))
         self.assertTrue(any("ftp://x/y" in w for w in warns))
+
+
+class RelayExplainsItselfTests(unittest.TestCase):
+    def test_token_401_surfaces_the_relay_error_text(self):
+        with TemporaryDirectory() as served:
+            server, error = start_wing_relay(0, served, token="sekret")
+            self.assertEqual(error, "")
+            base = f"http://127.0.0.1:{server.server_address[1]}/wing"
+            try:
+                spread, name, failure = fetch_spread(f"{base}/mate.json", timeout=3)
+                self.assertIn("needs ?token=", failure)
+                self.assertTrue(failure.startswith("Could not fetch"))
+                listing, reason = _listing_entries(base + "/", timeout=3)
+                self.assertIsNone(listing)
+                self.assertIn("needs ?token=", reason)
+            finally:
+                server.shutdown()

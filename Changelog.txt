@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing errors now quote the relay's own explanation (2026-10-26)
+------------------------------------------------
+- 'Could not fetch http://host:8099/wing/mate.json: 401 - this relay
+  needs ?token=<value> in the URL or an X-Wing-Token header' beats
+  ': Unauthorized' every time. GET, listing and push failures all read
+  the relay's JSON error body when there is one; anything else falls
+  back to the old reason/exception text.
+- Validation: 264 tests passed.
+
 Fork: ServeDir - pick the served folder from config, not just the flag (2026-10-26)
 ------------------------------------------------
 - [Wing] ServeDir = 'D:/wing-shared' does what --wing-serve-dir does;
