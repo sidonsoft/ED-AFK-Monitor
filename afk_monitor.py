@@ -1598,7 +1598,9 @@ def main() -> None:
                              f" {wing_combined['done']}/{wing_combined['total']} complete"
                              f" · {wing_combined['left']} kills left across the wing"
                              + (f" · {wing_combined['turn_in']:,} Cr ready"
-                                if wing_combined["turn_in"] else ""))
+                                if wing_combined["turn_in"] else "")
+                             + (f" · relay {wing_serve_label}"
+                                if wing_serve_label else ""))
                 out_terminal += f"\n{wing_line}"
                 if not live:
                     out_telegram += f"\n{wing_line}"

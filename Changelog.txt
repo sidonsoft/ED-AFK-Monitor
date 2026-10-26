@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: periodic summaries show the serving address too (2026-10-26)
+------------------------------------------------
+- The console summary's wing line gains 'relay <host>:<port>' when the
+  monitor serves a relay - a running host keeps its exposure in front
+  of itself without asking the dashboard or the [w] hotkey.
+- Validation: 240 tests passed.
+
 Fork: point FetchURL at a relay root, get the whole wing (2026-10-26)
 ------------------------------------------------
 - A FetchURL ending in '/' is now read as a relay address: the monitor
