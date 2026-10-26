@@ -1,5 +1,6 @@
 """Exercise production functions without executing CLI/network startup code."""
 import ast
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -327,3 +328,22 @@ class MissionBackfillTests(unittest.TestCase):
                                 encoding="utf-8")
             self.assertEqual(find_mission_accepts(root, [7], max_files=2), {})
             self.assertIn(7, find_mission_accepts(root, [7], max_files=3))
+
+
+class MissionOriginRecoveryTests(unittest.TestCase):
+    def test_lookup_recovers_acceptance_station_and_clears_after_travel(self):
+        from journal_reader import find_mission_accepts
+        with TemporaryDirectory() as folder:
+            events = [
+                {'event': 'Docked', 'StarSystem': 'Puneith', 'StationName': 'Wheelock Port'},
+                {'event': 'MissionAccepted', 'MissionID': 1},
+                {'event': 'Undocked'},
+                {'event': 'FSDJump', 'StarSystem': 'Anana'},
+                {'event': 'MissionAccepted', 'MissionID': 2},
+            ]
+            path = Path(folder) / 'Journal.2026-10-26T120000.01.log'
+            path.write_text(''.join(json.dumps(e) + '\n' for e in events), encoding='utf-8')
+            found = find_mission_accepts(folder, [1, 2])
+            self.assertEqual(found[1]['OriginStation'], 'Wheelock Port')
+            self.assertEqual(found[2]['OriginStation'], '')
+            self.assertEqual(found[2]['OriginSystem'], 'Anana')

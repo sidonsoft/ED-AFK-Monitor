@@ -123,21 +123,30 @@ def find_mission_accepts(folder, mission_ids, max_files=20):
         if wanted <= found.keys():
             break
         try:
+            origin_system = origin_station = ""
             with path.open(encoding="utf-8", errors="replace") as file:
                 for line in file:
-                    if "MissionAccepted" not in line:
-                        continue
                     try:
                         event = json.loads(line)
                     except ValueError:
                         continue
-                    if not isinstance(event, dict) or event.get("event") != "MissionAccepted":
+                    if not isinstance(event, dict):
+                        continue
+                    kind = event.get("event")
+                    if kind in {"Location", "Docked", "FSDJump", "CarrierJump"}:
+                        origin_system = str(event.get("StarSystem") or "")
+                        origin_station = str(event.get("StationName") or "")
+                    elif kind == "Undocked":
+                        origin_station = ""
+                    if kind != "MissionAccepted":
                         continue
                     try:
                         mission_id = int(event.get("MissionID"))
                     except (TypeError, ValueError):
                         continue
                     if mission_id in wanted and mission_id not in found:
+                        event["OriginSystem"] = origin_system
+                        event["OriginStation"] = origin_station
                         found[mission_id] = event
         except OSError:
             continue

@@ -132,18 +132,27 @@ requirement, wing flag, expiry and reward, and saved to
 journal's `Missions` event only lists mission IDs and expiry, so the details would
 otherwise be lost on a relog.
 
-Kills are credited by the victim faction of `Bounty` events. Every kill advances all
-missions targeting that faction, so a stack needs the largest kill requirement per
-faction rather than the sum of every mission. The session summary reports one row per
-faction and the unique kills remaining:
+Kills are estimated from the victim faction in `Bounty` events. A matching kill advances
+one unfinished mission per issuing faction, in acceptance order. Missions from the same
+issuer add together; different issuers progress in parallel. The unique requirement is
+the largest issuer total for each target faction. Existing saved kill estimates are
+preserved when upgrading; they cannot be corrected retrospectively without a full replay.
+
+The summary includes issuing-faction stacks with required/estimated kills, remaining
+kills, difference from the largest remaining stack, mission and wing counts, and rewards.
+It also shows total and shareable stack value, confirmed value ready to turn in, average
+credits per kill and mission, kill ratio, and estimated kills to the next completion.
+Shareable value means the reward on wing missions, without multiplying by wing size.
+`--missions` adds each mission's origin system/station, issuing faction, destination,
+progress, expiry, payout and wing status. Unknown location details appear as `?`.
+Origin details are captured from travel/docking events and recovered from recent journals
+when available. All these fields are also included in `--missions --json`.
 
 ```text
-Mission spread: 0/3 complete | 2 wing | 57 kills left
-  Faction                  Open Wing  Need  Done  Left
-  Lords of Ngaliba            2    2    40     2    38
-  Ngaliba Blue Boys           1    0    20     1    19
-  Unique kills left: 57 (sum of mission kills: 90)
-  Mission rewards: 43,000,000 cr
+Mission spread: 0/3 complete | 3 wing | 216 kills left
+  Issuing faction stacks (estimated local kills):
+    Liberals of Ahayan -> Anana Brotherhood | 0/165 | 165 left | Diff 51 | 2 missions (2 wing) | 79,510,476 cr
+    United Tagg League -> Anana Brotherhood | 0/216 | 216 left | Diff 0 | 1 missions (1 wing) | 104,361,602 cr
 ```
 
 - `--missions` prints every saved ledger (including mission IDs) and exits without

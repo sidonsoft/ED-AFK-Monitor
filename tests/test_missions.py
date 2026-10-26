@@ -50,7 +50,7 @@ class MissionLedgerTests(unittest.TestCase):
             self.assertEqual(mission.kills, 1)
             self.assertFalse(mission.wing)
 
-    def test_kills_credit_every_mission_for_the_target_faction(self):
+    def test_kills_credit_one_mission_per_issuer_for_the_target_faction(self):
         with TemporaryDirectory() as folder:
             ledger = self.make(folder)
             ledger.accept(accepted(1, target="Pirates A", kills=3))
@@ -59,7 +59,7 @@ class MissionLedgerTests(unittest.TestCase):
             for _ in range(4):
                 ledger.kill("pirates a")
             self.assertEqual(ledger.missions[1].kills, 3)
-            self.assertEqual(ledger.missions[2].kills, 4)
+            self.assertEqual(ledger.missions[2].kills, 1)
             self.assertEqual(ledger.missions[3].kills, 0)
             ledger.kill("Pirates B")
             self.assertEqual(ledger.missions[3].kills, 1)
@@ -68,7 +68,7 @@ class MissionLedgerTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             ledger = self.make(folder)
             ledger.accept(accepted(1, target="Pirates A", kills=40))
-            ledger.accept(accepted(2, target="Pirates A", kills=30))
+            ledger.accept(accepted(2, target="Pirates A", kills=30, faction="Other issuer"))
             ledger.accept(accepted(3, target="Pirates B", kills=20, wing=False))
             for _ in range(35):
                 ledger.kill("Pirates A")
@@ -322,3 +322,73 @@ class LiveMissionReportTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             ledger = MissionLedger(Path(folder) / "missions.json")
             self.assertEqual(ledger.report_live(), "")
+
+
+class IssuerStackTests(unittest.TestCase):
+    def test_parallel_issuers_and_serial_missions(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            ledger.accept(accepted(1, kills=3, faction="A"))
+            ledger.accept(accepted(2, kills=2, faction="a"))
+            ledger.accept(accepted(3, kills=4, faction="B"))
+            for _ in range(4):
+                ledger.kill("Pirate Faction")
+            self.assertEqual([ledger.missions[i].kills for i in (1, 2, 3)], [3, 1, 4])
+            data = ledger.spread()
+            self.assertEqual(data['need'], 5)
+            self.assertEqual(data['left'], 1)
+            self.assertEqual(data['next_completion'], 1)
+            self.assertEqual([r['difference'] for r in data['stacks']], [0, 1])
+            self.assertEqual(data['shareable_reward'], 3000000)
+            self.assertEqual(data['turn_in'], 0)
+            ledger.redirected(1)
+            self.assertEqual(ledger.spread()['shareable_turn_in'], 1000000)
+            self.assertIn('Issuer stacks', ledger.report_live())
+            self.assertIn('Diff 1', ledger.report_text())
+
+    def test_next_completion_respects_acceptance_queue_and_timestamps(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            newer = accepted(1, kills=1)
+            newer['timestamp'] = '2026-10-26T10:00:00Z'
+            older = accepted(2, kills=10)
+            older['timestamp'] = '2026-10-26T09:00:00Z'
+            ledger.accept(newer)
+            ledger.accept(older)
+            self.assertEqual(ledger.spread()['next_completion'], 10)
+            ledger.kill('Pirate Faction')
+            self.assertEqual(ledger.missions[2].kills, 1)
+            self.assertEqual(ledger.missions[1].kills, 0)
+
+    def test_origin_and_destination_persist_and_travel_clears_station(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'missions.json'
+            ledger = MissionLedger(path)
+            ledger.observe_location({'event': 'Docked', 'StarSystem': 'Puneith', 'StationName': 'Wheelock Port'})
+            event = accepted(1)
+            event['DestinationSystem'] = 'Anana'
+            ledger.accept(event)
+            restored = MissionLedger(path)
+            mission = restored.missions[1]
+            self.assertEqual((mission.origin_system, mission.origin_station, mission.target_system),
+                             ('Puneith', 'Wheelock Port', 'Anana'))
+            self.assertIn('Wheelock Port', restored.report_text(include_missions=True))
+            ledger.observe_location({'event': 'FSDJump', 'StarSystem': 'Anana'})
+            ledger.accept(accepted(2))
+            self.assertEqual(ledger.missions[2].origin_station, '')
+
+    def test_different_progress_does_not_hide_later_mission_remaining(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / 'missions.json')
+            ledger.accept(accepted(1, kills=40, faction='A'))
+            ledger.accept(accepted(2, kills=30, faction='B'))
+            ledger.missions[1].kills = 39
+            self.assertEqual(ledger.spread()['left'], 30)
+
+    def test_live_report_fits_notification_budget(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / 'missions.json')
+            for i in range(20):
+                ledger.accept(accepted(i + 1, target='Anana Brotherhood', faction=f'Long issuing faction name number {i}' + ' x' * 70))
+            self.assertLessEqual(len(ledger.report_live()), 1400)
+            self.assertIn('More details', ledger.report_live())

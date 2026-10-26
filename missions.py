@@ -209,6 +209,9 @@ class Mission:
     known: bool = False
     fresh: bool = False
     manual: bool = False
+    origin_system: str = ""
+    origin_station: str = ""
+    target_system: str = ""
 
     def as_dict(self):
         return {
@@ -225,6 +228,9 @@ class Mission:
             "done": self.done,
             "known": self.known,
             "manual": self.manual,
+            "origin_system": self.origin_system,
+            "origin_station": self.origin_station,
+            "target_system": self.target_system,
         }
 
     @classmethod
@@ -248,6 +254,9 @@ class Mission:
             done=bool(raw.get("done")),
             known=bool(raw.get("known")),
             manual=bool(raw.get("manual")),
+            origin_system=str(raw.get("origin_system") or ""),
+            origin_station=str(raw.get("origin_station") or ""),
+            target_system=str(raw.get("target_system") or ""),
         )
 
 
@@ -255,8 +264,8 @@ class MissionLedger:
     """Mission state kept across journal restarts and reported as a spread.
 
     The journal only gives faction and kill count in MissionAccepted, so those details
-    are persisted. Kills are credited by target faction, because one kill advances every
-    mission for that faction; targets that are not mission targets cannot be told apart.
+    are persisted. One matching kill advances the oldest unfinished mission per issuer.
+    Bounty events cannot distinguish mission targets from other wanted ships.
     """
 
     def __init__(self, path, commander="", profile="", save_interval=SAVE_INTERVAL,
@@ -266,6 +275,8 @@ class MissionLedger:
         self.profile = profile or ""
         self.save_interval = save_interval
         self.details_lookup = details_lookup
+        self.origin_system = ""
+        self.origin_station = ""
         self.missions = {}
         self.warnings = []
         self.backfilled = 0
@@ -276,6 +287,14 @@ class MissionLedger:
         self.load()
 
     # ---- journal events -------------------------------------------------
+
+    def observe_location(self, event):
+        """Remember acceptance location, without treating travel as a mission update."""
+        if event.get("event") in {"Location", "FSDJump", "CarrierJump", "Docked"}:
+            self.origin_system = str(event.get("StarSystem") or "")
+            self.origin_station = str(event.get("StationName") or "")
+        elif event.get("event") == "Undocked":
+            self.origin_station = ""
 
     def accept(self, event):
         name = str(event.get("Name") or "")
@@ -289,6 +308,8 @@ class MissionLedger:
             mission = Mission(mission_id=mission_id, accepted=time())
             self.missions[mission_id] = mission
         self._apply(mission, event)
+        mission.origin_system = mission.origin_system or self.origin_system
+        mission.origin_station = mission.origin_station or self.origin_station
         self._dirty = True
         self.save()
         return mission
@@ -296,6 +317,16 @@ class MissionLedger:
     def _apply(self, mission, event):
         name = str(event.get("Name") or "")
         was_known = mission.known
+        if event.get("timestamp"):
+            try:
+                mission.accepted = datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError):
+                pass
+        for field, key in (("origin_system", "OriginSystem"),
+                           ("origin_station", "OriginStation"),
+                           ("target_system", "DestinationSystem")):
+            if event.get(key):
+                setattr(mission, field, str(event[key]))
         if name:
             mission.name = name
         if event.get("Faction"):
@@ -335,7 +366,8 @@ class MissionLedger:
             active_ids.add(mission_id)
 
         missing = [mission_id for mission_id, _ in entries
-                   if mission_id not in self.missions or not self.missions[mission_id].known]
+                   if mission_id not in self.missions or not self.missions[mission_id].known
+                   or not self.missions[mission_id].origin_system]
         if missing and self.details_lookup is not None:
             try:
                 events = self.details_lookup(missing) or {}
@@ -379,7 +411,8 @@ class MissionLedger:
         if not keys:
             return []
         credited = []
-        for mission in self.missions.values():
+        issuers = set()
+        for mission in sorted(self.missions.values(), key=lambda m: (m.accepted, m.mission_id)):
             if mission.done or not mission.known:
                 continue
             if faction_key(mission.target) not in keys:
@@ -388,6 +421,11 @@ class MissionLedger:
                 continue
             if mission.kills >= mission.kill_count:
                 continue
+            # Unknown issuers remain independent estimates; never merge unrelated imports.
+            issuer = faction_key(mission.faction) or ("unknown", mission.mission_id)
+            if issuer in issuers:
+                continue
+            issuers.add(issuer)
             mission.kills += 1
             if mission.manual and mission.kills >= mission.kill_count:
                 mission.done = True
@@ -494,40 +532,71 @@ class MissionLedger:
         done, total = self.progress()
         return f"{done}/{total}"
 
-    def spread(self):
+    def stacks(self):
+        """Serial requirements per issuer, parallel requirements across issuers."""
         groups = {}
-        unknown = 0
-        open_missions = [mission for mission in self.missions.values() if not mission.done]
-        for mission in open_missions:
+        for mission in self.missions.values():
             if not mission.known:
-                unknown += 1
                 continue
-            groups.setdefault(mission.target, []).append(mission)
+            issuer = faction_key(mission.faction) or ("unknown", mission.mission_id)
+            key = (faction_key(mission.target), issuer)
+            groups.setdefault(key, []).append(mission)
         rows = []
-        for target, group in groups.items():
-            need = max(mission.kill_count for mission in group)
-            delivered = max(min(mission.kills, mission.kill_count) for mission in group)
-            rows.append({
-                "faction": target,
-                "missions": len(group),
-                "wing": sum(1 for mission in group if mission.wing),
-                "need": need,
-                "done": min(delivered, need),
-                "left": max(0, need - delivered),
-            })
+        for group in groups.values():
+            first = group[0]
+            need = sum(m.kill_count for m in group)
+            done = sum(m.kill_count if m.done else min(m.kills, m.kill_count) for m in group)
+            rows.append({"issuer": first.faction or "Unknown issuer", "faction": first.target,
+                         "systems": sorted({m.origin_system for m in group if m.origin_system}),
+                         "target_systems": sorted({m.target_system for m in group if m.target_system}),
+                         "missions": len(group), "wing": sum(m.wing for m in group),
+                         "need": need, "done": done, "left": need - done,
+                         "reward": sum(m.reward for m in group),
+                         "complete": sum(m.done for m in group)})
+        for row in rows:
+            row["difference"] = max(r["left"] for r in rows
+                                    if faction_key(r["faction"]) == faction_key(row["faction"])) - row["left"]
+        return sorted(rows, key=lambda r: (r["faction"].casefold(), r["issuer"].casefold()))
+
+    def spread(self):
+        stacks = self.stacks()
+        groups = {}
+        for stack in stacks:
+            groups.setdefault(faction_key(stack["faction"]), []).append(stack)
+        rows = []
+        for group in groups.values():
+            need = max(r["need"] for r in group)
+            left = max(r["left"] for r in group)
+            if not any(r["complete"] < r["missions"] for r in group):
+                continue
+            rows.append({"faction": group[0]["faction"],
+                         "missions": sum(r["missions"] - r["complete"] for r in group),
+                         "wing": sum(m.wing for m in self.missions.values()
+                                     if not m.done and faction_key(m.target) == faction_key(group[0]["faction"])),
+                         "need": need, "done": need - left, "left": left})
         rows.sort(key=lambda row: (-row["left"], row["faction"].casefold()))
-        done_total, total = self.progress()
-        return {
-            "rows": rows,
-            "unknown": unknown,
-            "done": done_total,
-            "total": total,
-            "wing": sum(1 for mission in self.missions.values() if mission.wing),
-            "manual": sum(1 for mission in self.missions.values() if mission.manual),
-            "left": sum(row["left"] for row in rows),
-            "sum_kills": sum(mission.kill_count for mission in open_missions if mission.known),
-            "reward": sum(mission.reward for mission in self.missions.values()),
-        }
+        done, total = self.progress()
+        need = sum(max(r["need"] for r in group) for group in groups.values())
+        reward = sum(m.reward for m in self.missions.values())
+        next_by_issuer = {}
+        for m in sorted(self.missions.values(), key=lambda m: (m.accepted, m.mission_id)):
+            if m.known and not m.done and m.kills < m.kill_count:
+                key = (faction_key(m.target), faction_key(m.faction) or m.mission_id)
+                next_by_issuer.setdefault(key, m.kill_count - m.kills)
+        return {"rows": rows, "stacks": stacks,
+                "unknown": sum(not m.known and not m.done for m in self.missions.values()),
+                "done": done, "total": total,
+                "wing": sum(m.wing for m in self.missions.values()),
+                "manual": sum(m.manual for m in self.missions.values()),
+                "left": sum(r["left"] for r in rows), "need": need,
+                "sum_kills": sum(m.kill_count for m in self.missions.values() if m.known and not m.done),
+                "reward": reward, "shareable_reward": sum(m.reward for m in self.missions.values() if m.wing),
+                "turn_in": sum(m.reward for m in self.missions.values() if m.done),
+                "shareable_turn_in": sum(m.reward for m in self.missions.values() if m.done and m.wing),
+                "average_per_kill": reward / need if need else 0,
+                "average_per_mission": reward / total if total else 0,
+                "kill_ratio": sum(m.kill_count for m in self.missions.values() if m.known) / need if need else 0,
+                "next_completion": min(next_by_issuer.values(), default=0)}
 
     def report_text(self, include_missions=False, title=False):
         data = self.spread()
@@ -550,6 +619,18 @@ class MissionLedger:
                      f" (sum of mission kills: {data['sum_kills']:,})")
         if data["reward"]:
             lines.append(f"  Mission rewards: {data['reward']:,} cr")
+        lines.append(f"  Stack value: {data['reward']:,} cr | Shareable: {data['shareable_reward']:,} cr")
+        lines.append(f"  Ready to turn in: {data['turn_in']:,} cr | Shareable: {data['shareable_turn_in']:,} cr")
+        lines.append(f"  Avg/kill: {data['average_per_kill']:,.0f} cr | Avg/mission: {data['average_per_mission']:,.0f} cr"
+                     f" | Kill ratio: {data['kill_ratio']:.2f} | Next completion: ~{data['next_completion']} kills")
+        lines.append("  Issuing faction stacks (estimated local kills):")
+        for row in data['stacks']:
+            lines.append(f"    {row['issuer']} -> {row['faction']}"
+                         f" | {row['done']}/{row['need']} | {row['left']} left | Diff {row['difference']}"
+                         f" | {row['missions']} missions ({row['wing']} wing) | {row['reward']:,} cr"
+                         f" | Origin: {', '.join(row['systems']) or '?'}"
+                         f" | Target: {', '.join(row['target_systems']) or '?'}")
+        lines.append("  Kill counts are estimates; objective completion is confirmed by the journal.")
         if include_missions:
             lines.append("")
             lines.append(f"  {'Mission ID':>10}  {'Target faction':<24} {'Kills':>9} {'Wing':>4} {'Expires':>7}")
@@ -563,6 +644,9 @@ class MissionLedger:
                 identifier = "imported" if mission.manual else str(mission.mission_id)
                 lines.append(f"  {identifier:>10}  {_short(target):<24} {kills:>9}"
                              f" {'yes' if mission.wing else '-':>4} {_expiry_text(mission.expiry):>7}")
+                lines.append(f"              {mission.origin_system or '?'} / {mission.origin_station or '?'}"
+                             f" | {mission.faction or 'Unknown issuer'} -> {mission.target_system or '?'}"
+                             f" | {mission.reward:,} cr")
         return "\n".join(lines)
 
     def report_discord(self):
@@ -580,7 +664,7 @@ class MissionLedger:
             lines.append(f"Rewards: {data['reward']:,} cr")
         return "\n".join(lines)
 
-    def report_live(self, max_factions=10):
+    def report_live(self, max_factions=10, max_chars=1400):
         """Compact mission block for the edited live session-stats message."""
         data = self.spread()
         if not data["total"]:
@@ -595,7 +679,19 @@ class MissionLedger:
             lines.append(f"• …and {hidden} more faction(s)")
         if data["unknown"]:
             lines.append(f"• {data['unknown']} mission(s) with unknown target")
-        return "\n".join(lines)
+        lines.append(f"Stack: {data['reward']:,} cr · Shareable: {data['shareable_reward']:,} cr"
+                     f" · Ready: {data['turn_in']:,} cr")
+        lines.append("Issuer stacks (estimated):")
+        for row in data['stacks'][:max_factions]:
+            lines.append(f"• {row['issuer']}: {row['done']}/{row['need']} · {row['left']} left"
+                         f" · diff {row['difference']} · {row['reward']:,} cr")
+        if len(data['stacks']) > max_factions:
+            lines.append(f"• …and {len(data['stacks']) - max_factions} more issuer stack(s)")
+        text = "\n".join(lines)
+        if len(text) > max_chars:
+            suffix = "\n• More details: --missions"
+            text = text[:max(0, max_chars - len(suffix))].rsplit("\n", 1)[0] + suffix
+        return text
 
     def export(self):
         return {
