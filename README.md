@@ -65,23 +65,25 @@ is illustrative; these examples do not send notifications. See
 
 ## Getting started
 
-The wing mission stacks, Telegram, journal-following and plain-output changes in this fork are available
-from this branch's source code. Upstream standalone releases do not include them.
-Keep `afk_monitor.py`, `notifications.py`, `outbox.py`, `missions.py`,
-`journal_reader.py`, and `terminal_output.py` together when running from source.
+This fork adds wing mission stacks, an HTTP wing relay, terminal hotkeys, a
+web dashboard, session history with recap cards, multi-instance supervision,
+service mode, `--set`/`--save` config editing and more - all documented here.
 
-**Python version**: Use this fork’s source build for the features documented here.
+**Standalone version**: This fork publishes ready-to-run binaries for Windows,
+Linux and macOS with every [release](https://github.com/sidonsoft/ED-AFK-Monitor/releases/latest).
 
-**Standalone (EXE) version**: The upstream build is available below; its feature set differs from this fork.
+**Python version**: Or run from source with [Python 3.12+](https://www.python.org/downloads/);
+keep all `.py` files from this repo's root (plus `ships.json`) together in one folder.
 
 > ℹ️ AFK Monitor uses features of modern terminal emulators such as [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701). Functionality will be degraded with older software such as the the Windows 10 console. For more information see [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support).
 
-### Standalone (EXE) version
+### Standalone version
 
-- Download and extract `afk_monitor_standalone.7z` from [releases](https://github.com/PsiPab/ED-AFK-Monitor/releases) to a folder
+- Download `ed-afk-monitor-windows.exe` (or `-linux` / `-macos`) from the
+  [latest release](https://github.com/sidonsoft/ED-AFK-Monitor/releases/latest) into an empty folder
 - Copy `afk_monitor.example.toml` and rename the copy to `afk_monitor.toml`
 - (Optional) For Discord support edit `WebhookURL` and `UserID` under `[Discord]` in `afk_monitor.toml`
-- Start Elite Dangerous then run `afk_monitor.exe`
+- Start Elite Dangerous then run the binary
 
 For more detailed instructions see [Basic Setup](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Basic-Setup).
 
@@ -163,6 +165,11 @@ from issuer B require 70 unique kills. Progress is estimated from local bounty e
 `MissionRedirected` confirms objective completion. Wing members' kills and missing
 journal events can make estimates differ from the game. Upgrades preserve old saved
 estimates rather than retroactively correcting them.
+
+Wingmates' ledgers can be shared - by synced folder or over an HTTP relay - and
+merged into one wing view in summaries, `--missions --wing`, the `[w]` hotkey and
+the dashboard; `[Wing] PushURL`/`FetchURL` automate it, and ledgers quiet for over
+a day flag themselves as possibly stale.
 
 See the [wing mission stack guide](docs/wing-missions.md) for field definitions,
 worked calculations, saved-state recovery, imports and accuracy limits. Long Discord
