@@ -416,6 +416,23 @@ class WingServeTests(unittest.TestCase):
         with urlopen(f"{self.base}/", timeout=3) as response:
             self.assertEqual(response.headers.get("Content-Type"), "application/json")
 
+    def test_same_name_from_two_relays_is_labeled_by_origin(self):
+        (Path(self.folder.name) / "default.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        # second 'relay': the same folder served again is still one URL
+        # dedupe-wise, so stand up a second server on the same dir
+        server2, error = start_wing_relay(0, self.folder.name)
+        self.assertEqual(error, "")
+        try:
+            base2 = f"http://127.0.0.1:{server2.server_address[1]}/wing/"
+            merged, errs = fetch_spreads([f"{self.base}/", base2], timeout=3)
+        finally:
+            server2.shutdown()
+        names = [name for name, _ in merged]
+        self.assertEqual(len(merged), 2, errs)
+        self.assertEqual([n for n in names if "default.json" in n], names)
+        self.assertNotEqual(names[0], names[1])
+        self.assertTrue(any("127.0.0.1:" in n and " (" in n for n in names))
+
     def test_same_ledger_via_two_urls_counts_once(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         spreads, errors = fetch_spreads([f"{self.base}/", f"{self.base}/mate.json"], timeout=3)

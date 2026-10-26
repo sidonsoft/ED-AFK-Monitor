@@ -184,7 +184,7 @@ def main() -> None:
                 f" · {combined['left']} kills left across the wing"
                 f" · {combined['turn_in'] + combined['shareable_turn_in']:,} cr accounted")
         for name, data in wings:
-            msg.log(f"  {name[:-5]}: {data['done']}/{data['total']} complete"
+            msg.log(f"  {name.removesuffix('.json')}: {data['done']}/{data['total']} complete"
                     f" · {data['left']} left · {data['turn_in']:,} cr ready")
 
 
@@ -1512,7 +1512,7 @@ def main() -> None:
             if note:
                 text += f"\n  {note}"
         for name, spread in wings:
-            text += (f"\n  {name[:-5]}: {spread.get('done', 0)}/{spread.get('total', 0)} complete"
+            text += (f"\n  {name.removesuffix('.json')}: {spread.get('done', 0)}/{spread.get('total', 0)} complete"
                      f" · {spread.get('left', 0)} left")
         for error in errors:
             text += f"\nWing relay fetch: {error}"

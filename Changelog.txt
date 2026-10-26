@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: two wingmates named 'default.json' stop looking like a bug (2026-10-26)
+------------------------------------------------
+- 'sources: default.json, default.json' - which two mates are which?
+  Colliding ledger names now carry their relay: 'default.json
+  (127.0.0.1:8099)' vs 'default.json (127.0.0.1:52113)'. Totals were
+  already right (URL dedupe, distinct ledgers); only the labels lied.
+- Validation: 279 tests passed.
+
 Fork: relay pages are readable on a phone (2026-10-26)
 ------------------------------------------------
 - Viewport meta on the landing and 401 pages. Wing setups get checked

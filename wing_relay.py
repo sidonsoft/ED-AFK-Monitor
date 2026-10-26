@@ -238,8 +238,17 @@ def fetch_spreads(urls, timeout=5):
                 errors.append(f"{redact(target)}: {error}")
             else:
                 seen.add(target)
-                spreads.append((name, spread))
-    return spreads, errors
+                spreads.append((name, spread, target))
+    # two wingmates both pushing 'default.json' is a config reality, not
+    # an error - but 'sources: default.json, default.json' reads like a
+    # bug, so colliding names say which relay each came from
+    counts = {}
+    for name, _, _ in spreads:
+        counts[name] = counts.get(name, 0) + 1
+    dupes = {name for name, n in counts.items() if n > 1}
+    result = [(f"{name} ({urlsplit(t).netloc})" if name in dupes else name, spread)
+              for name, spread, t in spreads]
+    return result, errors
 
 
 def push_ledger(path, base_url, timeout=5):
