@@ -704,6 +704,7 @@ def processevent(line):
     try:
         logtime = datetime.fromisoformat(j["timestamp"]) if "timestamp" in j else None
         track.thiseventtime = logtime
+        mission_ledger.observe_location(j)
         match j["event"]:
             case "ReceiveText" if j["Channel"] == "npc":
                 if "$Pirate_OnStartScanCargo" in j["Message"]:
@@ -1229,10 +1230,6 @@ def summary(stats, logtime=None, session=True, live=False):
         else:
             discord_ts = round(time.time())
             live_stats = f"{out_discord}\n-# Updated: <t:{discord_ts}:t> (<t:{discord_ts}:R>)"
-            if mission_level >= 2:
-                mission_live = mission_ledger.report_live()
-                if mission_live:
-                    live_stats = f"{live_stats}\n\n{mission_live}"
             discord_live_update(live_stats)
 
 def journal_rotated(path):
