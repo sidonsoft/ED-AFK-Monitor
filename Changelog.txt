@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: a token-gated relay explains itself to browsers (2026-10-26)
+------------------------------------------------
+- Visit a token-gated relay in a browser and the 401 is a page: '401 -
+  wing relay needs a token', with the ?token= example right there.
+  Machine clients - the monitor, curl, wingmate configs - keep getting
+  the identical JSON error they always did.
+- Validation: 258 tests passed.
+
 Fork: pasting the relay URL in a browser shows a real page (2026-10-26)
 ------------------------------------------------
 - Accept: text/html on the listing URL renders a small page: ledger

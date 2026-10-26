@@ -260,6 +260,27 @@ class WingServeTests(unittest.TestCase):
         self.assertTrue((Path(self.folder.name) / "envmate.json").exists())
         server.shutdown()
 
+    def test_token_deny_pages_self_document_for_browsers(self):
+        server, error = start_wing_relay(0, self.folder.name, token="sekret")
+        self.assertEqual(error, "")
+        base = f"http://127.0.0.1:{server.server_address[1]}/wing"
+        try:
+            req = Request(f"{base}/", headers={"Accept": "text/html"})
+            try:
+                urlopen(req, timeout=3)
+                self.fail("tokenless browser GET should 401")
+            except urllib.error.HTTPError as caught:
+                page = caught.read().decode("utf-8")
+                self.assertIn("text/html", caught.headers.get("Content-Type"))
+                self.assertIn("needs ?token=", page)
+                # machines (no explicit html Accept) keep getting JSON
+                try:
+                    urlopen(f"{base}/", timeout=3)
+                except urllib.error.HTTPError as machine:
+                    self.assertIn("needs ?token=", json.loads(machine.read())["error"])
+        finally:
+            server.shutdown()
+
     def test_browser_gets_a_landing_page_json_gets_the_list(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         html_req = Request(f"{self.base}/", headers={"Accept": "text/html"})

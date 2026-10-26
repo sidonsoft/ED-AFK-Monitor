@@ -251,15 +251,28 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Cache-Control", "no-store")
 
+    DENY_MESSAGE = ("this relay needs ?token=<value> in the URL "
+                    "or an X-Wing-Token header")
+
     def _deny(self):
         # a bare 401 makes people rebuild the URL from scratch; spell out
         # the query form so a browser visit self-documents the token rule
         self._status(401)
+        if "text/html" in self.headers.get("Accept", ""):
+            # browsers get a page a human can act on; urllib, curl and the
+            # monitor's own fetch path keep the JSON error contract
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(("<!doctype html><meta charset=utf-8>"
+                              "<title>ED AFK Monitor wing relay</title>"
+                              "<h2>401 - wing relay needs a token</h2><p>"
+                              + html_escape(self.DENY_MESSAGE) + ".</p>"
+                              "<p>For example: <code>?token=yourtoken</code> "
+                              "at the end of the URL.</p>").encode())
+            return
         self.send_header("Content-Type", "application/json")
         self.end_headers()
-        self.wfile.write(json.dumps(
-            {"error": "this relay needs ?token=<value> in the URL "
-                          "or an X-Wing-Token header"}).encode())
+        self.wfile.write(json.dumps({"error": self.DENY_MESSAGE}).encode())
 
     def do_GET(self):
         if not self._authorized():
