@@ -63,7 +63,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none",
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none", "DriftIgnore": [],
                     "Dashboard": 0, "DashboardToken": "", "DashboardHost": "127.0.0.1"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
@@ -644,7 +644,7 @@ def main() -> None:
 
     def report_unseen_events():
         """Surface journal events this version does not handle (schema drift)."""
-        unhandled = unhandled_types(track.seen_events)
+        unhandled = unhandled_types(track.seen_events, conf_settings["DriftIgnore"])
         if not unhandled:
             return
         names = ", ".join(f"{name} (x{count})" for count, name in unhandled[:12])

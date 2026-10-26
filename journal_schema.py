@@ -42,9 +42,15 @@ IGNORED_EVENTS = frozenset({
 })
 
 
-def unhandled_types(seen_counts):
-    """Event types seen but neither handled nor ignored, busiest first."""
+def unhandled_types(seen_counts, extra_ignore=()):
+    """Event types seen but neither handled nor ignored, busiest first.
+
+    extra_ignore: user-configured event names to treat as known (case-
+    and-whitespace-insensitive), for drift noise the maintainer accepts.
+    """
+    user_ignore = {str(name).strip().casefold() for name in extra_ignore if str(name).strip()}
     unhandled = [(count, name) for name, count in seen_counts.items()
-                 if name not in HANDLED_EVENTS and name not in IGNORED_EVENTS]
+                 if name not in HANDLED_EVENTS and name not in IGNORED_EVENTS
+                 and name.casefold() not in user_ignore]
     unhandled.sort(reverse=True)
     return unhandled

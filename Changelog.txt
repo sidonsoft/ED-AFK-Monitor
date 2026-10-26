@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: journal drift check gains a user ignore list (2026-10-26)
+------------------------------------------------
+- DriftIgnore = [] under [Settings]: event names you accept as known
+  never clutter the 'event types this version does not handle' warning
+  (case-insensitive). The check stays sharp for genuinely new events.
+- Validation: 218 tests passed.
+
 Fork: staleness window is configurable ([Wing] StaleHours) (2026-10-26)
 ------------------------------------------------
 - Wingmate ledgers flag as 'no updates ... may be stale' after

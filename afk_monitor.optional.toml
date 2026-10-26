@@ -23,6 +23,10 @@ WarnCooldown = 30
 # warnings, mission expiry alerts and mid-session relay pushes (default: 60)
 WatchdogSeconds = 60
 
+# Journal event names to treat as known even when this build doesn't handle
+# them; keeps the drift check focused on genuinely new game events.
+DriftIgnore = []
+
 # Web dashboard without CLI flags (for service mode / Docker): port 0 = off.
 # DashboardToken protects pages and JSON endpoints; DashboardHost 0.0.0.0
 # shares on the LAN. CLI --dashboard* flags override these when given.
