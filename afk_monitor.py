@@ -16,7 +16,7 @@ from journal_reader import JournalReader, read_complete_line, commander_from_lin
 from terminal_output import StatusLogger
 from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
                        ntfy_send, telegram_send, webhook_send)
-from outbox import Outbox, profile_directory_name
+from outbox import Outbox, profile_directory_name, summarize_pending
 from missions import (MissionLedger, merge_spreads, turnin_notice,
                         wing_spreads, wing_summary_line)
 from ship_pools import load_ship_pools

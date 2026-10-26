@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --outbox shows what's waiting to be re-sent (2026-10-26)
+------------------------------------------------
+- 'Outbox telegram: 2 waiting, oldest 11 min ago / next up: Session
+  summary line'. Read-only peek at the notification retry store per
+  profile: counts, ages and the next queued first line, plus the same
+  expiry/corruption warnings the store logs when it loads at startup.
+- Validation: 260 tests passed.
+
 Fork: the relay listing flags silent wingmates (2026-10-26)
 ------------------------------------------------
 - Entries past the StaleHours window carry stale:true in the JSON

@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from time import time
 
-from outbox import Outbox, profile_directory_name
+from outbox import Outbox, profile_directory_name, summarize_pending
 
 
 class OutboxTests(unittest.TestCase):
@@ -72,3 +72,20 @@ class OutboxTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SummarizePendingTests(unittest.TestCase):
+    def test_peek_reports_counts_ages_and_next_text(self):
+        with TemporaryDirectory() as folder:
+            store = Outbox(Path(folder), ["telegram", "discord"], max_age=3600)
+            store.load(now=1000)
+            store.add("telegram", "m1", "Session summary line\nsecond line", created=800)
+            store.add("telegram", "m2", "Later message", created=900)
+            store.add("discord", "d1", "Webhook retry", created=400)
+            lines, warnings = summarize_pending(Path(folder), ["telegram", "discord"],
+                                                max_age=3600, now=1500)
+        joined = "\n".join(lines)
+        self.assertIn("telegram: 2 waiting, oldest 11 min ago", joined)
+        self.assertIn("next up: Session summary line", joined)
+        self.assertIn("discord: 1 waiting, oldest 18 min ago", joined)
+        self.assertEqual(warnings, [])

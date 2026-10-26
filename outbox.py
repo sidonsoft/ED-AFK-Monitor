@@ -21,6 +21,25 @@ def profile_directory_name(profile):
     return safe
 
 
+def summarize_pending(directory, channels, max_age=MAX_AGE, now=None):
+    """Read-only peek for --outbox: per-channel counts, oldest age and the
+    next queued text. Never rewrites or deletes anything."""
+    now = time() if now is None else now
+    store = Outbox(directory, channels, max_age=max_age)
+    pending, warnings = store.load(now=now)
+    lines = []
+    for channel in store.channels:
+        entries = pending[channel]
+        if not entries:
+            continue
+        oldest = min(entry["created"] for entry in entries)
+        minutes = max(0, int((now - oldest) / 60))
+        preview = entries[0]["text"].splitlines()[0][:80]
+        lines.append(f"{channel}: {len(entries)} waiting, oldest {minutes} min ago")
+        lines.append(f"   next up: {preview}")
+    return lines, warnings
+
+
 class Outbox:
     """One bounded JSON file per channel, replaced atomically after each change.
 

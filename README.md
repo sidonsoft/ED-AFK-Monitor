@@ -234,6 +234,7 @@ You can pass the following arguments when launching AFK Monitor:
 --missions                                  Print saved massacre-mission spread and exit
 --wing                                      With --missions, merge shared wing ledgers
 --wing-url <URL>                           With --wing, also merge ledgers fetched from a relay (repeatable)
+--outbox                                 List notifications waiting to retry, then exit
 --wing-test <URL>                          Probe a relay URL (root or .json), report, exit
 --wing-push <BASE_URL>                     Upload local ledgers to a relay (HTTP PUT), then exit
 
