@@ -117,6 +117,7 @@ URL = ''
 [Wing]
 # Relay any host that accepts HTTP PUT; each ledger lands at {PushURL}/{file}.
 # FetchURL: list of wingmate ledger URLs folded into summaries (SummaryMissions = 3).
+#   tip: a URL ending in '/' fetches every ledger that relay lists.
 PushURL = ''
 FetchURL = []
 PushEvery = 0                # >0: also push mid-session, every N seconds (checked ~1/min)
