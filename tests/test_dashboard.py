@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -144,3 +145,43 @@ class PageScriptTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr[:500])
         finally:
             os.unlink(path)
+
+
+class FreshHostAdvertiseTests(unittest.TestCase):
+    """dashboard_missions shows the wing panel once a relay exists, even
+    before anyone has missions - a new wing must be wireable."""
+
+    def load(self, serve_label):
+        import ast
+        from missions import merge_spreads
+        source = (Path(__file__).resolve().parents[1] / "afk_monitor.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        def find(node):
+            for child in getattr(node, "body", []):
+                if isinstance(child, ast.FunctionDef) and child.name == "dashboard_missions":
+                    return child
+                found = find(child)
+                if found:
+                    return found
+        func = find(tree)
+        lines = source.splitlines()
+        import textwrap
+        body = textwrap.dedent("\n".join(lines[func.lineno - 1:func.end_lineno]))
+        namespace = {
+            "mission_ledger": type("L", (), {"spread": lambda self: {"done": 0, "total": 0}})(),
+            "conf_log_levels": {"SummaryMissions": 3},
+            "wing_view": lambda: ([], []),
+            "merge_spreads": merge_spreads,
+            "wing_serve_label": serve_label,
+        }
+        exec(body, namespace)
+        return namespace["dashboard_missions"]()
+
+    def test_relay_alone_produces_a_wing_view(self):
+        data = self.load("0.0.0.0:8099")
+        self.assertEqual(data["wing_view"]["sources"], [])
+        self.assertEqual(data["wing_view"]["serve"], "0.0.0.0:8099")
+        self.assertEqual(data["wing_view"]["combined"]["total"], 0)
+
+    def test_no_relay_no_missions_stays_quiet(self):
+        self.assertNotIn("wing_view", self.load(""))

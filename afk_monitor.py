@@ -730,7 +730,9 @@ def main() -> None:
         if int(conf_log_levels.get("SummaryMissions", 0)) >= 3:
             # relay fetches run per request; each URL times out quickly on its own
             wings, errors = wing_view()
-            if wings:
+            if wings or wing_serve_label:
+                # a host with a relay but no missions yet still advertises
+                # 'relay <host>:<port>' so wingmates can wire themselves up
                 local = mission_ledger.spread()
                 combined = merge_spreads(([local] if local.get("total") else [])
                                          + [spread for _, spread in wings])

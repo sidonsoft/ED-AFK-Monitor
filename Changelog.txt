@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: a fresh host advertises its relay before any missions exist (2026-10-26)
+------------------------------------------------
+- The dashboard wing panel used to hide until some ledger had data,
+  which left brand-new relay hosts advertising nothing to wire up to.
+  With SummaryMissions >= 3 and a serve port, it now renders with an
+  empty ledger set and the 'relay <host>:<port>' line.
+- Validation: 234 tests passed.
+
 Fork: live scenario covers the relay PUT tier end to end (2026-10-26)
 ------------------------------------------------
 - The real monitor (started by config ServePort) now receives a
