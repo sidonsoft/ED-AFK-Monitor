@@ -20,11 +20,12 @@ is illustrative; these examples do not send notifications. See
   - [Events and information logged](#events-and-information-logged)
     - [Plus realtime reporting of...](#plus-realtime-reporting-of)
   - [Getting started](#getting-started)
-    - [Standalone (EXE) version](#standalone-exe-version)
+    - [Standalone version](#standalone-version)
     - [Python version](#python-version)
   - [Telegram and reliable delivery](#telegram-and-reliable-delivery)
   - [Following game restarts](#following-game-restarts)
   - [Wing mission stacks](#wing-mission-stacks)
+  - [Web dashboard](#web-dashboard)
   - [Testing and updating](#testing-and-updating)
   - [Development checks](#development-checks)
   - [Configuring log levels](#configuring-log-levels)
@@ -174,6 +175,22 @@ a day flag themselves as possibly stale.
 See the [wing mission stack guide](docs/wing-missions.md) for field definitions,
 worked calculations, saved-state recovery, imports and accuracy limits. Long Discord
 reports are abbreviated; use the saved report or JSON for the full list.
+
+## Web dashboard
+
+```powershell
+py afk_monitor.py --dashboard 8080
+```
+
+Serves a read-only page at `http://127.0.0.1:8080` with live session/total
+stats and run times, the mission spread, the combined wing view (including
+staleness warnings) and recent session history with lifetime totals -
+auto-refreshing every 15s. Plain JSON endpoints (`/live.json`,
+`/missions.json`, `/sessions.json`) sit underneath.
+
+- `--dashboard-token <token>` protects the pages; shared links need `?token=...`.
+- `--dashboard-host 0.0.0.0` shares on the LAN; the monitor then warns at
+  startup if no token is set, because anyone on the network can open it.
 
 ## Testing and updating
 

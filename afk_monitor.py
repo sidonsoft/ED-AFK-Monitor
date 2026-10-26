@@ -20,7 +20,7 @@ from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
 from wing_relay import fetch_spreads, push_ledger, stale_notes
-from dashboard import start_dashboard
+from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
 from hotkeys import format_keymap, parse_keymap, start_hotkeys
@@ -710,6 +710,9 @@ def main() -> None:
             shown_host = "127.0.0.1" if args.dashboard_host in ("0.0.0.0", "") else args.dashboard_host
             msg.log(f"Dashboard: http://{shown_host}:{args.dashboard}"
                     f"{'?token=... required' if args.dashboard_token else ''}")
+            warning = share_warning(args.dashboard_host, args.dashboard_token)
+            if warning:
+                msg.log(f"{WARNING} {warning}")
 
     # Discord webhooks
     discord_webhook_log = args.webhook if args.webhook is not None else conf_discord["WebhookURL"]

@@ -4,7 +4,7 @@ import unittest
 import urllib.error
 import urllib.request
 
-from dashboard import start_dashboard
+from dashboard import share_warning, start_dashboard
 
 PROVIDERS = (lambda: {"kills": 3}, lambda: {"total": 1})
 
@@ -109,3 +109,15 @@ class SessionPanelTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class ShareWarningTests(unittest.TestCase):
+    def test_loopback_or_token_quiet(self):
+        for host in ("", "127.0.0.1", "localhost", "::1"):
+            self.assertEqual(share_warning(host, ""), "")
+        self.assertEqual(share_warning("0.0.0.0", "s3cret"), "")
+
+    def test_open_lan_binding_warns(self):
+        warning = share_warning("0.0.0.0", "")
+        self.assertIn("token", warning)
+        self.assertIn("0.0.0.0", warning)

@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: web dashboard documented; LAN sharing warns without a token (2026-10-26)
+------------------------------------------------
+- README gains a 'Web dashboard' section covering panels, JSON
+  endpoints, --dashboard-token and LAN sharing.
+- Binding --dashboard-host beyond loopback with no token now logs a
+  startup warning: everyone on the network can open the page.
+- Validation: 215 tests passed.
+
 Fork: sessions panel gains lifetime totals (2026-10-26)
 ------------------------------------------------
 - /sessions.json now returns {sessions, totals}; the panel heads the

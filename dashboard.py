@@ -104,6 +104,14 @@ fetch('sessions.json' + query).then(r => r.ok ? r.json() : null).then(payload =>
 </script></body></html>
 """
 
+def share_warning(host, token):
+    """Non-loopback binding without a token: the whole LAN can see the stats."""
+    if token or (host or "").strip() in ("", "127.0.0.1", "localhost", "::1"):
+        return ""
+    return (f"Dashboard binds {host} without a token - anyone on the network "
+            "can open it. Set dashboard_token or pass --dashboard-token.")
+
+
 def make_handler(live_provider, missions_provider, token="", sessions_provider=None):
     """Build a request handler bound to the monitor's data providers."""
 
