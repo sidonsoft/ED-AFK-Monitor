@@ -116,7 +116,8 @@ def main() -> None:
                         help="Interface to bind --wing-serve to; 0.0.0.0 lets wingmates "
                              "on your LAN or mesh reach it (default 127.0.0.1)")
     parser.add_argument("--version", action="version",
-                        version=f"%(prog)s ED AFK Monitor {VERSION}",
+                        version=(f"%(prog)s ED AFK Monitor {VERSION} "
+                             f"(Python {sys.version.split()[0]})"),
                         help="Print the program version and exit")
     parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
     parser.add_argument("--wing-url", action="append", default=[], metavar="URL",

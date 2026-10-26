@@ -50,6 +50,8 @@ class VersionFlagTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / "afk_monitor.py"), "--version"],
                                 capture_output=True, text=True, timeout=30, cwd=ROOT)
         self.assertEqual(result.returncode, 0, result.stderr)
+        import sys as _s
+        self.assertIn(f"Python {_s.version.split()[0]}", result.stdout)
         version = re.search(r"VERSION = (\d+)", (ROOT / "afk_monitor.py").read_text(encoding="utf-8")).group(1)
         self.assertIn(version, result.stdout)
         self.assertIn("ED AFK Monitor", result.stdout)

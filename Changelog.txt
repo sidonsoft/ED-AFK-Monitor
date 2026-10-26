@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --version also reports the interpreter (2026-10-26)
+------------------------------------------------
+- 'ED AFK Monitor 261045 (Python 3.12.11)'. Bug reports and mystery
+  machines (is that VM really on 3.12?) are one command line apart from
+  an answer.
+- Validation: 255 tests passed.
+
 Fork: ED_AFK_WING_TOKEN keeps relay secrets out of config files (2026-10-26)
 ------------------------------------------------
 - Same precedent as ED_AFK_TELEGRAM_TOKEN: set it in the environment
