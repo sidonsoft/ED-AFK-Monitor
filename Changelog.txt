@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing view hotkey [w] (2026-10-26)
+------------------------------------------------
+- Press 'w' while the monitor runs: combined wing view (local + copied
+  wing-folder ledgers + every configured relay), per-source breakdown and
+  relay errors inline; empty wing data says so via 'nothing to report'.
+- Summary and hotkey share one wing_view() pipeline; preset maps gained a
+  'wing' command ('status,missions,mute,wing' default, or wing=KEY custom).
+- Validation: 206 tests passed.
+
 Fork: multiple wingmates per summary (Wing relay follow-ups) (2026-10-26)
 ------------------------------------------------
 - '[Wing] FetchURL' is now a list: several wingmate ledgers merge into one

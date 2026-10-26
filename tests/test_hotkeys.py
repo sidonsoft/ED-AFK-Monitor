@@ -16,7 +16,7 @@ class ParseKeymapTests(unittest.TestCase):
         self.assertEqual(len(warnings), 5)  # junk, nope, stat, mute=TOO, LONG
 
     def test_all_commands_are_documented(self):
-        self.assertEqual(sorted(COMMAND_NAMES), ["missions", "mute", "status"])
+        self.assertEqual(sorted(COMMAND_NAMES), ["missions", "mute", "status", "wing"])
 
 
 class RunKeypressTests(unittest.TestCase):
@@ -49,6 +49,20 @@ class RunKeypressTests(unittest.TestCase):
         self.assertEqual(logged, ["\u2328\ufe0f missions: nothing to report"])
 
     def test_format_keymap_lists_all(self):
-        text = format_keymap(parse_keymap("status,missions,mute"))
+        text = format_keymap(parse_keymap("status,missions,mute,wing"))
         for command in COMMAND_NAMES:
             self.assertIn(command, text)
+
+
+class WingHotkeyTests(unittest.TestCase):
+    def test_wing_preset_and_dispatch(self):
+        keymap = parse_keymap("status,missions,mute,wing")
+        self.assertEqual(keymap["w"], "wing")
+        calls = []
+        run_keypress("w", {"__keymap__": keymap, "wing": lambda: "Wing view: local + 1 shared"},
+                     calls.append)
+        self.assertEqual(calls, ["\u2328\ufe0f Wing view: local + 1 shared"])
+
+    def test_custom_wing_key(self):
+        keymap = parse_keymap("wing=7")
+        self.assertEqual(keymap, {"7": "wing"})

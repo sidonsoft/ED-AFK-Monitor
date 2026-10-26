@@ -1292,6 +1292,30 @@ def main() -> None:
     def hotkey_status_report():
         return track.laststatusline
 
+    def wing_view():
+        """Shared wing sources: copied wing-folder ledgers plus configured relays."""
+        wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
+        fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
+        wings.extend(fetched)
+        return wings, errors
+
+    def hotkey_wing_report():
+        wings, errors = wing_view()
+        local = mission_ledger.spread()
+        combined = merge_spreads(([local] if local and local.get("total") else [])
+                                 + [spread for _, spread in wings])
+        if not combined["total"]:
+            return "\n".join(f"Wing relay fetch: {error}" for error in errors)
+        text = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
+                f" {combined['done']}/{combined['total']} complete"
+                f" · {combined['left']} kills left across the wing")
+        for name, spread in wings:
+            text += (f"\n  {name[:-5]}: {spread['done']}/{spread['total']} complete"
+                     f" · {spread['left']} left")
+        for error in errors:
+            text += f"\nWing relay fetch: {error}"
+        return text
+
     def hotkey_missions_report():
         return mission_ledger.report_text() if mission_ledger.has_missions() else ""
 
@@ -1305,10 +1329,11 @@ def main() -> None:
         return f"Remote alerts muted until {until.strftime('%H:%M')} (press the key again to unmute)"
 
     if args.hotkeys:
-        hotkey_map = parse_keymap("status,missions,mute", lambda warning: msg.log(f"{WARNING} {warning}"))
+        hotkey_map = parse_keymap("status,missions,mute,wing", lambda warning: msg.log(f"{WARNING} {warning}"))
         hotkey_error = start_hotkeys(hotkey_map, {"status": hotkey_status_report,
                                                   "missions": hotkey_missions_report,
-                                                  "mute": hotkey_toggle_mute},
+                                                  "mute": hotkey_toggle_mute,
+                                                  "wing": hotkey_wing_report},
                                      threading.Event())
         if hotkey_error:
             msg.log(f"{WARNING} {hotkey_error}")
@@ -1425,13 +1450,10 @@ def main() -> None:
                         out_discord += f"\n\n{live_missions}"
 
             if mission_level >= 3:
-                wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
-                if conf_wing["FetchURL"]:
-                    fetched, errors = fetch_spreads(conf_wing["FetchURL"])
-                    wings.extend(fetched)
-                    if errors and not track.relay_warned:
-                        msg.log(f"{WARNING} Wing relay fetch: {'; '.join(errors)}")
-                    track.relay_warned = bool(errors)
+                wings, errors = wing_view()
+                if errors and not track.relay_warned:
+                    msg.log(f"{WARNING} Wing relay fetch: {'; '.join(errors)}")
+                track.relay_warned = bool(errors)
                 if wings:
                     local = mission_ledger.spread()
                     combined = merge_spreads(([local] if local and local.get("total") else [])

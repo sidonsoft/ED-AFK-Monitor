@@ -1,13 +1,15 @@
-"""Terminal hotkeys: status, mission spread and alert mute while the monitor runs.
+"""Terminal hotkeys: status, mission spread, alert mute and wing view while the monitor runs.
 
 The command layer is pure (key -> callback) so it is unit-testable; the
 watcher thread only turns stdin keypresses into those commands.
 """
 import threading
 
-COMMAND_NAMES = {"status": "session status", "missions": "mission spread", "mute": "mute/unmute alerts"}
+COMMAND_NAMES = {"status": "session status", "missions": "mission spread",
+                 "mute": "mute/unmute alerts", "wing": "combined wing ledger view"}
 PRESET_MAPS = {
     "status,missions,mute": {"s": "status", "m": "missions", "u": "mute"},
+    "status,missions,mute,wing": {"s": "status", "m": "missions", "u": "mute", "w": "wing"},
     "1,2,3": {"1": "status", "2": "missions", "3": "mute"},
 }
 
