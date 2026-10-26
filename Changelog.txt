@@ -2,6 +2,17 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: WatchdogSeconds - tunable time-based check cadence (2026-10-26)
+------------------------------------------------
+- '[Settings] WatchdogSeconds = 60': idle watchdog now configurable -
+  kill-rate/no-kill warnings, mission expiry alerts and PushEvery relay
+  pushes all fire on it; lower it for faster reaction, CI runs it at 5
+  and the live scenario went from 60s to ~10s (suite back to ~40s).
+- Watchdog failures now log as 'Watchdog error' - the old 'Kill rate
+  tracking error' label misdirected when the block grew (it hid a
+  NameError behind a plausible-sounding message).
+- Validation: 208 tests passed.
+
 Fork: mid-session relay pushes ([Wing] PushEvery) + startup-session fix (2026-10-26)
 ------------------------------------------------
 - '[Wing] PushEvery = N': wingmates now get ledger updates while you fly,

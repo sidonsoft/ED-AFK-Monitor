@@ -63,7 +63,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none"}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_NTFY = {"URL": "", "Token": ""}
@@ -614,7 +614,6 @@ def main() -> None:
         if periodic:
             every = max(0, int(conf_wing["PushEvery"] or 0))
             now = time.monotonic()
-            debug(f"periodic push check: every={every} since={now - track.last_relay_push:.1f} deploy={track.deploytime}")
             if not every or now - track.last_relay_push < every:
                 return
         failure = push_ledger(mission_ledger.path, conf_wing["PushURL"])
@@ -1563,13 +1562,14 @@ def main() -> None:
                                 timemono = time.monotonic()
                             
                                 # Check for instance problems every minute
-                                if not track.lastcheck or timemono - track.lastcheck >= 60:
+                                watchdog_secs = max(1, int(conf_settings["WatchdogSeconds"]))
+                                if not track.lastcheck or timemono - track.lastcheck >= watchdog_secs:
                                     timeutc = datetime.now(timezone.utc)
                                     sessionsecs = (timeutc - track.deploytime).total_seconds()
                                     if sessionsecs == 0:
                                         sessionsecs = 1	# Avoid divide-by-zero if session started by first kill
                                     #if track.lastcheck: debug(f"Last: {track.lastcheck} / This: {timemono} / Drift: {60-(timemono - track.lastcheck)}")
-                                    timemono = timemono + (60 - (timemono - track.lastcheck)) if track.lastcheck else timemono	# Account for drift
+                                    timemono = timemono + (watchdog_secs - (timemono - track.lastcheck)) if track.lastcheck else timemono	# Account for drift
                                     track.lastcheck = timemono
                                 
                                     if session.kills:
@@ -1631,7 +1631,7 @@ def main() -> None:
                                     track.live_update = timemono
                         except Exception as e:
                             if repr(e) != trackingerror:
-                                msg.log(f"{Col.WARN}Warning:{Col.END} Kill rate tracking error: {e} [{datetime.strftime(datetime.now(), '%H:%M:%S')}])")
+                                msg.log(f"{Col.WARN}Warning:{Col.END} Watchdog error: {e} [{datetime.strftime(datetime.now(), '%H:%M:%S')}])")
                                 trackingerror = repr(e)
                     
                         time.sleep(1)

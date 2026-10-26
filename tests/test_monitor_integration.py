@@ -647,6 +647,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
                 config = config.replace("PushEvery = 0", "PushEvery = 1")
+                config = config.replace("WarnNoKills = 20", "WarnNoKills = 20\nWatchdogSeconds = 5", 1)
                 config = config.replace("FetchURL = []", f"FetchURL = ['http://127.0.0.1:{port}/wing/mate.json', 'http://127.0.0.1:{port}/wing/nobody.json']")
                 (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
                 ledgers = root / 'mission_ledger'
@@ -706,9 +707,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         except OSError:
                             time.sleep(0.5)
                     self.assertIsNotNone(dash, 'dashboard never answered')
-                    # The watchdog tick that hosts periodic pushes runs ~60s
-                    # after the session starts; wait it out once, here.
-                    deadline = time.monotonic() + 90
+                    # Periodic pushes ride the idle watchdog; the scenario
+                    # shortens its cadence via WatchdogSeconds = 5.
+                    deadline = time.monotonic() + 60
                     while '/wing/default.json' not in store and time.monotonic() < deadline:
                         time.sleep(0.5)
                     pushed_midrun = dict(store)  # before the exit push can land anything

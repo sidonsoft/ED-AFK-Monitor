@@ -19,6 +19,9 @@ WarnNoKillsInitial = 5
 WarnKillRateDelay = 5
 # WarnCooldown is the time in minutes before repeating kill rate warnings, doubled thereafter (default: 30)
 WarnCooldown = 30
+# WatchdogSeconds: how often time-based checks run while idle: kill-rate/no-kill
+# warnings, mission expiry alerts and mid-session relay pushes (default: 60)
+WatchdogSeconds = 60
 # RecentIntervals is a list of numbers in minutes to calculate recent hourly rates for (default: [15, 30, 60])
 RecentIntervals = [15, 30, 60]
 # WinTitleCmdrName prepends commander name to the window title (Default: false, requires DynamicTitle = true)
