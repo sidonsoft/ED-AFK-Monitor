@@ -712,6 +712,8 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         except OSError:
                             time.sleep(0.5)
                     self.assertIsNotNone(dash, 'dashboard never answered')
+                    with urlopen(f'http://127.0.0.1:{dash_port}/sessions.json', timeout=5) as response:
+                        self.assertIsInstance(json.loads(response.read()), list)
                     with urlopen(f'http://127.0.0.1:{dash_port}/', timeout=5) as response:
                         page = response.read().decode('utf-8')
                     self.assertIn('id="wingpanel"', page)  # the rendered page ships too

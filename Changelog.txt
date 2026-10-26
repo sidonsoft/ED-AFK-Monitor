@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard gains a Recent sessions panel (2026-10-26)
+------------------------------------------------
+- New /sessions.json endpoint (latest 10 runs from the session history
+  db) rendered as a table: start time, duration, kills, bounties and
+  mission progress per session - check an AFK run's haul without the
+  --history command.
+- Panel hides itself when there is no session history yet; the endpoint
+  404s for monitors without one, so nothing breaks for custom uses.
+- Validation: 213 tests passed.
+
 Fork: embeds surface wing warnings too (staleness parity) (2026-10-26)
 ------------------------------------------------
 - The Discord mission embed's 'Wing view' field now lists fetch failures

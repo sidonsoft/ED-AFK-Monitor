@@ -687,7 +687,8 @@ def main() -> None:
             lambda: {"monitor": "ED AFK Monitor", "version": VERSION, "cmdrname": track.cmdrname,
                      "session": stats_payload(session), "total": stats_payload(total)},
             dashboard_missions,
-            args.dashboard_token, args.dashboard_host)
+            args.dashboard_token, args.dashboard_host,
+            sessions_provider=lambda: session_history.sessions(limit=10))
         if dashboard_error:
             msg.log(f"{WARNING} Dashboard: {dashboard_error}")
         else:

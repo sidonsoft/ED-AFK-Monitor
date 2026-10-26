@@ -32,6 +32,7 @@ PAGE = """<!doctype html>
 </div>
 <div class="panel"><h2>Mission spread</h2><div id="missions">loading…</div></div>
 <div class="panel" id="wingpanel" hidden><h2>Wing view</h2><div id="wing"></div></div>
+<div class="panel" id="sessionspanel" hidden><h2>Recent sessions</h2><div id="sessions"></div></div>
 <p>Auto-refreshes every 15s · raw data: <a href="/live.json">/live.json</a>
  · <a href="/missions.json">/missions.json</a></p>
 <script>
@@ -75,10 +76,22 @@ fetch('missions.json' + query).then(r => r.json()).then(d => {
     document.getElementById('wing').innerHTML = w;
   }
 });
+fetch('sessions.json' + query).then(r => r.ok ? r.json() : null).then(rows => {
+  if (!rows || !rows.length) return;
+  document.getElementById('sessionspanel').hidden = false;
+  const dur = s => s >= 3600 ? (s / 3600).toFixed(1) + 'h' : Math.round(s / 60) + 'm';
+  document.getElementById('sessions').innerHTML =
+    '<table><tr><th>started</th><th>time</th><th>kills</th><th>bounties</th>'
+    + '<th>missions</th></tr>' + rows.map(row =>
+      '<tr><td>' + esc(new Date(row.started * 1000).toLocaleString()) + '</td><td>'
+      + dur(row.duration) + '</td><td>' + fmt(row.kills) + '</td><td>' + fmt(row.bounties)
+      + '</td><td>' + (row.missions_total ? row.missions_done + '/' + row.missions_total : '-')
+      + '</td></tr>').join('') + '</table>';
+});
 </script></body></html>
 """
 
-def make_handler(live_provider, missions_provider, token=""):
+def make_handler(live_provider, missions_provider, token="", sessions_provider=None):
     """Build a request handler bound to the monitor's data providers."""
 
     class DashboardHandler(BaseHTTPRequestHandler):
@@ -108,6 +121,8 @@ def make_handler(live_provider, missions_provider, token=""):
                 return self._send(200, json.dumps(live_provider(), ensure_ascii=False))
             if path == "/missions.json":
                 return self._send(200, json.dumps(missions_provider(), ensure_ascii=False))
+            if path == "/sessions.json" and sessions_provider is not None:
+                return self._send(200, json.dumps(sessions_provider(), ensure_ascii=False))
             return self._send(404, json.dumps({"error": "not found"}))
 
     return DashboardHandler
@@ -118,11 +133,12 @@ class DashboardServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
-def start_dashboard(port, live_provider, missions_provider, token="", host="127.0.0.1"):
+def start_dashboard(port, live_provider, missions_provider, token="", host="127.0.0.1",
+                    sessions_provider=None):
     """Start the daemon-threaded server; returns (server, error_message)."""
     try:
-        server = DashboardServer((host, port),
-                                 make_handler(live_provider, missions_provider, token))
+        server = DashboardServer((host, port), make_handler(
+            live_provider, missions_provider, token, sessions_provider))
     except OSError as failure:
         return None, f"Could not start dashboard on {host}:{port}: {failure}"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
