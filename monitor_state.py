@@ -77,6 +77,7 @@ class Tracking:
         self.live_generation: int = 0
         self.live_delivery_generation: int | None = None
         self.journalfile: str = ""
+        self.relay_warned: bool = False
         self.muted_until: float | None = None
         self.laststatusline: str = ""
         self._session: Stats | None = None

@@ -206,6 +206,10 @@ You can pass the following arguments when launching AFK Monitor:
 --wing                                      With --missions, merge shared wing ledgers
 --wing-url <URL>                           With --wing, also merge ledgers fetched from a relay (repeatable)
 --wing-push <BASE_URL>                     Upload local ledgers to a relay (HTTP PUT), then exit
+
+To run it hands-free, set `PushURL`/`FetchURL` under `[Wing]` in the config: the
+monitor pushes its ledger when it stops and folds the fetched wingmate ledger
+into summaries at `SummaryMissions = 3`.
 --history                                   Print saved session history and exit
 --json                                      With --missions/--history, print JSON output
 --import-missions <file>                    Import a mission list (CSV or text) and exit

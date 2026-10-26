@@ -114,6 +114,12 @@ MissionExpiry = 3
 URL = ''
 # Token = ''  # optional access token for self-hosted/private topics
 
+[Wing]
+# Relay any host that accepts HTTP PUT; each ledger lands at {PushURL}/{file}.
+# FetchURL points at one wingmate ledger to fold into summaries (SummaryMissions = 3).
+PushURL = ''
+FetchURL = ''
+
 [Webhook]
 # Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks
 # URL = 'https://example.com/api/webhook/abcdef'

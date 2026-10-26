@@ -28,7 +28,12 @@ def interruptible_sleep(seconds):
         raise KeyboardInterrupt()
     real_sleep(seconds)
 time.sleep = interruptible_sleep
+real_urlopen = urllib.request.urlopen
 def forbidden(*args, **kwargs):
+    target = args[0] if args else kwargs.get('url', '')
+    target = getattr(target, 'full_url', str(target))
+    if '127.0.0.1' in target:  # local relay servers are part of the tests
+        return real_urlopen(*args, **kwargs)
     marker.write_text('unexpected network call')
     raise AssertionError('network disabled in integration test')
 urllib.request.urlopen = forbidden
@@ -582,3 +587,117 @@ class WingRelayIntegrationTests(unittest.TestCase):
             finally:
                 relay.shutdown()
                 relay.server_close()
+
+
+class LiveWingRelayIntegrationTests(unittest.TestCase):
+    """With [Wing] URLs configured, the monitor itself pushes and fetches."""
+
+    def test_monitor_pushes_and_fetches_configured_relay(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from missions import FILE_VERSION
+        store = {}
+
+        class RelayHandler(BaseHTTPRequestHandler):
+            def do_PUT(self):
+                size = int(self.headers.get("Content-Length", 0))
+                store[self.path] = self.rfile.read(size)
+                self.send_response(204)
+                self.end_headers()
+
+            def do_GET(self):
+                body = store.get(self.path)
+                if body is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        relay = HTTPServer(("127.0.0.1", 0), RelayHandler)
+        port = relay.server_address[1]
+        Thread(target=relay.serve_forever, daemon=True).start()
+        mate = {"version": FILE_VERSION, "commander": "Wingy Mate", "profile": "mate",
+                "updated": 0,
+                "missions": [{"id": 7001, "name": "Sweep", "faction": "Security",
+                              "target": "Pirates", "kill_count": 4, "wing": True,
+                              "expiry": "", "reward": 50000, "accepted": 1761000000.0,
+                              "kills": 1, "done": False, "known": True}]}
+        store["/wing/mate.json"] = json.dumps(mate).encode()
+        try:
+            with TemporaryDirectory() as directory:
+                root = Path(directory)
+                for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
+                             'terminal_output.py', 'outbox.py', 'missions.py',
+                             'ship_pools.py', 'ships.json', 'session_store.py',
+                             'journal_schema.py', 'config_overrides.py', 'config_edit.py',
+                             'session_card.py', 'dashboard.py', 'monitor_state.py',
+                             'hotkeys.py', 'instance_runner.py', 'config_edit.py',
+                             'wing_relay.py'):
+                    shutil.copyfile(ROOT / name, root / name)
+                (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+                config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
+                config = config.replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
+                config = config.replace('ChatID = 0', 'ChatID = -123')
+                config = config.replace('LiveStatus = true', 'LiveStatus = false')
+                config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
+                config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
+                config = config.replace("FetchURL = ''", f"FetchURL = 'http://127.0.0.1:{port}/wing/mate.json'")
+                (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
+                ledgers = root / 'mission_ledger'
+                ledgers.mkdir()
+                local = {"version": FILE_VERSION, "commander": "Test Commander", "profile": "",
+                         "updated": 0,
+                         "missions": [{"id": 4242, "name": "Clean", "faction": "Security",
+                                       "target": "Pirates", "kill_count": 5, "wing": True,
+                                       "expiry": "", "reward": 100000, "accepted": 1761000000.0,
+                                       "kills": 3, "done": False, "known": True}]}
+                (ledgers / "default.json").write_text(json.dumps(local), encoding="utf-8")
+                journals = root / 'journals'
+                journals.mkdir()
+                events = [{'event': 'Commander', 'Name': 'Test Commander'},
+                          {'event': 'LoadGame', 'Ship': 'Cobra Mk IV', 'GameMode': 'Open'},
+                          {'event': 'Bounty', 'Target': 'sidewinder', 'VictimFaction': 'Pirates',
+                           'Rewards': [{'Faction': 'Pirates', 'Reward': 10000}]},
+                          {'event': 'Bounty', 'Target': 'viper', 'VictimFaction': 'Pirates',
+                           'Rewards': [{'Faction': 'Pirates', 'Reward': 12000}]},
+                          {'event': 'HullDamage', 'PlayerPilot': False, 'Fighter': True, 'Health': 0.8},
+                          {'event': 'Shutdown'}]
+                with (journals / 'Journal.2026-10-20T120000.01.log').open('w', encoding='utf-8') as file:
+                    for event in events:
+                        file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
+
+                env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
+                process = subprocess.Popen([sys.executable, 'bootstrap.py'], cwd=root, env=env,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                           text=True, stdin=subprocess.DEVNULL, encoding='utf-8')
+                lines = []
+                output = []
+                def collect():
+                    for line in process.stdout:
+                        output.append(line)
+                thread = Thread(target=collect, daemon=True)
+                thread.start()
+                try:
+                    deadline = time.monotonic() + 15
+                    while 'Monitor started' not in ''.join(output) and time.monotonic() < deadline:
+                        time.sleep(0.2)
+                    (root / 'stop-requested').touch()
+                    process.wait(timeout=20)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait()
+                thread.join(timeout=2)
+                combined = ''.join(output)
+                self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
+                self.assertIn('/wing/default.json', store)
+                pushed = json.loads(store['/wing/default.json'])
+                self.assertEqual(pushed['missions'][0]['id'], 4242)
+        finally:
+            relay.shutdown()
+            relay.server_close()

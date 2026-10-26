@@ -533,6 +533,7 @@ def main() -> None:
     conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
     conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
+    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": ""}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -602,6 +603,14 @@ def main() -> None:
     pruned = session_history.prune(conf_settings["HistoryDays"])
     if pruned:
         debug(f"History: pruned {pruned} old session(s)")
+
+    def push_wing_ledger():
+        """Hand the local ledger to the configured relay (wing automation)."""
+        if not conf_wing["PushURL"]:
+            return
+        failure = push_ledger(mission_ledger.path, conf_wing["PushURL"])
+        if failure:
+            msg.log(f"{WARNING} Wing relay push: {failure}")
 
     def report_unseen_events():
         """Surface journal events this version does not handle (schema drift)."""
@@ -1418,6 +1427,14 @@ def main() -> None:
 
             if mission_level >= 3:
                 wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
+                if conf_wing["FetchURL"]:
+                    spread, name, error = fetch_spread(conf_wing["FetchURL"])
+                    if not error:
+                        track.relay_warned = False
+                        wings.append((name, spread))
+                    elif not track.relay_warned:
+                        track.relay_warned = True
+                        msg.log(f"{WARNING} Wing relay fetch: {error}")
                 if wings:
                     local = mission_ledger.spread()
                     combined = merge_spreads(([local] if local and local.get("total") else [])
@@ -1578,6 +1595,7 @@ def main() -> None:
         except (KeyboardInterrupt, SystemExit):
             track.sessionend()
             mission_ledger.save()
+            push_wing_ledger()
             summary(total, session=False)
             record_run()
             report_unseen_events()
@@ -1596,6 +1614,7 @@ def main() -> None:
         except Exception as e:
             msg.log(f"{Col.WARN}Warning:{Col.END} Something went wrong: {e} (journal line #{track.lines})")
             traceback.print_tb(e.__traceback__)
+            push_wing_ledger()
             record_run()
             report_unseen_events()
             session_history.close()

@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: hands-free wing relay for the live monitor (2026-10-26)
+------------------------------------------------
+- '[Wing] PushURL' in the config: the monitor pushes its ledger to the relay
+  every time it stops (normal exit or crash path), no extra commands.
+- '[Wing] FetchURL': the fetched wingmate ledger folds into live and final
+  summaries at SummaryMissions = 3; a down relay warns once, not per summary.
+- Integration scenario drives the real monitor against a live local relay.
+- Validation: 202 tests passed.
+
 Fork: wing ledger relay over HTTP (2026-10-26)
 ------------------------------------------------
 - '--wing-push <base_url>' uploads local mission ledgers (HTTP PUT to
