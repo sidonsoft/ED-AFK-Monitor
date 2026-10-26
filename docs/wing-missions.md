@@ -135,13 +135,16 @@ One wingmate can host for everyone: run their monitor with `--wing-serve 8099`
 accepts PUTs, so pushed ledgers land in its `mission_ledger/wing` folder and
 are immediately fetchable. `--wing-serve` alone binds to 127.0.0.1, so add
 `--wing-serve-host 0.0.0.0` (or a specific interface address) for wingmates on
-other machines; the host must be reachable
+other machines; the host must be reachable (LAN, Tailscale, or a port
+forward); if the port is busy at startup the monitor logs a warning and runs on.
 
 On a shared network anyone can drop by, add `--wing-serve-token <value>` and
 wingmates append `?token=<value>` to their `PushURL`/`FetchURL` (the filename
 splices in before the query, so a base ending in `?token=…` works). Requests
-without the right token are refused with 401; comparison is timing-safe. (LAN, Tailscale, or port
-forward); if the port is busy at startup the monitor logs a warning and runs on.
+without the right token are refused with 401; comparison is timing-safe.
+
+`GET http://<host>:8099/wing/` lists every ledger the relay carries with its
+last-save time - the fastest way to prove a URL (or a token) works.
 
 ## Sharing ledgers with wingmates
 

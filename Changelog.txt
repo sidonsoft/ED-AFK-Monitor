@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing relay answers 'GET /wing/' with an inventory (2026-10-26)
+------------------------------------------------
+- Lists the ledgers a host carries (pushed copies and its own) with
+  last-save times: proof-of-life for wingmate setup, token checks and
+  'is my push landing?' debugging without SSH-ing anywhere.
+- Validation: 230 tests passed.
+
 Fork: dashboard shows where your relay is (2026-10-26)
 ------------------------------------------------
 - When this monitor serves the wing relay, the wing panel's headline
