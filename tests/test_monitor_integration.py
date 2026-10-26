@@ -782,6 +782,15 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         push_note = json.loads(response.read())['wing_view']['last_push']
                     self.assertEqual(push_note['name'], 'putmate.json')
                     self.assertGreater(push_note['size'], 0)
+                    # the panel footer shows the running build: a remote
+                    # dashboard doubles as a release-deployment check
+                    with urlopen(f'http://127.0.0.1:{dash_port}/live.json', timeout=5) as response:
+                        live = json.loads(response.read())
+                    import re as _re
+                    shipped = int(_re.search(r'^VERSION = (\d+)',
+                                             (Path(__file__).resolve().parents[1] / 'afk_monitor.py')
+                                             .read_text(encoding='utf-8'), _re.M).group(1))
+                    self.assertEqual(live['version'], shipped)
                     # Periodic pushes ride the idle watchdog; the scenario
                     # shortens its cadence via WatchdogSeconds = 5.
                     deadline = time.monotonic() + 60

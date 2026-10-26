@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the dashboard footer names the build it serves (2026-10-26)
+------------------------------------------------
+- 'updated 21:33:05 · build v261043'. /live.json already carried the
+  version; the panel now shows it, so checking whether a remote
+  monitor got the new release is one glance, not an ssh session.
+- Validation: 252 tests passed.
+
 Fork: --wing-test - diagnose a wing URL from the command line (2026-10-26)
 ------------------------------------------------
 - ED-afk-monitor --wing-test http://host:8099/wing/ prints every ledger

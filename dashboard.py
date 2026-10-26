@@ -48,6 +48,7 @@ fetch('live.json' + query).then(r => r.json()).then(d => {
   if (d.total_time) parts.push('total ' + d.total_time);
   if (parts.length) document.getElementById('runtimes').textContent = parts.join(' · ');
   document.getElementById('updated').textContent = d.updated ? 'updated ' + d.updated : '';
+  if (d.version) document.getElementById('updated').textContent += ' · build v' + esc(String(d.version));
   for (const key of ['session', 'total']) {
     const s = d[key];
     if (!s) continue;
