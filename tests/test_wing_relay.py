@@ -224,6 +224,19 @@ class WingServeTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(sorted(name for name, _ in spreads), ["mate.json", "second.json"])
 
+    def test_error_verdicts_are_anti_cache_too(self):
+        # browsers cache 404s: a ghost fetch must not stick
+        import urllib.error
+        from urllib.request import urlopen
+        for url, want in ((f"{self.base}/ghost.json", 404),
+                          (f"{self.base}/badpath.txt", 404)):
+            try:
+                urlopen(url, timeout=3)
+                self.fail(f"{url} should have failed")
+            except urllib.error.HTTPError as failure:
+                self.assertEqual(failure.code, want)
+                self.assertEqual(failure.headers.get("Cache-Control"), "no-store")
+
     def test_ledger_and_listing_responses_are_anti_cache(self):
         # wingmates poll these URLs expecting fresh data; a browser or proxy
         # replaying a 404 listing would hide a push that already landed

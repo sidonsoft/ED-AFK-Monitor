@@ -197,10 +197,16 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         supplied = parse_qs(urlsplit(self.path).query).get("token", [""])[0]
         return compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8"))
 
+    def _status(self, code):
+        # every answer - success or verdict - is live data: browsers
+        # happily cache 404s and 401s too, hiding pushes that landed
+        self.send_response(code)
+        self.send_header("Cache-Control", "no-store")
+
     def _deny(self):
         # a bare 401 makes people rebuild the URL from scratch; spell out
         # the query form so a browser visit self-documents the token rule
-        self.send_response(401)
+        self._status(401)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps(
@@ -224,22 +230,20 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                     ledgers[entry.name] = updated
             body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k]}
                                            for k in sorted(ledgers)]}).encode()
-            self.send_response(200)
+            self._status(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
             return
         found = next((d / name for d in self.directories
                       if name.endswith(".json") and (d / name).is_file()), None)
         if found is None:
-            self.send_response(404)
+            self._status(404)
             self.end_headers()
             return
         body = found.read_bytes()
-        self.send_response(200)
+        self._status(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -251,7 +255,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             declared = -1
         if declared < 0 or declared > 16 * MAX_LEDGER_BYTES:
             # absurd or unparseable: answer without ingesting the request
-            self.send_response(413 if declared > 0 else 400)
+            self._status(413 if declared > 0 else 400)
             self.send_header("Connection", "close")
             self.end_headers()
             self.close_connection = True
@@ -263,17 +267,17 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             return self._deny()
         if not name.endswith(".json"):
-            self.send_response(400)
+            self._status(400)
             self.end_headers()
             return
         try:
             if len(body) > MAX_LEDGER_BYTES:
-                self.send_response(413)
+                self._status(413)
                 self.end_headers()
                 return
             json.loads(body.decode("utf-8"))  # only real ledgers on disk
         except (ValueError, UnicodeDecodeError):
-            self.send_response(400)
+            self._status(400)
             self.end_headers()
             return
         (self.directories[0] / name).write_bytes(body)
@@ -282,7 +286,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                 self.on_put(name, len(body))
             except Exception:
                 pass  # visibility must never cost a wingmate their push
-        self.send_response(204)
+        self._status(204)
         self.end_headers()
 
     def log_message(self, *args):

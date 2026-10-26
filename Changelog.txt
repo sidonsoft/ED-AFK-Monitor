@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: every relay verdict is anti-cache, not just the 200s (2026-10-26)
+------------------------------------------------
+- One _status() helper stamps Cache-Control: no-store on all 11
+  responses - 404, 400, 401, 413, 204 included. Browsers cache
+  misses hard: a stale 404 used to hide a push that had just landed,
+  and a cached 401 kept nagging after the token was fixed.
+- Validation: 247 tests passed.
+
 Fork: relay answers say 'no-store' (2026-10-26)
 ------------------------------------------------
 - Ledger and listing GETs carry Cache-Control: no-store. Wingmates
