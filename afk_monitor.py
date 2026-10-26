@@ -827,6 +827,8 @@ def main() -> None:
             stale_hours=conf_wing["StaleHours"],
             banner=serve_advice(wing_host, wing_token),
             build=VERSION,
+            on_reject=lambda name, why: msg.log(
+                f"{WARNING} Wing relay: refused {name} - {why}"),
             on_put=lambda name, size: (
                 wing_last_push.update(name=name, size=size, at=int(time.time())),
                 msg.log(f"Wing relay: received {name} ({size:,} bytes)"))[0])

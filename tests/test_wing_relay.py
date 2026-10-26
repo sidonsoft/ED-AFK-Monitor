@@ -703,3 +703,24 @@ class RelayMetaNotARelayTests(unittest.TestCase):
         self.assertEqual((build, fmt), ("", ""))
         self.assertIn("not with a relay listing", err)
         self.assertIn("a blog, not a relay", err)
+
+
+class OnRejectCallbackTests(unittest.TestCase):
+    def test_refused_push_reaches_the_host_callback_once_each(self):
+        seen = []
+        with TemporaryDirectory() as served:
+            server, error = start_wing_relay(0, served, on_reject=lambda n, w: seen.append((n, w)))
+            self.assertEqual(error, "")
+            base = f"http://127.0.0.1:{server.server_address[1]}/wing"
+            try:
+                for path, body in [("bad.txt", b"{}"), ("old.json", json.dumps({"version": 99}).encode())]:
+                    req = Request(f"{base}/{path}", method="PUT", data=body,
+                                  headers={"Content-Type": "application/json"})
+                    try:
+                        urlopen(req, timeout=3)
+                    except urllib.error.HTTPError:
+                        pass
+            finally:
+                server.shutdown()
+        self.assertEqual([n for n, _ in seen], ["bad.txt", "old.json"])
+        self.assertIn("ledger format", dict(seen)["old.json"])

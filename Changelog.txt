@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: refused wing pushes now surface in the host's own log (2026-10-26)
+------------------------------------------------
+- 'Wing relay: refused old.json - ledger format 99' appears in the
+  monitor as it happens. Before, a wingmate's broken push was only
+  visible if the host thought to open the relay page and read the
+  trouble list; now the host hears about it where they already look.
+- Validation: 274 tests passed.
+
 Fork: StaleHours docs match the code's actual fallback rule (2026-10-26)
 ------------------------------------------------
 - The example toml line was half-garbled ('quieter than this flag

@@ -444,6 +444,14 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _trouble(self, name, why):
+        self.trouble.appendleft((name, why, int(time())))
+        if self.on_reject:
+            try:
+                self.on_reject(name, why)
+            except Exception:
+                pass  # host visibility must never break the answer
+
     def do_PUT(self):
         name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
         try:
@@ -464,19 +472,19 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             return self._deny()
         if not name.endswith(".json"):
-            self.trouble.appendleft((name or "?", "not a .json path", int(time())))
+            self._trouble(name or "?", "not a .json path")
             self._status(400)
             self.end_headers()
             return
         try:
             if len(body) > MAX_LEDGER_BYTES:
-                self.trouble.appendleft((name, "too big for a ledger", int(time())))
+                self._trouble(name, "too big for a ledger")
                 self._status(413)
                 self.end_headers()
                 return
             parsed = json.loads(body.decode("utf-8"))  # only real ledgers on disk
         except (ValueError, UnicodeDecodeError):
-            self.trouble.appendleft((name, "body was not JSON", int(time())))
+            self._trouble(name, "body was not JSON")
             self._status(400)
             self.end_headers()
             return
@@ -485,7 +493,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if got != FILE_VERSION:
             # say so now instead of storing junk the merge will silently
             # skip forever: the pusher's own run fails with this sentence
-            self.trouble.appendleft((name, f"ledger format {got!r}", int(time())))
+            self._trouble(name, f"ledger format {got!r}")
             self._status(409)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -510,7 +518,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
 
 
 def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
-                   stale_hours=None, banner="", build=""):
+                   stale_hours=None, banner="", build="", on_reject=None):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -530,6 +538,7 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                         _as_hours(stale_hours)),
                     "recent": deque(maxlen=8),
                     "trouble": deque(maxlen=5),
+                    "on_reject": staticmethod(on_reject) if callable(on_reject) else None,
                     "banner": str(banner or ""),
                     "build": str(build or "")})
     try:
