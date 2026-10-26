@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: session exports and packaging (2026-10-26)
+------------------------------------------------
+- '--history --export file.(json|csv|png)' writes portable session data or a
+  rendered recap card; '--history --share' prints a compact copy-paste recap.
+- Packaging: pyproject metadata with optional extras (discord-webhook, pillow),
+  requirements.txt, Dockerfile for headless rigs, and PyInstaller release
+  builds on GitHub Actions for Windows/Linux/macOS.
+- Validation: 160 tests passed.
+
 Fork: journal drift checks and command-line config overrides (2026-10-26)
 ------------------------------------------------
 - On exit, the monitor now reports journal event types it does not handle

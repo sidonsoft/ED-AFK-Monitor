@@ -1,0 +1,44 @@
+name: Release builds
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    name: Bundle ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install build dependencies
+        run: pip install pyinstaller discord-webhook pillow
+      - name: Bundle executable
+        shell: bash
+        run: |
+          sep=":"
+          [ "$RUNNER_OS" = "Windows" ] && sep=";"
+          pyinstaller --onefile --name ed-afk-monitor \
+            --add-data "ships.json${sep}." \
+            afk_monitor.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ed-afk-monitor-${{ matrix.os }}
+          path: dist/ed-afk-monitor*
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/ed-afk-monitor* --clobber

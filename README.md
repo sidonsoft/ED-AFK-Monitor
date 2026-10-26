@@ -81,6 +81,8 @@ For more detailed instructions see [Basic Setup](https://github.com/PsiPab/ED-AF
 ### Python version
 
 Requirements: [Python 3.12+](https://www.python.org/downloads/), [discord-webhook](https://github.com/lovvskillz/python-discord-webhook) (optional, required for Discord support)
+
+Optional extras (Discord, PNG recap cards) are listed in `requirements.txt`; a `Dockerfile` and a `pyproject.toml` are included for headless and packaged setups.
 - Download or clone [this fork's source](https://github.com/sidonsoft/ED-AFK-Monitor), select the branch you want to test, and keep the entire extracted folder
 - Copy `afk_monitor.example.toml` and rename the copy to `afk_monitor.toml`
 - (Optional) For Discord support edit `WebhookURL` and `UserID` under `[Discord]` in `afk_monitor.toml`
@@ -195,6 +197,8 @@ You can pass the following arguments when launching AFK Monitor:
 --json                                      With --missions/--history, print JSON output
 --import-missions <file>                    Import a mission list (CSV or text) and exit
 --set <Section.Key=value>                   Override a config setting for this run
+--export <file>                           With --history, write sessions to .json/.csv/.png
+--share                                   With --history, print a compact shareable recap
 ```
 
 ## Common Issues

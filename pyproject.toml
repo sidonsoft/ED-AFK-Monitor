@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ed-afk-monitor"
+version = "261017"  # keep in sync with afk_monitor.VERSION (release tags are v261017)
+description = "Journal monitor for Elite Dangerous AFK farming: live stats, mission spread, alerts and session history"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "CMDR PSIPAB" },
+    { name = "sidonsoft (fork maintenance)" },
+]
+keywords = ["elite-dangerous", "journal", "afk", "monitor", "massacre"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Topic :: Games/Entertainment",
+]
+dependencies = []
+
+[project.optional-dependencies]
+discord = ["discord-webhook>=1.1.0"]
+card = ["pillow>=10.1"]
+
+[project.urls]
+Homepage = "https://github.com/sidonsoft/ED-AFK-Monitor"
+Changelog = "https://github.com/sidonsoft/ED-AFK-Monitor/blob/main/Changelog.txt"
+
+[tool.setuptools]
+py-modules = [
+    "afk_monitor",
+    "config_overrides",
+    "journal_reader",
+    "journal_schema",
+    "missions",
+    "notifications",
+    "outbox",
+    "session_card",
+    "session_store",
+    "ship_pools",
+    "terminal_output",
+]
