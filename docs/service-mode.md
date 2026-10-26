@@ -80,6 +80,12 @@ volume mapping). Containers that can't pass CLI flags can still enable the
 web page: set `Dashboard = 8080` (plus `DashboardToken`/`DashboardHost`) in
 the config volume and publish the port, e.g. `-p 8080:8080`.
 
+A container can also host the **wing relay** for the whole wing: set
+`ServePort = 8099` (plus optional `ServeHost`/`ServeToken`) under `[Wing]` in
+the same config volume, publish it with `-p 8099:8099`, and wingmates point
+their `PushURL`/`FetchURL` at `http://<this-host>:8099/wing`. With a token set,
+they append `?token=<value>`; without one, keep the port off the open Internet.
+
 ## Keeping a headless instance useful
 
 - Set `AlertSound` has no meaning without a terminal; use ntfy or Discord

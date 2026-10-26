@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: docs - wing relay as a service, honest test counts (2026-10-26)
+------------------------------------------------
+- service-mode guide gained the container recipe for hosting a wing
+  (ServePort + -p + wingmate URLs, token advice).
+- testing guide counts were stale (211); now 227 with a pointer to
+  the live count instead of just a number that rots.
+
 Fork: relay usable from config alone; host's own ledgers served (2026-10-26)
 ------------------------------------------------
 - [Wing] ServePort/ServeHost/ServeToken = the --wing-serve flags as

@@ -43,7 +43,8 @@ py afk_monitor.py --missions --json
 
 The regression suite uses simulated journals and mocked transports; it does not
 send notifications. The report commands read saved state without contacting
-notification services. The current build passes 211 tests, and every push runs
+notification services. The current build passes 227 tests (run
+`python -m unittest discover -s tests` to see the live count), and every push runs
 the same suite on Windows, macOS and Linux with Python 3.12 and 3.13 in CI.
 
 For a notification preview, start with `--test`; output is previewed in the terminal
