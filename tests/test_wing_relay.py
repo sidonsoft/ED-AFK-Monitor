@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
 from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
-                        redact, serve_advice,
+                        redact, serve_advice, served_count,
                         stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
@@ -360,3 +360,16 @@ class ServeAdviceTests(unittest.TestCase):
     def test_loopback_stays_quiet(self):
         for host in ("127.0.0.1", "localhost", "::1", ""):
             self.assertEqual(serve_advice(host, ""), "")
+
+
+class ServedCountTests(unittest.TestCase):
+    def test_names_dedupe_across_tiers(self):
+        with TemporaryDirectory() as folder:
+            wing = Path(folder) / "wing"
+            wing.mkdir()
+            (wing / "mate.json").write_text("{}", encoding="utf-8")
+            (Path(folder) / "own.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(served_count([wing, Path(folder)]), 2)
+            (wing / "own.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(served_count([wing, Path(folder)]), 2)
+            self.assertEqual(served_count([Path(folder) / "missing"]), 0)

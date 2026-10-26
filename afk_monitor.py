@@ -19,8 +19,8 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
-from wing_relay import (fetch_spreads, push_ledger, serve_advice, stale_notes,
-                        start_wing_relay)
+from wing_relay import (fetch_spreads, push_ledger, serve_advice, served_count,
+                        stale_notes, start_wing_relay)
 from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -740,6 +740,7 @@ def main() -> None:
                 data["wing_view"] = {"combined": {key: combined[key] for key in ("done", "total", "left", "turn_in")},
                                      "sources": [name for name, _ in wings],
                                      "serve": wing_serve_label,
+                                     "served": served_count(wing_serve_dirs),
                                      "errors": errors}
         return data
 
@@ -757,15 +758,17 @@ def main() -> None:
         args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
 
     wing_serve_label = ""
+    wing_serve_dirs = []
     # the relay can also be switched on from config alone (service/Docker
     # deployments have no convenient place for CLI flags)
     wing_port = args.wing_serve or int(conf_wing["ServePort"] or 0)
     wing_host = args.wing_serve_host or str(conf_wing["ServeHost"] or "") or "127.0.0.1"
     wing_token = args.wing_serve_token or str(conf_wing["ServeToken"] or "")
     if wing_port:
+        wing_serve_dirs = [config_file_path / "mission_ledger" / "wing",
+                           config_file_path / "mission_ledger"]
         wing_relay_server, wing_relay_error = start_wing_relay(
-            wing_port, [config_file_path / "mission_ledger" / "wing",
-                        config_file_path / "mission_ledger"],
+            wing_port, wing_serve_dirs,
             host=wing_host, token=wing_token,
             on_put=lambda name, size: msg.log(
                 f"Wing relay: received {name} ({size:,} bytes)"))

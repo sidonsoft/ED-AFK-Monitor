@@ -2,6 +2,12 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the dashboard shows how full the relay is (2026-10-26)
+------------------------------------------------
+- 'relay 0.0.0.0:8099 · 3 ledger(s) on the relay' - the host sees its
+  wing's size without opening the folder or curling the listing.
+- Validation: 244 tests passed.
+
 Fork: a token-less relay bound to the world says so at startup (2026-10-26)
 ------------------------------------------------
 - Serving on 0.0.0.0 (or any non-loopback interface) with no token now

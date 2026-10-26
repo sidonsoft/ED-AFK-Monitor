@@ -175,6 +175,8 @@ class FreshHostAdvertiseTests(unittest.TestCase):
             "wing_view": lambda: ([], []),
             "merge_spreads": merge_spreads,
             "wing_serve_label": serve_label,
+            "wing_serve_dirs": [],
+            "served_count": lambda dirs: 0,
         }
         exec(body, namespace)
         return namespace["dashboard_missions"]()

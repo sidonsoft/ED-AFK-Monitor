@@ -57,6 +57,17 @@ def as_url_list(value):
     return [str(url).strip() for url in value if str(url).strip()]
 
 
+def served_count(directories):
+    """Ledger names a relay would currently serve (deduped across tiers)."""
+    names = set()
+    for directory in directories:
+        try:
+            names.update(entry.name for entry in Path(directory).glob("*.json"))
+        except OSError:
+            pass
+    return len(names)
+
+
 def serve_advice(host, token):
     """One-line safety note for a serving monitor; '' when nothing to say."""
     if token:
