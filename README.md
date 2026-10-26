@@ -170,7 +170,9 @@ estimates rather than retroactively correcting them.
 Wingmates' ledgers can be shared - by synced folder or over an HTTP relay - and
 merged into one wing view in summaries, `--missions --wing`, the `[w]` hotkey and
 the dashboard; `[Wing] PushURL`/`FetchURL` automate it, and ledgers quiet for over
-a day flag themselves as possibly stale.
+a day flag themselves as possibly stale. The relay explains itself - paste its URL
+in a browser, or probe it with `--wing-test <URL>` - so setup mistakes answer their
+own questions.
 
 See the [wing mission stack guide](docs/wing-missions.md) for field definitions,
 worked calculations, saved-state recovery, imports and accuracy limits. Long Discord
