@@ -1,0 +1,60 @@
+name: Trusted Mac builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trusted-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-and-build:
+    # PR checks stay in tests.yml on GitHub-hosted runners. Never check out a PR here.
+    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    name: Trusted macOS ARM64 / Python ${{ matrix.python }}
+    runs-on: [ed-afk-trusted-macos-arm64]
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        python: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          clean: true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: arm64
+      - name: Create a fresh build environment
+        run: |
+          python -m venv "${RUNNER_TEMP}/ed-afk-${{ matrix.python }}"
+          echo "${RUNNER_TEMP}/ed-afk-${{ matrix.python }}/bin" >> "$GITHUB_PATH"
+      - name: Install test dependency
+        run: python -m pip install pillow
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Build macOS ARM64 executable
+        if: matrix.python == '3.12'
+        run: |
+          python -m pip install pyinstaller discord-webhook
+          python -m PyInstaller --onefile --name ed-afk-monitor-macos-arm64 --add-data "ships.json:." afk_monitor.py
+      - name: Save macOS ARM64 build
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ed-afk-monitor-macos-arm64-trusted
+          path: dist/ed-afk-monitor-macos-arm64
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary build environment
+        if: always()
+        run: |
+          python -c "import os, shutil; shutil.rmtree(os.path.join(os.environ['RUNNER_TEMP'], 'ed-afk-${{ matrix.python }}'), ignore_errors=True)"
