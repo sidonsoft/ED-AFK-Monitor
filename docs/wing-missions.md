@@ -171,6 +171,10 @@ the host carries - no filenames, and a `?token=` on the base applies to them
 all.
 
 The relay address works for pushing too: `PushURL` or
+A push that the host's relay can't merge - an old monitor's format, say -
+fails right there with a sentence saying what to fix; nothing is stored and
+the wing view never silently ignores a stale file.
+
 `--wing-push http://<host>:8099/wing/` uploads every local ledger in one
 line - trailing slash optional.
 
