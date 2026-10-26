@@ -75,7 +75,10 @@ jobs:
   publish:
     name: Attach verified builds to release
     needs: bundle
-    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && startsWith(github.ref, 'refs/tags/v')
+    # always(): one flaky self-hosted bundle (e.g. a runner setup hook that
+    # died before any step) must not strand an otherwise-verified release;
+    # the guard below still refuses to publish a husk of a build set
+    if: always() && github.repository == 'sidonsoft/ED-AFK-Monitor' && startsWith(github.ref, 'refs/tags/v') && !cancelled()
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -91,6 +94,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          built=$(find dist -maxdepth 1 -type f | wc -l)
+          if [ "$built" -lt 2 ]; then
+            echo "::error::refusing to publish $GITHUB_REF_NAME with only $built asset(s)"
+            exit 1
+          fi
+          for want in ed-afk-monitor-windows ed-afk-monitor-macos ed-afk-monitor-linux; do
+            if ! ls dist/"$want"* >/dev/null 2>&1; then
+              echo ":warning: $want did not build; release ships without it" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          done
           if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --verify-tag --title "ED AFK Monitor $GITHUB_REF_NAME" --generate-notes --latest
           fi
