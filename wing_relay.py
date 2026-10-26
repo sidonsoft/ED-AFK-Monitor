@@ -90,6 +90,21 @@ def redact(url):
     return re.sub(r"([?&]token=)[^&]*", lambda m: m.group(1) + "\u2022", str(url))
 
 
+def _age_words(updated, now=None):
+    try:
+        seconds = (time() if now is None else now) - float(updated)
+    except (TypeError, ValueError):
+        return "unknown when"
+    if seconds < 120:
+        return "just now"
+    hours = int(seconds // 3600)
+    if hours < 1:
+        return "under 1 h ago"
+    if hours < 48:
+        return f"{hours} h ago"
+    return f"{hours // 24} d ago"
+
+
 def wing_test_lines(urls, timeout=5):
     """Diagnostic lines for --wing-test: ('ok', text) per usable ledger,
     ('warn', text) per failure; plus whether anything usable was found."""
@@ -100,7 +115,8 @@ def wing_test_lines(urls, timeout=5):
             ok = True
             lines.append(("ok", f"{name}: {spread.get('done', 0)}/{spread.get('total', 0)} "
                                 f"complete · {spread.get('left', 0)} left · "
-                                f"{spread.get('turn_in', 0):,} Cr ready"))
+                                f"{spread.get('turn_in', 0):,} Cr ready · "
+                                f"updated {_age_words(spread.get('updated'))}"))
         for error in errors:
             lines.append(("warn", error))
     if not lines:

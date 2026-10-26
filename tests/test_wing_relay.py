@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger, redact, serve_advice, served_count, stale_notes, stale_spread, start_wing_relay, url_shape_warnings, wing_test_lines, _listing_entries)
+from wing_relay import (_age_words, _listing_entries, as_url_list, fetch_spread, fetch_spreads, push_ledger, redact, serve_advice, served_count, stale_notes, stale_spread, start_wing_relay, url_shape_warnings, wing_test_lines)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -548,3 +548,14 @@ class RelayExplainsItselfTests(unittest.TestCase):
                 self.assertIn("needs ?token=", reason)
             finally:
                 server.shutdown()
+
+
+class AgeWordsTests(unittest.TestCase):
+    def test_fresh_to_ancient_ladder(self):
+        now = 1_000_000.0
+        self.assertEqual(_age_words(now - 30, now), "just now")
+        self.assertEqual(_age_words(now - 1800, now), "under 1 h ago")
+        self.assertEqual(_age_words(now - 7200, now), "2 h ago")
+        self.assertEqual(_age_words(now - 200 * 3600, now), "8 d ago")
+        self.assertEqual(_age_words(None, now), "unknown when")
+        self.assertEqual(_age_words("junk", now), "unknown when")

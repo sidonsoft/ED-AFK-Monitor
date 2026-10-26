@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-test tells you how stale each ledger is (2026-10-26)
+------------------------------------------------
+- Every probe line ends with 'updated just now / under 1 h ago /
+  6 h ago / 8 d ago / unknown when' - a push that stopped working
+  hours ago is now obvious in the one command built for checking it.
+- Validation: 265 tests passed.
+
 Fork: wing errors now quote the relay's own explanation (2026-10-26)
 ------------------------------------------------
 - 'Could not fetch http://host:8099/wing/mate.json: 401 - this relay
