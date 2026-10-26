@@ -49,6 +49,7 @@ class HotkeyEmptyWingTests(unittest.TestCase):
     def test_nothing_configured_explains_how_to_start(self):
         text = load_hotkey("", local_total=0, turn_in=0, errors=[])
         self.assertIn("No wing ledgers yet", text)
+        self.assertIn("--wing-test <URL>", text)  # points at the one-shot probe
         self.assertIn("--wing-serve", text)
 
     def test_errors_still_take_the_report(self):

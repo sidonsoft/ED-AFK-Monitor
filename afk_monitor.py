@@ -1497,7 +1497,8 @@ def main() -> None:
             hints = [f"Wing relay fetch: {error}" for error in errors]
             if not hints:
                 hints.append("No wing ledgers yet: set [Wing] PushURL/FetchURL "
-                             "or run --wing-serve to host the wing here")
+                             "or run --wing-serve to host the wing here - "
+                             "--wing-test <URL> checks any relay URL in one shot")
             return "\n".join(hints)
         text = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
                 f" {combined['done']}/{combined['total']} complete"

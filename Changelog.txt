@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the empty-wing hint ends with the one command to try (2026-10-26)
+------------------------------------------------
+- Pressing [w] with nothing configured now closes with '--wing-test
+  <URL> checks any relay URL in one shot' - the diagnosis a confused
+  wingmate needs, handed to them by the monitor itself.
+- Validation: 269 tests passed.
+
 Fork: mixed-format wings shout instead of quietly undercounting (2026-10-26)
 ------------------------------------------------
 - Fetching from a relay that writes a different ledger format now adds
