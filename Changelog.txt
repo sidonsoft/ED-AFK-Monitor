@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: journal drift checks and command-line config overrides (2026-10-26)
+------------------------------------------------
+- On exit, the monitor now reports journal event types it does not handle
+  ('Journal drift check'), so game updates surface as visible notices
+  instead of silently doing nothing; full counts available with --debug.
+- New '--set Section.Key=value' argument overrides any config setting for
+  one run (type-checked, e.g. --set Discord.Timestamp=false).
+- Validation: 150 tests passed.
+
 Fork: ntfy, generic webhooks and local alert sounds (2026-10-26)
 ------------------------------------------------
 - New 'Ntfy' section: push alerts to phones/desktops via ntfy (priority high).

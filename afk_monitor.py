@@ -19,6 +19,8 @@ from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
 from ship_pools import load_ship_pools
 from session_store import SessionStore
+from journal_schema import unhandled_types
+from config_overrides import apply_overrides, parse_overrides
 
 try:
     from discord_webhook import DiscordWebhook, DiscordEmbed
@@ -92,6 +94,8 @@ parser.add_argument("--history", action="store_true", help="Print the saved sess
 parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
+parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE",
+                    help="Override a config setting, e.g. --set Discord.Timestamp=false (repeatable)")
 file_group = parser.add_mutually_exclusive_group()
 file_group.add_argument("-s", "--setfile", help="Set specific journal file to use")
 file_group.add_argument("-f", "--fileselect", action="store_true", default=None, help="Show list of recent journals to chose from")
@@ -327,6 +331,7 @@ class Tracking:
         self.dupewarn = False
         self.warned_missions = set()
         self.runstart = None
+        self.seen_events = {}
         self.preloading = True
         self.cmdrname = None
         self.cmdrship = None
@@ -496,6 +501,16 @@ conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2, "MissionExp
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
 conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
 conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
+
+def _override_warning(warning):
+    msg.log(f"{WARNING} {warning}")
+
+cli_overrides = parse_overrides(args.set, _override_warning)
+for conf, section in ((conf_settings, "Settings"), (conf_discord, "Discord"),
+                      (conf_log_levels, "LogLevels"), (conf_telegram, "Telegram"),
+                      (conf_ntfy, "Ntfy"), (conf_webhook, "Webhook")):
+    apply_overrides(conf, section, cli_overrides, _override_warning)
+
 telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
 telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
 telegram_enabled = bool(telegram_token and telegram_chat)
@@ -546,6 +561,17 @@ if session_history.error:
 pruned = session_history.prune(conf_settings["HistoryDays"])
 if pruned:
     debug(f"History: pruned {pruned} old session(s)")
+
+def report_unseen_events():
+    """Surface journal events this version does not handle (schema drift)."""
+    unhandled = unhandled_types(track.seen_events)
+    if not unhandled:
+        return
+    names = ", ".join(f"{name} (x{count})" for count, name in unhandled[:12])
+    more = f" …and {len(unhandled) - 12} more" if len(unhandled) > 12 else ""
+    msg.log(f"{WARNING} Journal drift check: {len(unhandled)} event type(s) this version does not handle: {names}{more}")
+    msg.log("             If these are new to the game, report them so they can be handled or ignored.")
+    debug(f"Seen event types: {track.seen_events}")
 
 def record_run():
     if not track.runstart:
@@ -791,6 +817,8 @@ def processevent(line):
         logtime = datetime.fromisoformat(j["timestamp"]) if "timestamp" in j else None
         track.thiseventtime = logtime
         mission_ledger.observe_location(j)
+        if "event" in j:
+            track.seen_events[j["event"]] = track.seen_events.get(j["event"], 0) + 1
         match j["event"]:
             case "ReceiveText" if j["Channel"] == "npc":
                 if "$Pirate_OnStartScanCargo" in j["Message"]:
@@ -1482,6 +1510,7 @@ if __name__ == "__main__":
         mission_ledger.save()
         summary(total, session=False)
         record_run()
+        report_unseen_events()
         session_history.close()
         logevent(msg_term=f"Monitor stopped ({journal_file})",
             msg_discord=f"**Monitor stopped** ({journal_file})",
@@ -1498,6 +1527,7 @@ if __name__ == "__main__":
         msg.log(f"{Col.WARN}Warning:{Col.END} Something went wrong: {e} (journal line #{track.lines})")
         traceback.print_tb(e.__traceback__)
         record_run()
+        report_unseen_events()
         session_history.close()
         notifications.close()
         notification_reports()

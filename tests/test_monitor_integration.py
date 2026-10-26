@@ -68,7 +68,8 @@ class MonitorIntegrationTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py', 'terminal_output.py', 'outbox.py',
-                          'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py'):
+                          'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
+                            'journal_schema.py', 'config_overrides.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8').replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
@@ -134,7 +135,8 @@ class MonitorIntegrationTests(unittest.TestCase):
                                {'event': 'HullDamage', 'PlayerPilot': False, 'Fighter': True, 'Health': 0.8},
                                {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': False, 'Count': 1},
                                {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': True, 'Count': 1},
-                               {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': False, 'Count': 2}])
+                               {'event': 'EjectCargo', 'Type': 'gold', 'Abandoned': False, 'Count': 2},
+                                {'event': 'TotallyNewEvent', 'Detail': 'future schema'}])
                 wait_for('TELEGRAM PREVIEW: Test Commander: 🛠️ Ship hull damaged!')
                 wait_for('TELEGRAM PREVIEW: Test Commander: 🪓 Cargo lost or jettisoned (possible theft)')
                 if change_commander:
@@ -149,6 +151,8 @@ class MonitorIntegrationTests(unittest.TestCase):
                     output.append(lines.get_nowait())
                 combined = ''.join(output)
                 self.assertIn('Following journal', combined)
+                self.assertIn('Journal drift check: 1 event type(s)', combined)
+                self.assertIn('TotallyNewEvent (x1)', combined)
                 databases = list((root / 'session_history').glob('*.db'))
                 self.assertEqual(len(databases), 1, combined)
                 store = SessionStore(databases[0])
@@ -179,7 +183,8 @@ class MonitorIntegrationTests(unittest.TestCase):
 class SetupIntegrationTests(unittest.TestCase):
     def prepare(self, root):
         for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py', 'terminal_output.py', 'outbox.py',
-                          'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py'):
+                          'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
+                            'journal_schema.py', 'config_overrides.py'):
             shutil.copyfile(ROOT / name, root / name)
         (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
 
@@ -231,7 +236,8 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
             root = Path(directory)
             for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
                          'terminal_output.py', 'outbox.py', 'missions.py',
-                         'ship_pools.py', 'ships.json', 'session_store.py'):
+                         'ship_pools.py', 'ships.json', 'session_store.py',
+                            'journal_schema.py', 'config_overrides.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -293,7 +299,8 @@ class MissionBackfillIntegrationTests(unittest.TestCase):
             root = Path(directory)
             for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
                          'terminal_output.py', 'outbox.py', 'missions.py',
-                         'ship_pools.py', 'ships.json', 'session_store.py'):
+                         'ship_pools.py', 'ships.json', 'session_store.py',
+                            'journal_schema.py', 'config_overrides.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -355,7 +362,8 @@ class MissionImportIntegrationTests(unittest.TestCase):
             root = Path(directory)
             for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
                          'terminal_output.py', 'outbox.py', 'missions.py',
-                         'ship_pools.py', 'ships.json', 'session_store.py'):
+                         'ship_pools.py', 'ships.json', 'session_store.py',
+                            'journal_schema.py', 'config_overrides.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'missions.csv').write_text(
                 'Target Faction,Kills,Wing\nLords of Ngaliba,40,yes\nNgaliba Blue Boys,30,no\n',
