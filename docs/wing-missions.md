@@ -150,6 +150,11 @@ slower, so `[Wing] FetchTimeout = 10` buys patience (per URL, both live and
 `GET http://<host>:8099/wing/` lists every ledger the relay carries with its
 last-save time - the fastest way to prove a URL (or a token) works.
 
+A token-gated relay can also take the secret as a header, keeping it out of
+shell history and proxy logs: `curl -H 'X-Wing-Token: sekret'
+http://<host>:8099/wing/`. The 401 body names both forms; the monitor's own
+`FetchURL`/`PushURL` configs keep using `?token=` in the URL.
+
 When a wingmate's config looks right but the wing view stays empty, run the
 diagnostic: `--wing-test http://<host>:8099/wing/` (or a single ledger URL)
 prints what that address actually carries and exits nonzero if nothing

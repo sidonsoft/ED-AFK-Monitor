@@ -215,6 +215,30 @@ class WingServeTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("yielded nothing", lines[0][1])
 
+    def test_header_token_works_without_query_secret(self):
+        # URLs end up in shell history, proxies and browser bars; the
+        # header form keeps the secret out of the recorded line
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        server, error = start_wing_relay(0, self.folder.name, token="secret")
+        self.assertEqual(error, "")
+        self.base = f"http://127.0.0.1:{server.server_address[1]}/wing"
+        req = Request(f"{self.base}/mate.json", method="GET", headers={"X-Wing-Token": "secret"})
+        with urlopen(req, timeout=3) as response:
+            self.assertEqual(json.loads(response.read())["commander"], LEDGER["commander"])
+        body = json.dumps(dict(LEDGER, commander="Header Pusher")).encode()
+        req = Request(f"{self.base}/hdr.json", method="PUT", data=body,
+                      headers={"X-Wing-Token": "secret"})
+        with urlopen(req, timeout=3) as response:
+            self.assertEqual(response.status, 204)
+        self.assertTrue((Path(self.folder.name) / "hdr.json").exists())
+        req = Request(f"{self.base}/mate.json", method="GET", headers={"X-Wing-Token": "wrong"})
+        try:
+            urlopen(req, timeout=3)
+            self.fail("wrong header token should be denied")
+        except urllib.error.HTTPError as failure:
+            self.assertEqual(failure.code, 401)
+        server.shutdown()
+
     def test_same_ledger_via_two_urls_counts_once(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         spreads, errors = fetch_spreads([f"{self.base}/", f"{self.base}/mate.json"], timeout=3)

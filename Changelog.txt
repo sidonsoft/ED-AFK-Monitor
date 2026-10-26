@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay tokens can travel in an X-Wing-Token header (2026-10-26)
+------------------------------------------------
+- curl and scripted checks can send the secret as a header instead of a
+  query string - URLs land in shell history, proxy logs and browser
+  bars; headers don't. Query auth is unchanged, and the 401 body now
+  names both forms.
+- Validation: 254 tests passed.
+
 Fork: --wing-serve-dir points the relay at any ledger folder (2026-10-26)
 ------------------------------------------------
 - Default stays mission_ledger/wing; a named folder (created if

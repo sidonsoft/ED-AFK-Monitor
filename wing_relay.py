@@ -213,7 +213,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if not self.token:
             return True
         from urllib.parse import parse_qs
-        supplied = parse_qs(urlsplit(self.path).query).get("token", [""])[0]
+        supplied = (self.headers.get("X-Wing-Token")
+                    or parse_qs(urlsplit(self.path).query).get("token", [""])[0])
         return compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8"))
 
     def _status(self, code):
@@ -229,7 +230,8 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps(
-            {"error": "this relay needs ?token=<value> in the URL"}).encode())
+            {"error": "this relay needs ?token=<value> in the URL "
+                          "or an X-Wing-Token header"}).encode())
 
     def do_GET(self):
         if not self._authorized():
