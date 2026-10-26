@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: every CLI flag must now be in the README (2026-10-26)
+------------------------------------------------
+- Test extracts all long options from --help and greps the README for
+  each; a new flag with no docs fails CI. Audit at add time: the
+  current README already covers all 31 flags.
+- Validation: 249 tests passed.
+
 Fork: [w] echoes the WingTurnInAlert nudge (2026-10-26)
 ------------------------------------------------
 - Asking for the wing report with the banked reward over the threshold

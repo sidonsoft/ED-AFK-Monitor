@@ -30,6 +30,20 @@ class ProjectPackagingTests(unittest.TestCase):
         self.assertIn("ships.json", copied)
 
 
+class CliDocumentationTests(unittest.TestCase):
+    def test_every_cli_flag_is_documented(self):
+        """README's launch table must list every option argparse offers;
+        a flag nobody documented is a flag nobody finds."""
+        import subprocess, sys
+        result = subprocess.run([sys.executable, str(ROOT / "afk_monitor.py"), "--help"],
+                                capture_output=True, text=True, timeout=30)
+        flags = set(re.findall(r"^\s+(--\w[\w-]*)", result.stdout, re.M))
+        self.assertGreater(len(flags), 10, "too few flags parsed from --help")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        missing = [flag for flag in sorted(flags) if flag not in readme]
+        self.assertEqual(missing, [])
+
+
 class VersionFlagTests(unittest.TestCase):
     def test_version_flag_reports_the_built_version(self):
         import subprocess, sys
