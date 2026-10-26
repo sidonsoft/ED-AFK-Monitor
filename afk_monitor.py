@@ -19,7 +19,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
-from wing_relay import fetch_spreads, push_ledger, stale_notes
+from wing_relay import fetch_spreads, push_ledger, stale_notes, start_wing_relay
 from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -100,6 +100,9 @@ def main() -> None:
     parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
     parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
     parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
+    parser.add_argument("--wing-serve", type=int, metavar="port",
+                        help="Serve wing ledgers over HTTP from this port "
+                             "(mates FetchURL/PushURL straight against this monitor)")
     parser.add_argument("--version", action="version",
                         version=f"%(prog)s ED AFK Monitor {VERSION}",
                         help="Print the program version and exit")
@@ -731,6 +734,14 @@ def main() -> None:
         args.dashboard_token = str(conf_settings.get("DashboardToken", "") or "")
     if args.dashboard_host == "127.0.0.1":
         args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
+
+    if args.wing_serve:
+        wing_relay_server, wing_relay_error = start_wing_relay(
+            args.wing_serve, config_file_path / "mission_ledger" / "wing")
+        if wing_relay_error:
+            msg.log(f"{WARNING} {wing_relay_error}")
+        else:
+            msg.log(f"Wing relay: serving mission_ledger/wing on port {args.wing_serve}")
 
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(

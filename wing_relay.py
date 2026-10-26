@@ -4,8 +4,11 @@ The relay is deliberately dumb - any host that accepts PUT (static bucket,
 nginx dav, a tiny relay) works: each ledger lands at {base}/{filename}.
 """
 from time import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import threading
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -100,3 +103,56 @@ def fetch_spread(url, timeout=5):
     if ledger.warnings or not spread.get("total"):
         return None, name, "ledger carries no missions"
     return spread, name, ""
+
+
+class _WingRelayHandler(BaseHTTPRequestHandler):
+    directory = Path(".")
+
+    def do_GET(self):
+        name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
+        if not name.endswith(".json") or not (self.directory / name).is_file():
+            self.send_response(404)
+            self.end_headers()
+            return
+        body = (self.directory / name).read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_PUT(self):
+        name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
+        if not name.endswith(".json"):
+            self.send_response(400)
+            self.end_headers()
+            return
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            json.loads(body.decode("utf-8"))  # only real ledgers on disk
+        except (ValueError, UnicodeDecodeError):
+            self.send_response(400)
+            self.end_headers()
+            return
+        (self.directory / name).write_bytes(body)
+        self.send_response(204)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+def start_wing_relay(port, directory, host="127.0.0.1"):
+    """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
+
+    Returns (server, error): bind failures come back as an error string so
+    the monitor can report them the same way it reports dashboard failures.
+    """
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    handler = type("Bound", (_WingRelayHandler,), {"directory": directory})
+    try:
+        server = ThreadingHTTPServer((host, int(port)), handler)
+    except OSError as failure:
+        return None, f"wing relay could not bind {host}:{port}: {failure}"
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, ""

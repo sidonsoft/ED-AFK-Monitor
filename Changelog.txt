@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-serve turns a monitor into the wing relay (2026-10-26)
+------------------------------------------------
+- No bucket, nginx or relay host needed: one wingmate runs
+  --wing-serve 8099; everyone else points PushURL/FetchURL at
+  http://that-machine:8099/wing. Ledgers land in mission_ledger/wing
+  and are fetchable by return. Bind failures warn, never abort.
+- Validation: 225 tests passed.
+
 Fork: relay fetch errors now say what is wrong (2026-10-26)
 ------------------------------------------------
 - A shared URL returning an HTML page or list says 'JSON top level is

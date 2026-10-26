@@ -125,6 +125,15 @@ target, quota and wing flag match. With multiple saved profiles, use
 The monitor reports completion; it does not automatically exit Elite Dangerous or
 turn in missions.
 
+## Sharing without a relay host
+
+One wingmate can host for everyone: run their monitor with `--wing-serve 8099`
+(it serves and accepts `.json` ledgers on that port). Everyone else sets
+`PushURL`/`FetchURL` to `http://<that-machine>:8099/wing` - the monitor also
+accepts PUTs, so pushed ledgers land in its `mission_ledger/wing` folder and
+are immediately fetchable. The host must be reachable (LAN, Tailscale, or port
+forward); if the port is busy at startup the monitor logs a warning and runs on.
+
 ## Sharing ledgers with wingmates
 
 Every commander keeps their own ledger; the monitor can fold copies together

@@ -1,13 +1,16 @@
 import json
 import threading
 import unittest
+import urllib.error
+from urllib.request import Request, urlopen
 from functools import partial
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import as_url_list, fetch_spread, fetch_spreads, push_ledger, stale_notes, stale_spread
+from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
+                        stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -164,3 +167,45 @@ class StaleNotesTests(unittest.TestCase):
         finally:
             wing_relay.time = original
         self.assertEqual(notes, ["ana: no updates for 30h - counts may be stale"])
+
+
+class WingServeTests(unittest.TestCase):
+    """The monitor-embedded relay (start_wing_relay) round-trips ledgers."""
+
+    def setUp(self):
+        self.folder = TemporaryDirectory()
+        self.server, error = start_wing_relay(0, self.folder.name)
+        self.assertEqual(error, "")
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}/wing"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.folder.cleanup()
+
+    def test_put_then_get_round_trip(self):
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "mate.json"
+            path.write_text(json.dumps(LEDGER), encoding="utf-8")
+            self.assertEqual(push_ledger(path, self.base, timeout=3), "")
+        spread, name, error = fetch_spread(f"{self.base}/mate.json")
+        self.assertEqual(error, "")
+        self.assertEqual((spread["total"], spread["done"], spread["left"]), (1, 0, 2))
+
+    def test_serves_existing_json_and_404s_otherwise(self):
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        spread, name, error = fetch_spread(f"{self.base}/mate.json")
+        self.assertEqual(error, "")
+        self.assertEqual(name, "mate.json")
+        spread, name, error = fetch_spread(f"{self.base}/ghost.json")
+        self.assertIsNone(spread)
+        self.assertIn("Not Found", error)
+
+    def test_rejects_non_json_paths_and_bodies(self):
+        for bad in ("notjson.txt", "x.json"):
+            request = Request(f"{self.base}/{bad}", method="PUT", data=b"hello")
+            try:
+                urlopen(request, timeout=3)
+                self.fail(f"{bad or 'x.json'}: expected 400")
+            except urllib.error.HTTPError as caught:
+                self.assertEqual(caught.code, 400)

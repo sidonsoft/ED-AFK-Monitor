@@ -224,6 +224,7 @@ You can pass the following arguments when launching AFK Monitor:
 --telegram-chat <id>                         Override Telegram chat ID
 --no-follow                                 Monitor only the selected journal
 --no-hotkeys                                Disable [s]tatus [m]issions [u]mute [w]ing hotkeys
+--wing-serve <port>                          Serve wing ledgers over HTTP (mates fetch/push here)
 --version                                      Print the version and exit
 --instance <label=folder>                 Watch several journal folders at once (repeatable)
 --plain                                     Plain text without colours, emojis or live status
