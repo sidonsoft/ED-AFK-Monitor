@@ -696,7 +696,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 thread = Thread(target=collect, daemon=True)
                 thread.start()
                 try:
-                    deadline = time.monotonic() + 15
+                    # shared CI runners (esp. congested macOS ones) can be slow
+                    # to start python; the loop exits as soon as it's up
+                    deadline = time.monotonic() + 60
                     while 'Monitor started' not in ''.join(output) and time.monotonic() < deadline:
                         time.sleep(0.2)
                     if 'Monitor started' not in ''.join(output):
