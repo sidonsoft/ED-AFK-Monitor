@@ -673,7 +673,12 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
 
                 env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
-                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', '18931', '--resetsession'],
+                import socket
+                probe = socket.socket()  # OS-allocated free port; avoids CI clashes
+                probe.bind(('127.0.0.1', 0))
+                dash_port = probe.getsockname()[1]
+                probe.close()
+                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', str(dash_port), '--resetsession'],
                                            cwd=root, env=env,
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                            text=True, stdin=subprocess.DEVNULL, encoding='utf-8')
@@ -692,8 +697,15 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     while 'Dashboard:' not in ''.join(output) and time.monotonic() < deadline:
                         time.sleep(0.2)
                     from urllib.request import urlopen
-                    with urlopen('http://127.0.0.1:18931/missions.json', timeout=5) as response:
-                        dash = json.loads(response.read())
+                    dash = None
+                    deadline = time.monotonic() + 30
+                    while dash is None and time.monotonic() < deadline:
+                        try:
+                            with urlopen(f'http://127.0.0.1:{dash_port}/missions.json', timeout=5) as response:
+                                dash = json.loads(response.read())
+                        except OSError:
+                            time.sleep(0.5)
+                    self.assertIsNotNone(dash, 'dashboard never answered')
                     # The watchdog tick that hosts periodic pushes runs ~60s
                     # after the session starts; wait it out once, here.
                     deadline = time.monotonic() + 90
