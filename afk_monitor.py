@@ -103,6 +103,9 @@ def main() -> None:
     parser.add_argument("--wing-serve", type=int, metavar="port",
                         help="Serve wing ledgers over HTTP from this port "
                              "(mates FetchURL/PushURL straight against this monitor)")
+    parser.add_argument("--wing-serve-token", metavar="token", default="",
+                        help="Require ?token=<value> on relay GETs/PUTs "
+                             "(mates append it to their PushURL/FetchURL)")
     parser.add_argument("--wing-serve-host", metavar="host", default="127.0.0.1",
                         help="Interface to bind --wing-serve to; 0.0.0.0 lets wingmates "
                              "on your LAN or mesh reach it (default 127.0.0.1)")
@@ -741,7 +744,7 @@ def main() -> None:
     if args.wing_serve:
         wing_relay_server, wing_relay_error = start_wing_relay(
             args.wing_serve, config_file_path / "mission_ledger" / "wing",
-            host=args.wing_serve_host)
+            host=args.wing_serve_host, token=args.wing_serve_token)
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:

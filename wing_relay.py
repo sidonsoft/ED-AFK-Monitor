@@ -3,12 +3,13 @@
 The relay is deliberately dumb - any host that accepts PUT (static bucket,
 nginx dav, a tiny relay) works: each ledger lands at {base}/{filename}.
 """
+from hmac import compare_digest
 from time import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 
@@ -67,7 +68,10 @@ def push_ledger(path, base_url, timeout=5):
         body = Path(path).read_bytes()
     except OSError as failure:
         return f"Could not read {path}: {failure}"
-    url = base_url.rstrip("/") + "/" + Path(path).name
+    # splice before any query string: PushURL may carry ?token= for a relay
+    base = urlsplit(base_url.rstrip("/"))
+    url = urlunsplit((base.scheme, base.netloc,
+                      base.path + "/" + Path(path).name, base.query, ""))
     try:
         with urlopen(Request(url, data=body, method="PUT",
                              headers={"Content-Type": "application/json"}), timeout=timeout) as response:
@@ -107,8 +111,20 @@ def fetch_spread(url, timeout=5):
 
 class _WingRelayHandler(BaseHTTPRequestHandler):
     directory = Path(".")
+    token = ""  # empty disables auth; mates carry it in the URL query
+
+    def _authorized(self):
+        if not self.token:
+            return True
+        from urllib.parse import parse_qs
+        supplied = parse_qs(urlsplit(self.path).query).get("token", [""])[0]
+        return compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8"))
 
     def do_GET(self):
+        if not self._authorized():
+            self.send_response(401)
+            self.end_headers()
+            return
         name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
         if not name.endswith(".json") or not (self.directory / name).is_file():
             self.send_response(404)
@@ -121,6 +137,10 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_PUT(self):
+        if not self._authorized():
+            self.send_response(401)
+            self.end_headers()
+            return
         name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
         if not name.endswith(".json"):
             self.send_response(400)
@@ -141,7 +161,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_wing_relay(port, directory, host="127.0.0.1"):
+def start_wing_relay(port, directory, host="127.0.0.1", token=""):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -149,7 +169,8 @@ def start_wing_relay(port, directory, host="127.0.0.1"):
     """
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    handler = type("Bound", (_WingRelayHandler,), {"directory": directory})
+    handler = type("Bound", (_WingRelayHandler,),
+                   {"directory": directory, "token": str(token or "")})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:

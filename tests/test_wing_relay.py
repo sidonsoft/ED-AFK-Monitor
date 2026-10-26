@@ -170,6 +170,25 @@ class StaleNotesTests(unittest.TestCase):
 
 
 class WingServeTests(unittest.TestCase):
+    def test_token_gates_get_and_put(self):
+        self.server, error = start_wing_relay(0, self.folder.name, token="secret")
+        self.assertEqual(error, "")
+        base = f"http://127.0.0.1:{self.server.server_address[1]}/wing"
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        _, _, error = fetch_spread(f"{base}/mate.json")
+        self.assertIn("Unauthorized", error)
+        spread, name, error = fetch_spread(f"{base}/mate.json?token=secret")
+        self.assertEqual(error, "")
+        self.assertEqual(spread["total"], 1)
+        # PushURL with a query token must splice the filename before the query
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "mate2.json"
+            path.write_text(json.dumps(LEDGER), encoding="utf-8")
+            self.assertEqual(push_ledger(path, f"{base}?token=secret", timeout=3), "")
+            self.assertTrue((Path(self.folder.name) / "mate2.json").is_file())
+        _, _, error = fetch_spread(f"{base}/mate2.json?token=wrong")
+        self.assertIn("Unauthorized", error)
+
     """The monitor-embedded relay (start_wing_relay) round-trips ledgers."""
 
     def setUp(self):
@@ -209,11 +228,6 @@ class WingServeTests(unittest.TestCase):
                 self.fail(f"{bad or 'x.json'}: expected 400")
             except urllib.error.HTTPError as caught:
                 self.assertEqual(caught.code, 400)
-
-    def test_unresolvable_bind_host_reports_error_not_crash(self):
-        server, error = start_wing_relay(0, self.folder.name, host="no.such.host.invalid")
-        self.assertIsNone(server)
-        self.assertIn("could not bind", error)
 
     def test_unresolvable_bind_host_reports_error_not_crash(self):
         server, error = start_wing_relay(0, self.folder.name, host="no.such.host.invalid")

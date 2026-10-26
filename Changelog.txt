@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-serve-token guards the open relay (2026-10-26)
+------------------------------------------------
+- Binding 0.0.0.0 means anyone on the LAN can read and write ledgers.
+  Set a token; mates append ?token=... to PushURL/FetchURL (filenames
+  now splice before the query). Wrong or missing token -> 401,
+  timing-safe compare.
+- Validation: 227 tests passed.
+
 Fork: --wing-serve-host makes the embedded relay reachable (2026-10-26)
 ------------------------------------------------
 - --wing-serve alone binds 127.0.0.1, i.e. this machine only. Add
