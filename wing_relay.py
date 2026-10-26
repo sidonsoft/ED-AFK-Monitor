@@ -4,10 +4,12 @@ The relay is deliberately dumb - any host that accepts PUT (static bucket,
 nginx dav, a tiny relay) works: each ledger lands at {base}/{filename}.
 """
 from hmac import compare_digest
+from datetime import datetime
 from time import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+from html import escape as html_escape
 import re
 import threading
 from pathlib import Path
@@ -275,8 +277,32 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                     except (ValueError, OSError, UnicodeDecodeError):
                         updated = entry.stat().st_mtime
                     ledgers[entry.name] = updated
+            names = sorted(ledgers)
+            if "text/html" in self.headers.get("Accept", ""):
+                # a human pasting the relay URL into a browser deserves a
+                # page, not raw JSON; machines never send Accept: text/html
+                rows = []
+                for name in names:
+                    try:
+                        when = datetime.fromtimestamp(float(ledgers[name])).strftime("%Y-%m-%d %H:%M")
+                    except (TypeError, ValueError, OSError, OverflowError):
+                        when = "unknown"
+                    rows.append(f'<tr><td><a href="{html_escape(name)}">'
+                                f"{html_escape(name)}</a></td><td>{when}</td></tr>")
+                body = ("<!doctype html><meta charset=utf-8><title>ED AFK Monitor "
+                        "wing relay</title><h2>ED AFK Monitor wing relay</h2>"
+                        f"<p>{len(names)} ledger(s) served here. "
+                        "The JSON view is the same URL without a browser Accept "
+                        "header (or via any monitor's --wing-test).</p>"
+                        "<table border=1 cellpadding=4><tr><th>ledger</th>"
+                        f"<th>last update</th></tr>{''.join(rows)}</table>").encode()
+                self._status(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k]}
-                                           for k in sorted(ledgers)]}).encode()
+                                           for k in names]}).encode()
             self._status(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()

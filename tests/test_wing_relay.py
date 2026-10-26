@@ -260,6 +260,17 @@ class WingServeTests(unittest.TestCase):
         self.assertTrue((Path(self.folder.name) / "envmate.json").exists())
         server.shutdown()
 
+    def test_browser_gets_a_landing_page_json_gets_the_list(self):
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        html_req = Request(f"{self.base}/", headers={"Accept": "text/html"})
+        with urlopen(html_req, timeout=3) as response:
+            page = response.read().decode("utf-8")
+            self.assertIn("text/html", response.headers.get("Content-Type"))
+        self.assertIn("<a href=\"mate.json\">mate.json</a>", page)
+        self.assertIn("ledger(s) served here", page)
+        with urlopen(f"{self.base}/", timeout=3) as response:
+            self.assertEqual(response.headers.get("Content-Type"), "application/json")
+
     def test_same_ledger_via_two_urls_counts_once(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         spreads, errors = fetch_spreads([f"{self.base}/", f"{self.base}/mate.json"], timeout=3)

@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: pasting the relay URL in a browser shows a real page (2026-10-26)
+------------------------------------------------
+- Accept: text/html on the listing URL renders a small page: ledger
+  links (click to view each), last-update times, and a note on where
+  the JSON view went. Machine clients never send that header, so
+  monitors keep getting pure JSON from the same URL.
+- Validation: 257 tests passed.
+
 Fork: broken wing URLs are flagged at startup, not per-summary (2026-10-26)
 ------------------------------------------------
 - 'host:8099/wing' (missing scheme) and 'ftp://...' entries now warn
