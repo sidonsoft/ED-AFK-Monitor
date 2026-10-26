@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: multiple wingmates per summary (Wing relay follow-ups) (2026-10-26)
+------------------------------------------------
+- '[Wing] FetchURL' is now a list: several wingmate ledgers merge into one
+  wing view; a fully or partly down relay still folds in what answered.
+- '--set/--save Wing.PushURL=... / Wing.FetchURL=[...]' now reach the Wing
+  section too (typed like every other setting).
+- Validation: 204 tests passed.
+
 Fork: hands-free wing relay for the live monitor (2026-10-26)
 ------------------------------------------------
 - '[Wing] PushURL' in the config: the monitor pushes its ledger to the relay

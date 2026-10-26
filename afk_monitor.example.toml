@@ -116,9 +116,9 @@ URL = ''
 
 [Wing]
 # Relay any host that accepts HTTP PUT; each ledger lands at {PushURL}/{file}.
-# FetchURL points at one wingmate ledger to fold into summaries (SummaryMissions = 3).
+# FetchURL: list of wingmate ledger URLs folded into summaries (SummaryMissions = 3).
 PushURL = ''
-FetchURL = ''
+FetchURL = []
 
 [Webhook]
 # Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks

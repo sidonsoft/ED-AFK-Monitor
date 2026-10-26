@@ -646,7 +646,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 config = config.replace('LiveStatus = true', 'LiveStatus = false')
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
-                config = config.replace("FetchURL = ''", f"FetchURL = 'http://127.0.0.1:{port}/wing/mate.json'")
+                config = config.replace("FetchURL = []", f"FetchURL = ['http://127.0.0.1:{port}/wing/mate.json', 'http://127.0.0.1:{port}/wing/nobody.json']")
                 (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
                 ledgers = root / 'mission_ledger'
                 ledgers.mkdir()
@@ -695,6 +695,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 thread.join(timeout=2)
                 combined = ''.join(output)
                 self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
+                self.assertIn('Wing relay fetch', combined)  # the missing URL warns once
                 self.assertIn('/wing/default.json', store)
                 pushed = json.loads(store['/wing/default.json'])
                 self.assertEqual(pushed['missions'][0]['id'], 4242)

@@ -19,7 +19,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
-from wing_relay import fetch_spread, push_ledger
+from wing_relay import fetch_spreads, push_ledger
 from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -163,12 +163,10 @@ def main() -> None:
         paths = ledger_paths(directory)
         wings = wing_spreads(Path(directory) / "wing") if wing else []
         if wing:
-            for url in wing_urls:
-                spread, name, error = fetch_spread(url)
-                if error:
-                    msg.log(f"{WARNING} Wing ledger {url}: {error}")
-                else:
-                    wings.append((name, spread))
+            fetched, errors = fetch_spreads(wing_urls)
+            wings.extend(fetched)
+            for error in errors:
+                msg.log(f"{WARNING} Wing ledger {error}")
         if as_json:
             data = []
             for path in paths:
@@ -533,7 +531,7 @@ def main() -> None:
     conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
     conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
-    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": ""}, False)
+    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": []}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -549,7 +547,8 @@ def main() -> None:
             cli_overrides += persisted
     for conf, section in ((conf_settings, "Settings"), (conf_discord, "Discord"),
                           (conf_log_levels, "LogLevels"), (conf_telegram, "Telegram"),
-                          (conf_ntfy, "Ntfy"), (conf_webhook, "Webhook")):
+                          (conf_ntfy, "Ntfy"), (conf_webhook, "Webhook"),
+                          (conf_wing, "Wing")):
         apply_overrides(conf, section, cli_overrides, _override_warning)
 
     telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
@@ -1428,13 +1427,11 @@ def main() -> None:
             if mission_level >= 3:
                 wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
                 if conf_wing["FetchURL"]:
-                    spread, name, error = fetch_spread(conf_wing["FetchURL"])
-                    if not error:
-                        track.relay_warned = False
-                        wings.append((name, spread))
-                    elif not track.relay_warned:
-                        track.relay_warned = True
-                        msg.log(f"{WARNING} Wing relay fetch: {error}")
+                    fetched, errors = fetch_spreads(conf_wing["FetchURL"])
+                    wings.extend(fetched)
+                    if errors and not track.relay_warned:
+                        msg.log(f"{WARNING} Wing relay fetch: {'; '.join(errors)}")
+                    track.relay_warned = bool(errors)
                 if wings:
                     local = mission_ledger.spread()
                     combined = merge_spreads(([local] if local and local.get("total") else [])

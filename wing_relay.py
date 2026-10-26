@@ -8,6 +8,25 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 
+def as_url_list(value):
+    """Accept one URL string or a list of them; ignore blanks."""
+    if isinstance(value, str):
+        value = [value]
+    return [str(url).strip() for url in value if str(url).strip()]
+
+
+def fetch_spreads(urls, timeout=5):
+    """Fetch every URL; returns ([(name, spread)], [error strings])."""
+    spreads, errors = [], []
+    for url in as_url_list(urls):
+        spread, name, error = fetch_spread(url, timeout=timeout)
+        if error:
+            errors.append(f"{url}: {error}")
+        else:
+            spreads.append((name, spread))
+    return spreads, errors
+
+
 def push_ledger(path, base_url, timeout=5):
     """PUT one ledger file under base_url; returns '' or an error string."""
     try:
