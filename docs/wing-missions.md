@@ -131,7 +131,9 @@ One wingmate can host for everyone: run their monitor with `--wing-serve 8099`
 (it serves and accepts `.json` ledgers on that port). Everyone else sets
 `PushURL`/`FetchURL` to `http://<that-machine>:8099/wing` - the monitor also
 accepts PUTs, so pushed ledgers land in its `mission_ledger/wing` folder and
-are immediately fetchable. The host must be reachable (LAN, Tailscale, or port
+are immediately fetchable. `--wing-serve` alone binds to 127.0.0.1, so add
+`--wing-serve-host 0.0.0.0` (or a specific interface address) for wingmates on
+other machines; the host must be reachable (LAN, Tailscale, or port
 forward); if the port is busy at startup the monitor logs a warning and runs on.
 
 ## Sharing ledgers with wingmates

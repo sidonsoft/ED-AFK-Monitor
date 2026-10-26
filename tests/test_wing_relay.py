@@ -209,3 +209,13 @@ class WingServeTests(unittest.TestCase):
                 self.fail(f"{bad or 'x.json'}: expected 400")
             except urllib.error.HTTPError as caught:
                 self.assertEqual(caught.code, 400)
+
+    def test_unresolvable_bind_host_reports_error_not_crash(self):
+        server, error = start_wing_relay(0, self.folder.name, host="no.such.host.invalid")
+        self.assertIsNone(server)
+        self.assertIn("could not bind", error)
+
+    def test_unresolvable_bind_host_reports_error_not_crash(self):
+        server, error = start_wing_relay(0, self.folder.name, host="no.such.host.invalid")
+        self.assertIsNone(server)
+        self.assertIn("could not bind", error)

@@ -103,6 +103,9 @@ def main() -> None:
     parser.add_argument("--wing-serve", type=int, metavar="port",
                         help="Serve wing ledgers over HTTP from this port "
                              "(mates FetchURL/PushURL straight against this monitor)")
+    parser.add_argument("--wing-serve-host", metavar="host", default="127.0.0.1",
+                        help="Interface to bind --wing-serve to; 0.0.0.0 lets wingmates "
+                             "on your LAN or mesh reach it (default 127.0.0.1)")
     parser.add_argument("--version", action="version",
                         version=f"%(prog)s ED AFK Monitor {VERSION}",
                         help="Print the program version and exit")
@@ -737,11 +740,13 @@ def main() -> None:
 
     if args.wing_serve:
         wing_relay_server, wing_relay_error = start_wing_relay(
-            args.wing_serve, config_file_path / "mission_ledger" / "wing")
+            args.wing_serve, config_file_path / "mission_ledger" / "wing",
+            host=args.wing_serve_host)
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:
-            msg.log(f"Wing relay: serving mission_ledger/wing on port {args.wing_serve}")
+            msg.log(f"Wing relay: serving mission_ledger/wing on "
+                    f"{args.wing_serve_host}:{args.wing_serve}")
 
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(

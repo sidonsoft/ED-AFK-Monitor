@@ -225,6 +225,7 @@ You can pass the following arguments when launching AFK Monitor:
 --no-follow                                 Monitor only the selected journal
 --no-hotkeys                                Disable [s]tatus [m]issions [u]mute [w]ing hotkeys
 --wing-serve <port>                          Serve wing ledgers over HTTP (mates fetch/push here)
+--wing-serve-host <host>                     Relay bind address; 0.0.0.0 = reachable by wingmates
 --version                                      Print the version and exit
 --instance <label=folder>                 Watch several journal folders at once (repeatable)
 --plain                                     Plain text without colours, emojis or live status
