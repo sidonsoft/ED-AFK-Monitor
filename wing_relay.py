@@ -451,6 +451,16 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_HEAD(self):
+        # uptime checks and 'is this the right port?' pings without a body;
+        # same token rule as GET so a probe can't sidestep auth
+        if not self._authorized():
+            self._status(401)
+            self.end_headers()
+            return
+        self._status(200)
+        self.end_headers()
+
     def _trouble(self, name, why):
         self.trouble.appendleft((name, why, int(time())))
         if self.on_reject:

@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay answers HEAD requests (2026-10-26)
+------------------------------------------------
+- 'curl -I http://host:8099/wing/' now works as an uptime/port check:
+  200 when the token in the URL is right, 401 when it is not - HEAD
+  cannot sidestep the token rule.
+- Validation: 277 tests passed.
+
 Fork: ServeDir understood '~/...' like any service file should (2026-10-26)
 ------------------------------------------------
 - '[Wing] ServeDir = "~/shared-wing"' and '--wing-serve-dir ~/x' now

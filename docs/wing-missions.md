@@ -152,7 +152,7 @@ slower, so `[Wing] FetchTimeout = 10` buys patience (per URL, both live and
 last-save time - the fastest way to prove a URL (or a token) works.
 
 A token-gated relay can also take the secret as a header, keeping it out of
-shell history and proxy logs: `curl -H 'X-Wing-Token: sekret'
+shell history and proxy logs: ``curl -I http://<host>:8099/wing/?token=sekret` answers 200 as a port/uptime check; curl -H 'X-Wing-Token: sekret'
 http://<host>:8099/wing/`. The 401 body names both forms; the monitor's own
 `FetchURL`/`PushURL` configs keep using `?token=` in the URL.
 

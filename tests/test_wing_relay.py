@@ -747,3 +747,31 @@ class VanishedLedgerTests(unittest.TestCase):
                 self.fail("vanished mid-read should 404")
             except urllib.error.HTTPError as caught:
                 self.assertEqual(caught.code, 404)
+
+
+class HeadProbeTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = TemporaryDirectory()
+        self.server, error = start_wing_relay(0, self.folder.name)
+        self.assertEqual(error, "")
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.folder.cleanup()
+
+    def test_head_answers_auth_or_204_style_empty_200(self):
+        import http.client
+        conn = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=3)
+        conn.request("HEAD", "/wing/")
+        response = conn.getresponse()
+        self.assertEqual(response.status, 200)  # setUp relay has no token
+        conn.close()
+        with TemporaryDirectory() as served:
+            tokened, error = start_wing_relay(0, served, token="sekret")
+            self.assertEqual(error, "")
+            conn = http.client.HTTPConnection("127.0.0.1", tokened.server_address[1], timeout=3)
+            conn.request("HEAD", "/wing/")
+            self.assertEqual(conn.getresponse().status, 401)
+            conn.close()
+            tokened.shutdown()
