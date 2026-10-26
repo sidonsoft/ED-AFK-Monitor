@@ -2,7 +2,7 @@ name: Trusted Mac builds
 
 on:
   push:
-    branches: [main, ci/trusted-macos-runner]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,7 @@ concurrency:
 jobs:
   test-and-build:
     # PR checks stay in tests.yml on GitHub-hosted runners. Never check out a PR here.
-    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/ci/trusted-macos-runner' && github.actor == 'sidonsoft')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Trusted macOS ARM64 / Python ${{ matrix.python }}
     runs-on: [ed-afk-trusted-macos-arm64]
     timeout-minutes: 20
