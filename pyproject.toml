@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ed-afk-monitor"
-version = "261031"  # keep in sync with afk_monitor.VERSION (release tags are v261017)
+version = "261032"  # keep in sync with afk_monitor.VERSION (release tags are v261017)
 description = "Journal monitor for Elite Dangerous AFK farming: live stats, mission spread, alerts and session history"
 readme = "README.md"
 requires-python = ">=3.12"
