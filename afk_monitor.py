@@ -678,6 +678,11 @@ def main() -> None:
                 int((datetime.now(timezone.utc) - track.deploytime).total_seconds()))
         return payload
 
+    def dashboard_sessions():
+        """Recent runs plus lifetime aggregates for the sessions panel."""
+        return {"sessions": session_history.sessions(limit=10),
+                "totals": session_history.totals()}
+
     def dashboard_missions():
         data = mission_ledger.spread()
         if int(conf_log_levels.get("SummaryMissions", 0)) >= 3:
@@ -698,7 +703,7 @@ def main() -> None:
             dashboard_live,
             dashboard_missions,
             args.dashboard_token, args.dashboard_host,
-            sessions_provider=lambda: session_history.sessions(limit=10))
+            sessions_provider=dashboard_sessions)
         if dashboard_error:
             msg.log(f"{WARNING} Dashboard: {dashboard_error}")
         else:

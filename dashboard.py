@@ -82,17 +82,24 @@ fetch('missions.json' + query).then(r => r.json()).then(d => {
     document.getElementById('wing').innerHTML = w;
   }
 });
-fetch('sessions.json' + query).then(r => r.ok ? r.json() : null).then(rows => {
-  if (!rows || !rows.length) return;
+fetch('sessions.json' + query).then(r => r.ok ? r.json() : null).then(payload => {
+  const rows = Array.isArray(payload) ? payload : (payload && payload.sessions) || [];
+  const totals = (payload && payload.totals) || null;
+  if (!rows.length && !totals) return;
   document.getElementById('sessionspanel').hidden = false;
   const dur = s => s >= 3600 ? (s / 3600).toFixed(1) + 'h' : Math.round(s / 60) + 'm';
+  let head = '';
+  if (totals && totals.runs)
+    head = '<p>' + fmt(totals.runs) + ' saved session(s) · ' + dur(totals.duration)
+      + ' · ' + fmt(totals.kills) + ' kills (' + fmt(totals.kills_hour) + '/h) · '
+      + fmt(totals.bounties) + ' cr (' + fmt(totals.bounties_hour) + '/h)</p>';
   document.getElementById('sessions').innerHTML =
-    '<table><tr><th>started</th><th>time</th><th>kills</th><th>bounties</th>'
+    head + (rows.length ? '<table><tr><th>started</th><th>time</th><th>kills</th><th>bounties</th>'
     + '<th>missions</th></tr>' + rows.map(row =>
       '<tr><td>' + esc(new Date(row.started * 1000).toLocaleString()) + '</td><td>'
       + dur(row.duration) + '</td><td>' + fmt(row.kills) + '</td><td>' + fmt(row.bounties)
       + '</td><td>' + (row.missions_total ? row.missions_done + '/' + row.missions_total : '-')
-      + '</td></tr>').join('') + '</table>';
+      + '</td></tr>').join('') + '</table>' : '');
 });
 </script></body></html>
 """

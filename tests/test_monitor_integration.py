@@ -723,7 +723,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     self.assertIn('updated', live)
                     self.assertIn('total_time', live)
                     with urlopen(f'http://127.0.0.1:{dash_port}/sessions.json', timeout=5) as response:
-                        self.assertIsInstance(json.loads(response.read()), list)
+                        hist = json.loads(response.read())
+                    self.assertIsInstance(hist['sessions'], list)
+                    self.assertIn('kills_hour', hist['totals'])  # lifetime aggregates ride along
                     with urlopen(f'http://127.0.0.1:{dash_port}/', timeout=5) as response:
                         page = response.read().decode('utf-8')
                     self.assertIn('id="wingpanel"', page)  # the rendered page ships too

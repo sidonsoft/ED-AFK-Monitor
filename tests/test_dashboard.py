@@ -86,11 +86,14 @@ class SessionPanelTests(unittest.TestCase):
         rows = [{"started": 1761000000.0, "ended": 1761003600.0, "duration": 3600.0,
                  "kills": 12, "scans": 4, "bounties": 250000, "merits": 1,
                  "missions_done": 1, "missions_total": 3, "journal": "J", "gamemode": "Open"}]
-        server, error = start_dashboard(0, *PROVIDERS, sessions_provider=lambda: rows)
+        payload = {"sessions": rows, "totals": {"runs": 1, "duration": 3600.0, "kills": 12,
+                                                "scans": 4, "bounties": 250000, "merits": 1,
+                                                "kills_hour": 12.0, "bounties_hour": 250000}}
+        server, error = start_dashboard(0, *PROVIDERS, sessions_provider=lambda: payload)
         self.assertEqual(error, "")
         port = server.server_address[1]
         try:
-            self.assertEqual(json.loads(get(port, "/sessions.json")[1]), rows)
+            self.assertEqual(json.loads(get(port, "/sessions.json")[1]), payload)
         finally:
             server.shutdown()
             server.server_close()

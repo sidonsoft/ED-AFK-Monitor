@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: sessions panel gains lifetime totals (2026-10-26)
+------------------------------------------------
+- /sessions.json now returns {sessions, totals}; the panel heads the
+  table with 'N saved session(s) · Xh · K kills (k/h) · B cr (b/h)'
+  using the same aggregates as --history.
+- The JS also tolerates the old bare-list payload, so custom providers
+  keep rendering.
+- Validation: 213 tests passed.
+
 Fork: dashboard live panel gains time context (2026-10-26)
 ------------------------------------------------
 - /live.json now carries session and total run time plus an 'updated'
