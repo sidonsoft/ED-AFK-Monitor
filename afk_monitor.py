@@ -100,6 +100,9 @@ def main() -> None:
     parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
     parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
     parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s ED AFK Monitor {VERSION}",
+                        help="Print the program version and exit")
     parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
     parser.add_argument("--wing-url", action="append", default=[], metavar="URL",
                         help="With --wing, also merge ledgers fetched from these URLs (repeatable)")

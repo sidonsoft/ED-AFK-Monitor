@@ -28,3 +28,14 @@ class ProjectPackagingTests(unittest.TestCase):
         for module in self.modules():
             self.assertIn(f"{module}.py", copied)
         self.assertIn("ships.json", copied)
+
+
+class VersionFlagTests(unittest.TestCase):
+    def test_version_flag_reports_the_built_version(self):
+        import subprocess, sys
+        result = subprocess.run([sys.executable, str(ROOT / "afk_monitor.py"), "--version"],
+                                capture_output=True, text=True, timeout=30, cwd=ROOT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        version = re.search(r"VERSION = (\d+)", (ROOT / "afk_monitor.py").read_text(encoding="utf-8")).group(1)
+        self.assertIn(version, result.stdout)
+        self.assertIn("ED AFK Monitor", result.stdout)

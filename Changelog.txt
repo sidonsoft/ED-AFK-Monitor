@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --version flag (2026-10-26)
+------------------------------------------------
+- afk_monitor.py --version prints the build number and exits before
+  touching journals or config - handy for support requests and for
+  checking which build a service is actually running.
+- Validation: 219 tests passed.
+
 Fork: journal drift check gains a user ignore list (2026-10-26)
 ------------------------------------------------
 - DriftIgnore = [] under [Settings]: event names you accept as known
