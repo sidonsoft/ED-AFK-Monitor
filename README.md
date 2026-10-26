@@ -2,11 +2,17 @@
 
 Real-time monitoring of Elite Dangerous journal files for logging AFK massacre farming events as they happen. Output is to terminal, Telegram, Discord channel/thread or Discord with a user ping and each level can be configured on a per-event basis.
 
-| Terminal output | Discord output |
-| --- | --- |
-| ![Terminal](images/v250205_terminal.png) | ![Discord](images/v250205_discord.png) |
+**Terminal mission stack report**
 
-*Screenshots of a simulated log being monitored*
+![Terminal mission report showing issuer stacks, estimated kills and reward totals](images/wing-stacks-terminal.png)
+
+**Discord session message preview**
+
+![Discord message preview showing mission stack progress and shareable rewards](images/wing-stacks-discord.png)
+
+*Simulated mission data rendered with the current report functions. Discord styling
+is illustrative; these examples do not send notifications. See
+[regenerating the previews](docs/screenshots.md) to refresh them after report changes.*
 
 ## Contents
 - [Elite Dangerous AFK Monitor](#elite-dangerous-afk-monitor)
