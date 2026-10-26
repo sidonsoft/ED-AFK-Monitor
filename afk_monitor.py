@@ -47,7 +47,7 @@ def fallover(message):
 # Internals
 DEBUG_MODE = False
 DISCORD_TEST = False
-VERSION = 261041
+VERSION = 261042
 DEFAULT_REPO = "sidonsoft/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
