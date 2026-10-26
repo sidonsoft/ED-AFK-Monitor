@@ -19,6 +19,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
+from wing_relay import fetch_spread, push_ledger
 from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -99,6 +100,10 @@ def main() -> None:
     parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
     parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
     parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
+    parser.add_argument("--wing-url", action="append", default=[], metavar="URL",
+                        help="With --wing, also merge ledgers fetched from these URLs (repeatable)")
+    parser.add_argument("--wing-push", action="append", default=[], metavar="BASE_URL",
+                        help="Upload local ledgers as {base}/{file} over HTTP PUT, then exit (repeatable)")
     parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
     parser.add_argument("--export", metavar="file", help="With --history, write sessions to a .json/.csv file or a .png recap card (profile name is appended)")
     parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")
@@ -154,9 +159,16 @@ def main() -> None:
                     f" · {data['left']} left · {data['turn_in']:,} cr ready")
 
 
-    def show_mission_ledgers(directory, as_json=False, wing=False):
+    def show_mission_ledgers(directory, as_json=False, wing=False, wing_urls=()):
         paths = ledger_paths(directory)
         wings = wing_spreads(Path(directory) / "wing") if wing else []
+        if wing:
+            for url in wing_urls:
+                spread, name, error = fetch_spread(url)
+                if error:
+                    msg.log(f"{WARNING} Wing ledger {url}: {error}")
+                else:
+                    wings.append((name, spread))
         if as_json:
             data = []
             for path in paths:
@@ -276,8 +288,27 @@ def main() -> None:
         sys.exit(import_missions(config_file_path / "mission_ledger",
                                  args.import_missions, args.profile))
 
+    if args.wing_push:
+        ledger_dir = config_file_path / "mission_ledger"
+        paths = ledger_paths(ledger_dir)
+        if not paths:
+            msg.log("No local ledgers to push; run the monitor with missions first.")
+            sys.exit(1)
+        pushed, failed = 0, 0
+        for base in args.wing_push:
+            for path in paths:
+                failure = push_ledger(path, base)
+                if failure:
+                    failed += 1
+                    msg.log(f"{WARNING} {failure}")
+                else:
+                    pushed += 1
+                    msg.log(f"Pushed {path.name} to {base}")
+        sys.exit(1 if failed and not pushed else 0)
+
     if args.missions:
-        show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json, wing=args.wing)
+        show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json, wing=args.wing,
+                             wing_urls=args.wing_url)
         sys.exit()
 
     if args.history:

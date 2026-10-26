@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing ledger relay over HTTP (2026-10-26)
+------------------------------------------------
+- '--wing-push <base_url>' uploads local mission ledgers (HTTP PUT to
+  {base}/{file}); any PUT-capable host works - bucket, nginx dav, tiny relay.
+- '--wing-url <url>' (repeatable) fetches wingmate ledgers back into the
+  '--missions --wing' combined view; fetch failures warn, never crash.
+- Completes roadmap item 13 (shared folders still work unchanged).
+- Validation: 201 tests passed.
+
 Fork: config persistence with --save (2026-10-26)
 ------------------------------------------------
 - '--save Section.Key=value' writes typed values back into afk_monitor.toml

@@ -204,6 +204,8 @@ You can pass the following arguments when launching AFK Monitor:
 --plain                                     Plain text without colours, emojis or live status
 --missions                                  Print saved massacre-mission spread and exit
 --wing                                      With --missions, merge shared wing ledgers
+--wing-url <URL>                           With --wing, also merge ledgers fetched from a relay (repeatable)
+--wing-push <BASE_URL>                     Upload local ledgers to a relay (HTTP PUT), then exit
 --history                                   Print saved session history and exit
 --json                                      With --missions/--history, print JSON output
 --import-missions <file>                    Import a mission list (CSV or text) and exit

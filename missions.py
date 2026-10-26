@@ -801,10 +801,12 @@ class MissionLedger:
         if not self.path.is_file():
             return
         try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
+            self.load_data(json.loads(self.path.read_text(encoding="utf-8")))
         except (OSError, ValueError):
             self.warnings.append(f"Missions: ignoring unreadable ledger {self.path.name}")
-            return
+
+    def load_data(self, data):
+        """Load a ledger payload (file dict); used for local files and fetched copies."""
         if not isinstance(data, dict) or data.get("version") != FILE_VERSION:
             self.warnings.append(f"Missions: ignoring unrecognised ledger {self.path.name}")
             return

@@ -47,4 +47,5 @@ py-modules = [
     "session_store",
     "ship_pools",
     "terminal_output",
+    "wing_relay",
 ]

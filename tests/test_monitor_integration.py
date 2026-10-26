@@ -72,7 +72,8 @@ class MonitorIntegrationTests(unittest.TestCase):
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
                             'monitor_state.py', 'hotkeys.py',
-                            'instance_runner.py', 'config_edit.py'):
+                            'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8').replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
@@ -190,7 +191,8 @@ class SetupIntegrationTests(unittest.TestCase):
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
                             'monitor_state.py', 'hotkeys.py',
-                            'instance_runner.py', 'config_edit.py'):
+                            'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
             shutil.copyfile(ROOT / name, root / name)
         (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
 
@@ -246,7 +248,8 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
                             'monitor_state.py', 'hotkeys.py',
-                            'instance_runner.py', 'config_edit.py'):
+                            'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -323,7 +326,8 @@ class MissionBackfillIntegrationTests(unittest.TestCase):
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
                             'monitor_state.py', 'hotkeys.py',
-                            'instance_runner.py', 'config_edit.py'):
+                            'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -389,7 +393,8 @@ class MissionImportIntegrationTests(unittest.TestCase):
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
                             'monitor_state.py', 'hotkeys.py',
-                            'instance_runner.py', 'config_edit.py'):
+                            'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'missions.csv').write_text(
                 'Target Faction,Kills,Wing\nLords of Ngaliba,40,yes\nNgaliba Blue Boys,30,no\n',
@@ -424,7 +429,8 @@ class MultiInstanceIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                          'journal_schema.py', 'config_overrides.py',
                          'session_card.py', 'dashboard.py', 'monitor_state.py',
-                         'hotkeys.py', 'instance_runner.py', 'config_edit.py'):
+                         'hotkeys.py', 'instance_runner.py', 'config_edit.py',
+                            'wing_relay.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -500,3 +506,79 @@ class MultiInstanceIntegrationTests(unittest.TestCase):
             # 2 channels (discord + telegram preview) x 2 instances
             self.assertEqual(combined.count('Monitor started'), 4)
             self.assertIn('Stopping all instances', combined)
+
+
+class WingRelayIntegrationTests(unittest.TestCase):
+    """--wing-push uploads ledgers, --wing-url fetches them back through a real HTTP relay."""
+
+    def test_push_and_fetch_round_trip(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from missions import FILE_VERSION
+        store = {}
+
+        class RelayHandler(BaseHTTPRequestHandler):
+            def do_PUT(self):
+                size = int(self.headers.get("Content-Length", 0))
+                store[self.path] = self.rfile.read(size)
+                self.send_response(204)
+                self.end_headers()
+
+            def do_GET(self):
+                body = store.get(self.path)
+                if body is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
+                         'terminal_output.py', 'outbox.py', 'missions.py',
+                         'ship_pools.py', 'ships.json', 'session_store.py',
+                         'journal_schema.py', 'config_overrides.py', 'config_edit.py',
+                         'session_card.py', 'dashboard.py', 'monitor_state.py',
+                         'hotkeys.py', 'instance_runner.py', 'config_edit.py',
+                         'wing_relay.py'):
+                shutil.copyfile(ROOT / name, root / name)
+            (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+            config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
+            config = config.replace('LiveStatus = true', 'LiveStatus = false')
+            (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
+            ledgers = root / 'mission_ledger'
+            ledgers.mkdir()
+            ledger = {"version": FILE_VERSION, "commander": "Relay One", "profile": "",
+                      "updated": 0,
+                      "missions": [{"id": 4242, "name": "Clean", "faction": "Security",
+                                    "target": "Pirates", "kill_count": 5, "wing": True,
+                                    "expiry": "", "reward": 100000, "accepted": 1761000000.0,
+                                    "kills": 3, "done": False, "known": True}]}
+            (ledgers / "default.json").write_text(json.dumps(ledger), encoding="utf-8")
+            relay = HTTPServer(("127.0.0.1", 0), RelayHandler)
+            port = relay.server_address[1]
+            Thread(target=relay.serve_forever, daemon=True).start()
+            env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
+            try:
+                push = subprocess.run([sys.executable, 'afk_monitor.py', '--wing-push',
+                                       f'http://127.0.0.1:{port}/wing', '--plain'],
+                                      cwd=root, env=env, capture_output=True, text=True,
+                                      timeout=30, stdin=subprocess.DEVNULL)
+                self.assertIn('Pushed default.json', push.stdout + push.stderr)
+                self.assertIn('/wing/default.json', store)
+
+                view = subprocess.run([sys.executable, 'afk_monitor.py', '--plain', '--missions', '--wing',
+                                       '--wing-url', f'http://127.0.0.1:{port}/wing/default.json'],
+                                      cwd=root, env=env, capture_output=True, text=True,
+                                      timeout=30, stdin=subprocess.DEVNULL)
+                combined = view.stdout + view.stderr
+                self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
+                self.assertIn('4 kills left across the wing', combined)
+            finally:
+                relay.shutdown()
+                relay.server_close()
