@@ -18,21 +18,19 @@ jobs:
   tests:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # timeout-minutes includes QUEUE time, and a busy pool can hold jobs
-    # queued for an hour. Cancelled-before-start jobs never reach the retry
-    # wrapper (nothing runs), so the budget must absorb realistic queueing;
-    # healthy suites still finish in ~3 minutes.
-    timeout-minutes: 90
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        # macOS coverage runs on the dedicated trusted runner
-        # (trusted-macos.yml); hosted macos pools are congestion-prone
-        os: [ubuntu-latest, windows-latest]
+        # Trusted main builds have dedicated macOS coverage in trusted-macos.yml.
+        # PR code continues to run only on disposable GitHub-hosted machines.
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest","windows-latest"]') }}
         python: ['3.12', '3.13']
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python }}
       - name: Install optional extras used by card rendering
