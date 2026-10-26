@@ -33,6 +33,8 @@ def load_hotkey(serve_label, wings=(), errors=None, local_total=3, turn_in=25000
             "turn_in": turn_in, "rows": []}})(),
         "merge_spreads": merge_spreads,
         "wing_serve_label": serve_label,
+        "wing_serve_dirs": [],
+        "served_count": lambda dirs: 2,
     }
     exec(body, namespace)
     return namespace["hotkey_wing_report"]()
@@ -55,6 +57,7 @@ class HotkeyWingRelayTests(unittest.TestCase):
     def test_relay_address_named_when_serving(self):
         text = load_hotkey("0.0.0.0:8099")
         self.assertIn("serves the wing on 0.0.0.0:8099", text)
+        self.assertIn("(2 ledgers)", text)
         self.assertIn("250,000 Cr ready", text)
         self.assertIn("no updates for 30h", text)
 

@@ -2,6 +2,12 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the [w] hotkey counts the ledgers it serves (2026-10-26)
+------------------------------------------------
+- 'this monitor serves the wing on 0.0.0.0:8099 (3 ledgers)' - console
+  and dashboard now report the relay's load identically.
+- Validation: 244 tests passed.
+
 Fork: the dashboard shows how full the relay is (2026-10-26)
 ------------------------------------------------
 - 'relay 0.0.0.0:8099 · 3 ledger(s) on the relay' - the host sees its

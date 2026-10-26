@@ -1452,7 +1452,8 @@ def main() -> None:
         for error in errors:
             text += f"\nWing relay fetch: {error}"
         if wing_serve_label:
-            text += f"\n  this monitor serves the wing on {wing_serve_label}"
+            text += (f"\n  this monitor serves the wing on {wing_serve_label}"
+                     f" ({served_count(wing_serve_dirs)} ledgers)")
         return text
 
     def hotkey_missions_report():
