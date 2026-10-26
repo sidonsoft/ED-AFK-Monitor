@@ -5,7 +5,6 @@ comes from a provider callable supplied by the monitor, so this module has
 no state of its own and cannot block the journal loop.
 """
 import json
-import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -70,20 +69,15 @@ def make_handler(live_provider, missions_provider, token=""):
     return DashboardHandler
 
 
-class ExclusiveServer(ThreadingHTTPServer):
-    """Windows happily rebinds an in-use port; take it exclusively there."""
+class DashboardServer(ThreadingHTTPServer):
+    """Daemon threads so monitor shutdown is never blocked by the dashboard."""
     daemon_threads = True
-
-    def server_bind(self):
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
 
 
 def start_dashboard(port, live_provider, missions_provider, token="", host="127.0.0.1"):
     """Start the daemon-threaded server; returns (server, error_message)."""
     try:
-        server = ExclusiveServer((host, port),
+        server = DashboardServer((host, port),
                                  make_handler(live_provider, missions_provider, token))
     except OSError as failure:
         return None, f"Could not start dashboard on {host}:{port}: {failure}"
