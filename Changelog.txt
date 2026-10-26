@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: embeds surface wing warnings too (staleness parity) (2026-10-26)
+------------------------------------------------
+- The Discord mission embed's 'Wing view' field now lists fetch failures
+  and stale-wingmate notes beneath the combined totals - the last wing
+  surface that used to hide them.
+- Validation: 211 tests passed.
+
 Fork: dashboard renders readable panels, not JSON walls (2026-10-26)
 ------------------------------------------------
 - The --dashboard page now shows session/total stat tables, a mission

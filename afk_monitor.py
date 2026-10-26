@@ -1477,7 +1477,8 @@ def main() -> None:
                 out_terminal += f"\n\n{mission_text}"
                 if mission_level >= 2:
                     out_telegram += f"\n\n{mission_text}"
-                    embed = (mission_ledger.report_embed(projection_line, wing_combined, len(wing_wings))
+                    embed = (mission_ledger.report_embed(projection_line, wing_combined, len(wing_wings),
+                                                         wing_errors)
                              if not live and conf_discord["DiscordEmbeds"] else None)
                     if embed:
                         out_discord = {"text": out_discord, "embeds": [embed]}

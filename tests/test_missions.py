@@ -517,7 +517,8 @@ class MissionEmbedTests(unittest.TestCase):
             embed = self.ledger(folder).report_embed(
                 "Projection at current rate: 1,000 cr/h",
                 {"done": 1, "total": 3, "wing": 1, "left": 7, "reward": 0, "shareable_reward": 0,
-                 "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 2, "rows": []}, 1)
+                 "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 2, "rows": [],
+                 "updated": 0}, 1, ["ana: no updates for 30h - counts may be stale"])
             self.assertIn("Mission spread", embed["title"])
             self.assertIn("Ready to turn in", embed["description"])
             names = [field["name"] for field in embed["fields"]]
@@ -527,6 +528,7 @@ class MissionEmbedTests(unittest.TestCase):
             wing_field = next(f for f in embed["fields"] if f["name"] == "Wing view")
             self.assertIn("local + 1 shared ledger(s)", wing_field["value"])
             self.assertIn("7 kills left across the wing", wing_field["value"])
+            self.assertIn("no updates for 30h", wing_field["value"])
             self.assertIn("footer", embed)
             self.assertLessEqual(len(embed["fields"]), 25)
 

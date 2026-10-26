@@ -386,7 +386,7 @@ class EmbedRoutingTests(unittest.TestCase):
                                               report_text=lambda **kwargs: 'Mission spread text',
                                               report_discord=lambda: '',
                                               report_live=lambda: 'should not be used',
-                                              report_embed=lambda line=None, wing=None, sources=0: {'title': 'spread', 'line': line, 'wing': (wing, sources)},
+                                              report_embed=lambda line=None, wing=None, sources=0, errors=(): {'title': 'spread', 'line': line, 'wing': (wing, sources, errors)},
                                               projections=lambda rate: {'cr_per_hour': 1000,
                                                                        'finish_secs': 0,
                                                                        'turn_in': 0}),
