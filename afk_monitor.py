@@ -818,7 +818,7 @@ def main() -> None:
     wing_host = args.wing_serve_host or str(conf_wing["ServeHost"] or "") or "127.0.0.1"
     wing_token = args.wing_serve_token or str(conf_wing["ServeToken"] or "")
     if wing_port:
-        serve_dir = args.wing_serve_dir or str(conf_wing["ServeDir"] or "")
+        serve_dir = os.path.expanduser(args.wing_serve_dir or str(conf_wing["ServeDir"] or ""))
         wing_serve_dirs = [Path(serve_dir) if serve_dir
                            else config_file_path / "mission_ledger" / "wing",
                            config_file_path / "mission_ledger"]

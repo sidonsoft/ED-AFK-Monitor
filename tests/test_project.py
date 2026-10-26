@@ -58,3 +58,21 @@ class VersionFlagTests(unittest.TestCase):
         version = re.search(r"VERSION = (\d+)", (ROOT / "afk_monitor.py").read_text(encoding="utf-8")).group(1)
         self.assertIn(version, result.stdout)
         self.assertIn("ED AFK Monitor", result.stdout)
+
+
+class ServeDirExpansionTests(unittest.TestCase):
+    def test_serve_dir_expands_home_from_flag_or_config(self):
+        # the exact line the relay startup uses, exec'd against stubs:
+        # if afk stops calling expanduser here, this test fails
+        line = next(l.strip() for l in (ROOT / "afk_monitor.py").read_text(encoding="utf-8")
+                    .splitlines() if "serve_dir = " in l and "expanduser" in l)
+        ns = {"os": __import__("os"),
+              "args": type("A", (), {"wing_serve_dir": "~/shared"})(),
+              "conf_wing": {"ServeDir": "~/ignored-when-flag-set"}}
+        exec(line, ns)
+        self.assertEqual(ns["serve_dir"],
+                         __import__("os").path.expanduser("~/shared"))
+        ns["args"].wing_serve_dir = ""
+        exec(line, ns)
+        self.assertEqual(ns["serve_dir"],
+                         __import__("os").path.expanduser("~/ignored-when-flag-set"))

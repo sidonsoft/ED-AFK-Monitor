@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: ServeDir understood '~/...' like any service file should (2026-10-26)
+------------------------------------------------
+- '[Wing] ServeDir = "~/shared-wing"' and '--wing-serve-dir ~/x' now
+  expand the home directory instead of creating a literal '~' folder
+  next to the monitor.
+- Validation: 276 tests passed.
+
 Fork: a ledger deleted mid-fetch gets a clean 404, not a dropped call (2026-10-26)
 ------------------------------------------------
 - The relay checked is_file(), then read the file - if the host tidied
