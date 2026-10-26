@@ -82,6 +82,10 @@ the config volume and publish the port, e.g. `-p 8080:8080`.
 
 A container can also host the **wing relay** for the whole wing: set
 `ServePort = 8099` (plus optional `ServeHost`/`ServeToken`) under `[Wing]` in
+
+A wingmate's service that pushes or fetches can take its secret from the
+environment instead of the toml: set `Environment=ED_AFK_WING_TOKEN=sekret` on the
+service unit and every relay call is authorized by header.
 the same config volume, publish it with `-p 8099:8099`, and wingmates point
 their `PushURL`/`FetchURL` at `http://<this-host>:8099/wing`. With a token set,
 they append `?token=<value>`; without one, keep the port off the open Internet.

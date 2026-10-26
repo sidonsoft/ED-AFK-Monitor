@@ -125,6 +125,8 @@ StaleHours = 24               # wingmate ledgers quieter than this flag as possi
 ServePort = 0                # >0: serve ledgers over HTTP (mates push/fetch here)
 ServeHost = ''               # 0.0.0.0 to reach wingmates beyond this machine
 ServeToken = ''              # if set, mates' URLs need ?token= (401 otherwise)
+#   (mates can keep their copy of the secret in the environment instead:
+#    ED_AFK_WING_TOKEN is sent as the X-Wing-Token header, never in a URL)
 FetchTimeout = 5             # seconds per wingmate fetch; raise for mesh links
 
 [Webhook]
