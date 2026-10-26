@@ -66,9 +66,11 @@ is illustrative; these examples do not send notifications. See
 
 ## Getting started
 
-This fork adds wing mission stacks, an HTTP wing relay, terminal hotkeys, a
-web dashboard, session history with recap cards, multi-instance supervision,
-service mode, `--set`/`--save` config editing and more - all documented here.
+This fork adds wing mission stacks, an HTTP wing relay (token-protected,
+self-explaining: browser pages, `--wing-test` probes, stale and refusal
+notices), terminal hotkeys, a web dashboard, session history with recap cards,
+multi-instance supervision, service mode, `--set`/`--save` config editing,
+`--outbox` for stuck notifications and more - all documented here.
 
 **Standalone version**: This fork publishes ready-to-run binaries for Windows,
 Linux and macOS with every [release](https://github.com/sidonsoft/ED-AFK-Monitor/releases/latest).
