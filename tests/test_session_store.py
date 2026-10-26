@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
+import json
 import unittest
 
 from session_store import SessionStore
@@ -86,4 +87,60 @@ class SessionStoreTests(unittest.TestCase):
             self.assertFalse(store.record(1, 2, {"kills": 1}))
             self.assertEqual(store.sessions(), [])
             self.assertIsNotNone(store.error)
+            store.close()
+
+
+class SessionExportTests(unittest.TestCase):
+    def make_store(self, folder):
+        store = SessionStore(Path(folder) / "session_history" / "profile.db")
+        store.record(1_761_000_000, 1_761_014_400, {"kills": 120, "bounties": 480000, "merits": 132})
+        store.record(1_761_100_000, 1_761_103_600, {"kills": 40, "bounties": 90000})
+        return store
+
+    def test_export_json_roundtrips_rows(self):
+        with TemporaryDirectory() as folder:
+            store = self.make_store(folder)
+            out = Path(folder) / "out" / "sessions.json"
+            rows, error = store.export(out)
+            self.assertEqual((rows, error), (2, ""))
+            data = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(len(data), 2)
+            self.assertEqual(data[0]["kills"], 40)
+            self.assertTrue(data[0]["started_iso"].startswith("20"))
+            store.close()
+
+    def test_export_csv_has_header_and_totals(self):
+        with TemporaryDirectory() as folder:
+            store = self.make_store(folder)
+            out = Path(folder) / "sessions.csv"
+            rows, error = store.export(out)
+            self.assertEqual((rows, error), (2, ""))
+            lines = out.read_text(encoding="utf-8").strip().splitlines()
+            self.assertEqual(len(lines), 3)
+            self.assertIn("started_iso,ended_iso,duration_hours,kills", lines[0].replace(" ", ""))
+            self.assertIn(",120,", "\n".join(lines) + "\n")  # newest-first order
+            store.close()
+
+    def test_unknown_extension_is_rejected(self):
+        with TemporaryDirectory() as folder:
+            store = self.make_store(folder)
+            rows, error = store.export(Path(folder) / "sessions.dat")
+            self.assertEqual(rows, 0)
+            self.assertIn("Unsupported export format", error)
+            store.close()
+
+    def test_share_text_highlights_totals_and_best_run(self):
+        with TemporaryDirectory() as folder:
+            store = self.make_store(folder)
+            text = store.share_text()
+            self.assertIn("2 sessions", text)
+            self.assertIn("160 kills", text)
+            self.assertIn("Best run:", text)
+            self.assertIn("480,000 cr", text)
+            store.close()
+
+    def test_share_text_without_sessions(self):
+        with TemporaryDirectory() as folder:
+            store = SessionStore(Path(folder) / "s.db")
+            self.assertIn("No saved sessions", store.share_text())
             store.close()

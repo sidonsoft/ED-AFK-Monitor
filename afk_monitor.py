@@ -18,6 +18,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
 from ship_pools import load_ship_pools
+from session_card import render_card
 from session_store import SessionStore
 from journal_schema import unhandled_types
 from config_overrides import apply_overrides, parse_overrides
@@ -91,6 +92,8 @@ parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID
 parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
 parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
 parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
+parser.add_argument("--export", metavar="file", help="With --history, write sessions to a .json/.csv file or a .png recap card (profile name is appended)")
+parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")
 parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
@@ -137,7 +140,23 @@ def show_mission_ledgers(directory, as_json=False):
         msg.log(ledger.report_text(include_missions=True, title=True))
 
 
-def show_session_histories(directory, profile=None, as_json=False):
+def export_session_store(store, source_db, requested):
+    """Write one profile's history in the requested format; profile name keeps files unique."""
+    requested = Path(requested)
+    suffix = requested.suffix.lower() or ".json"
+    out = requested.with_name(f"{requested.stem}-{source_db.stem}{suffix}")
+    if suffix == ".png":
+        error = render_card(store, out, title=f"ED AFK Monitor · {source_db.stem}")
+        note = ""
+    else:
+        rows, error = store.export(out)
+        note = f" ({rows} sessions)" if not error else ""
+    if error:
+        msg.log(f"{WARNING} History export: {error}")
+    else:
+        msg.log(f"Exported history to {out}{note}")
+
+def show_session_histories(directory, profile=None, as_json=False, export=None, share=False):
     if profile:
         target = Path(directory) / f"{profile_directory_name(profile)}.db"
         paths = [target] if target.is_file() else []
@@ -148,6 +167,8 @@ def show_session_histories(directory, profile=None, as_json=False):
         for path in paths:
             store = SessionStore(path)
             data.append({"file": path.name, "sessions": store.sessions(), "totals": store.totals()})
+            if export:
+                export_session_store(store, path, export)
             store.close()
         sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         return
@@ -157,7 +178,12 @@ def show_session_histories(directory, profile=None, as_json=False):
     for path in paths:
         store = SessionStore(path)
         msg.log("")
-        msg.log(store.report_text(title=path.stem))
+        if share:
+            msg.log(store.share_text())
+        else:
+            msg.log(store.report_text(title=path.stem))
+        if export:
+            export_session_store(store, path, export)
         store.close()
 
 
@@ -208,7 +234,8 @@ if args.missions:
     sys.exit()
 
 if args.history:
-    show_session_histories(config_file_path / "session_history", args.profile, as_json=args.json)
+    show_session_histories(config_file_path / "session_history", args.profile, as_json=args.json,
+                           export=args.export, share=args.share)
     sys.exit()
 
 config_file = Path(config_file_path / "afk_monitor.toml")

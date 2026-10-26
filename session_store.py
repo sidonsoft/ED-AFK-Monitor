@@ -1,4 +1,7 @@
 """Per-profile history of monitored sessions in a small SQLite database."""
+import csv
+import io
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -120,6 +123,52 @@ class SessionStore:
         lines.append(f"  {'TOTAL':<17} {self._duration(totals['duration']):>8} {totals['kills']:>6}"
                      f" {totals['kills_hour']:>6} {totals['bounties']:>11} {totals['bounties_hour']:>9}"
                      f" {totals['merits']:>7}   ({totals['runs']} runs)")
+        return "\n".join(lines)
+
+    def export(self, path, limit=10_000):
+        """Write saved sessions to a .json or .csv file; returns (rows, error)."""
+        path = Path(path)
+        suffix = path.suffix.lower()
+        if suffix not in (".json", ".csv"):
+            return 0, f"Unsupported export format '{suffix}'; use .json or .csv"
+        rows = self.sessions(limit)
+        for row in rows:
+            row["started_iso"] = datetime.fromtimestamp(row["started"], timezone.utc).isoformat(timespec="seconds")
+            row["ended_iso"] = datetime.fromtimestamp(row["ended"], timezone.utc).isoformat(timespec="seconds")
+            row["duration_hours"] = round(row["duration"] / 3600, 2)
+        fields = ["started_iso", "ended_iso", "duration_hours", "kills", "scans", "bounties",
+                  "merits", "missions_done", "missions_total", "gamemode", "journal"]
+        if suffix == ".json":
+            payload = json.dumps(rows, indent=1, ensure_ascii=False)
+        else:
+            buffer = io.StringIO()
+            writer = csv.DictWriter(buffer, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+            payload = buffer.getvalue()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(payload, encoding="utf-8")
+        except OSError as failure:
+            return 0, f"Could not write {path}: {failure}"
+        return len(rows), ""
+
+    def share_text(self):
+        """Compact copy-paste recap: totals plus the single best run."""
+        totals = self.totals()
+        if not totals["runs"]:
+            return "No saved sessions yet; they are recorded automatically when the monitor stops."
+        seconds = int(totals["duration"])
+        lines = [f"ED AFK Monitor · {totals['runs']} sessions · {seconds // 3600}h{(seconds % 3600) // 60:02d}m"
+                 f" · {totals['kills']:,} kills ({totals['kills_hour']}/h)"
+                 f" · {totals['bounties']:,} cr ({totals['bounties_hour']:,} cr/h)"
+                 f" · {totals['merits']:,} merits"]
+        best = max((row for row in self.sessions(limit=10_000) if row["duration"] > 0),
+                   key=lambda row: row["bounties"], default=None)
+        if best is not None:
+            started = datetime.fromtimestamp(best["started"], timezone.utc).strftime("%Y-%m-%d")
+            lines.append(f"Best run: {started} · {self._duration(best['duration'])}"
+                         f" · {best['kills']:,} kills · {best['bounties']:,} cr")
         return "\n".join(lines)
 
     def close(self):
