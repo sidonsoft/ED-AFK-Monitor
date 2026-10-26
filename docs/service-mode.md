@@ -1,7 +1,11 @@
 # Running as a service (headless rigs)
 
 For a box that only watches journals (server, NAS, second PC), run the monitor
-with `--plain` so it writes clean lines instead of a live status bar, and let
+with `--plain` so it writes clean lines instead of a live status bar, and let the OS supervisor keep it alive and capture logs.
+
+No shell flags in your supervisor? Set `Dashboard = <port>` under `[Settings]`
+in `afk_monitor.toml` (plus `DashboardToken`/`DashboardHost`) and the dashboard
+starts with the monitor.
 the OS supervisor keep it alive and capture logs.
 
 ## Linux (systemd user service)

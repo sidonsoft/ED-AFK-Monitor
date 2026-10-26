@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard can start from the config file (service mode friendly) (2026-10-26)
+------------------------------------------------
+- [Settings] Dashboard = <port> (0 = off) starts the web dashboard with
+  the monitor; DashboardToken and DashboardHost cover the other flags.
+  CLI --dashboard* options still win when given.
+- Token comparison is now timing-safe (hmac.compare_digest).
+- Validation: 216 tests passed; the live scenario starts its dashboard
+  purely from the config file now.
+
 Fork: web dashboard documented; LAN sharing warns without a token (2026-10-26)
 ------------------------------------------------
 - README gains a 'Web dashboard' section covering panels, JSON

@@ -645,6 +645,11 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                              'wing_relay.py'):
                     shutil.copyfile(ROOT / name, root / name)
                 (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+                import socket
+                probe = socket.socket()  # OS-allocated free port; avoids CI clashes
+                probe.bind(('127.0.0.1', 0))
+                dash_port = probe.getsockname()[1]  # injected via config, not a flag
+                probe.close()
                 config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
                 config = config.replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
                 config = config.replace('ChatID = 0', 'ChatID = -123')
@@ -652,7 +657,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
                 config = config.replace("PushEvery = 0", "PushEvery = 1")
-                config = config.replace("WarnNoKills = 20", "WarnNoKills = 20\nWatchdogSeconds = 5", 1)
+                config = config.replace("WarnNoKills = 20",
+                                   f"WarnNoKills = 20\nWatchdogSeconds = 5"
+                                   f"\nDashboard = {dash_port}", 1)  # config-file dashboard, no flag
                 config = config.replace("FetchURL = []", f"FetchURL = ['http://127.0.0.1:{port}/wing/mate.json', 'http://127.0.0.1:{port}/wing/nobody.json']")
                 (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
                 ledgers = root / 'mission_ledger'
@@ -679,12 +686,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
 
                 env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
-                import socket
-                probe = socket.socket()  # OS-allocated free port; avoids CI clashes
-                probe.bind(('127.0.0.1', 0))
-                dash_port = probe.getsockname()[1]
-                probe.close()
-                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', str(dash_port), '--resetsession'],
+                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--resetsession'],
                                            cwd=root, env=env,
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                            text=True, stdin=subprocess.DEVNULL, encoding='utf-8')

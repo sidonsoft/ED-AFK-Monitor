@@ -63,7 +63,8 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none"}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "WatchdogSeconds": 60, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90, "AlertSound": "none",
+                    "Dashboard": 0, "DashboardToken": "", "DashboardHost": "127.0.0.1"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_NTFY = {"URL": "", "Token": ""}
@@ -109,7 +110,7 @@ def main() -> None:
     parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")
     parser.add_argument("--dashboard", type=int, metavar="port", help="Serve a read-only web dashboard on this port (e.g. 8765)")
     parser.add_argument("--dashboard-token", default="", metavar="token", help="Require this token for dashboard requests (share links use ?token=...)")
-    parser.add_argument("--dashboard-host", default="127.0.0.1", metavar="address", help="Dashboard bind address (0.0.0.0 to share on the LAN)")
+    parser.add_argument("--dashboard-host", default="127.0.0.1", metavar="address", help="Dashboard bind address (0.0.0.0 to share on the LAN; DashboardHost config also honored)")
     parser.add_argument("--no-hotkeys", action="store_false", default=True, dest="hotkeys",
                         help="Disable terminal hotkeys: [s]status, [m]issions, [u]mute alerts")
     parser.add_argument("--instance", action="append", default=[], metavar="label=journal_folder",
@@ -696,6 +697,19 @@ def main() -> None:
                                      "sources": [name for name, _ in wings],
                                      "errors": errors}
         return data
+
+    if not args.dashboard:
+        # config-file dashboard for service mode / Docker, where CLI flags
+        # are inconvenient; explicit CLI flags always win
+        try:
+            args.dashboard = int(conf_settings.get("Dashboard", 0) or 0)
+        except (TypeError, ValueError):
+            msg.log(f"{WARNING} Settings Dashboard {conf_settings.get('Dashboard')!r}"
+                    " is not a number - dashboard not started")
+    if not args.dashboard_token:
+        args.dashboard_token = str(conf_settings.get("DashboardToken", "") or "")
+    if args.dashboard_host == "127.0.0.1":
+        args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
 
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(
