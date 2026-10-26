@@ -24,6 +24,16 @@ def stale_spread(spread, now=None):
     return hours if hours > STALE_AFTER_SECS / 3600 else None
 
 
+def stale_notes(wings):
+    """Warnings for shared spreads nobody kept fresh; wings is [(name, spread)]."""
+    notes = []
+    for name, spread in wings:
+        hours = stale_spread(spread)
+        if hours is not None:
+            notes.append(f"{name[:-5]}: no updates for {hours:.0f}h - counts may be stale")
+    return notes
+
+
 def as_url_list(value):
     """Accept one URL string or a list of them; ignore blanks."""
     if isinstance(value, str):

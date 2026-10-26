@@ -577,6 +577,10 @@ class WingRelayIntegrationTests(unittest.TestCase):
                 self.assertIn('Pushed default.json', push.stdout + push.stderr)
                 self.assertIn('/wing/default.json', store)
 
+                pushed = json.loads(store['/wing/default.json'])
+                pushed['updated'] = time.time() - 3 * 86400  # mate has been quiet 3 days
+                store['/wing/default.json'] = json.dumps(pushed).encode()
+
                 view = subprocess.run([sys.executable, 'afk_monitor.py', '--plain', '--missions', '--wing',
                                        '--wing-url', f'http://127.0.0.1:{port}/wing/default.json'],
                                       cwd=root, env=env, capture_output=True, text=True,
@@ -584,6 +588,7 @@ class WingRelayIntegrationTests(unittest.TestCase):
                 combined = view.stdout + view.stderr
                 self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
                 self.assertIn('4 kills left across the wing', combined)
+                self.assertIn('no updates for', combined)  # offline view flags stale copies
             finally:
                 relay.shutdown()
                 relay.server_close()

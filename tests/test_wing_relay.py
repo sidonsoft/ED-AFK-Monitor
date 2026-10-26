@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import as_url_list, fetch_spread, fetch_spreads, push_ledger, stale_spread
+from wing_relay import as_url_list, fetch_spread, fetch_spreads, push_ledger, stale_notes, stale_spread
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -130,3 +130,18 @@ class StaleLedgerTests(unittest.TestCase):
         hours = stale_spread({"updated": self.NOW - 30 * 3600}, self.NOW)
         self.assertIsNotNone(hours)
         self.assertAlmostEqual(hours, 30, delta=0.01)
+
+
+class StaleNotesTests(unittest.TestCase):
+    def test_notes_for_each_stale_named_ledger(self):
+        now = 1_800_000_000.0
+        wings = [("ana.json", {"updated": now - 30 * 3600}),
+                 ("fresh.json", {"updated": now - 60})]
+        import wing_relay
+        original = wing_relay.time
+        try:
+            wing_relay.time = lambda: now
+            notes = stale_notes(wings)
+        finally:
+            wing_relay.time = original
+        self.assertEqual(notes, ["ana: no updates for 30h - counts may be stale"])

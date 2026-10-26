@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: staleness reaches the offline --missions --wing view (2026-10-26)
+------------------------------------------------
+- wing_relay.stale_notes() is now the single freshness check: summaries,
+  the [w] hotkey, the dashboard AND --missions --wing (plain or --json)
+  all flag quiet wingmate ledgers identically.
+- Validation: 211 tests passed.
+
 Fork: stale wingmate detection (2026-10-26)
 ------------------------------------------------
 - A shared ledger nobody saved for >24h now flags itself in the wing-view
