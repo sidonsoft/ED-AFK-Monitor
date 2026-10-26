@@ -6,88 +6,90 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-builds-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   bundle:
-    name: Bundle ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # Accept reviewed main or maintainer-created version tags, never PR refs.
+    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    name: Bundle ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - platform: Windows x64
+            runner: [windows-latest]
             binary: ed-afk-monitor-windows
-          - os: ubuntu-latest
+          - platform: Linux x64
+            runner: [ubuntu-latest]
             binary: ed-afk-monitor-linux
+          - platform: macOS ARM64
+            runner: [ed-afk-trusted-macos-arm64]
+            binary: ed-afk-monitor-macos
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          python-version: '3.12'
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.5'
+          enable-cache: false
+      - name: Create a fresh build environment
+        shell: bash
+        run: |
+          build_env="${RUNNER_TEMP}/ed-afk-release-${{ matrix.binary }}"
+          uv venv --managed-python --python 3.12 --seed "$build_env"
+          if [ "$RUNNER_OS" = Windows ]; then
+            echo "$build_env/Scripts" >> "$GITHUB_PATH"
+          else
+            echo "$build_env/bin" >> "$GITHUB_PATH"
+          fi
       - name: Install build dependencies
-        run: pip install pyinstaller discord-webhook pillow
+        run: python -m pip install pyinstaller discord-webhook pillow
       - name: Bundle executable
         shell: bash
         run: |
           sep=":"
           [ "$RUNNER_OS" = "Windows" ] && sep=";"
-          pyinstaller --onefile --name "${{ matrix.binary }}" \
-            --add-data "ships.json${sep}." \
-            afk_monitor.py
-      - uses: actions/upload-artifact@v4
+          python -m PyInstaller --onefile --name "${{ matrix.binary }}" \
+            --add-data "ships.json${sep}." afk_monitor.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.binary }}
           path: dist/${{ matrix.binary }}*
+          if-no-files-found: error
+      - name: Remove temporary build environment
+        if: always()
+        shell: bash
+        run: rm -rf -- "${RUNNER_TEMP}/ed-afk-release-${{ matrix.binary }}"
+
+  publish:
+    name: Attach verified builds to release
+    needs: bundle
+    if: github.repository == 'sidonsoft/ED-AFK-Monitor' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: ed-afk-monitor-*
+          merge-multiple: true
+          path: dist
       - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          # A pushed tag is not a release; the first job to arrive creates it
-          # (the others harmlessly lose the race and just upload).
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ED AFK Monitor ${GITHUB_REF_NAME}" \
-            --generate-notes --latest 2>/dev/null || true
-          gh release upload "${GITHUB_REF_NAME}" dist/${{ matrix.binary }}* --clobber
-
-  macos:
-    # Dedicated trusted runner: hosted macos pools queue for an hour and
-    # the runner already builds this binary daily in trusted-macos.yml.
-    # uv provides managed Python because the runner account is non-admin.
-    name: Bundle macos
-    runs-on: [ed-afk-trusted-macos-arm64]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          version: '0.13.5'
-          enable-cache: false
-      - name: Fresh build environment
-        run: |
-          uv venv --managed-python --python 3.12 --seed "${RUNNER_TEMP}/ed-afk-build"
-          echo "${RUNNER_TEMP}/ed-afk-build/bin" >> "$GITHUB_PATH"
-      - name: Install build dependencies
-        run: python -m pip install pyinstaller discord-webhook pillow
-      - name: Bundle executable
-        run: python -m PyInstaller --onefile --name ed-afk-monitor-macos --add-data "ships.json:." afk_monitor.py
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ed-afk-monitor-macos
-          path: dist/ed-afk-monitor-macos
-          if-no-files-found: error
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ED AFK Monitor ${GITHUB_REF_NAME}" \
-            --generate-notes --latest 2>/dev/null || true
-          gh release upload "${GITHUB_REF_NAME}" dist/ed-afk-monitor-macos --clobber
-      - name: Remove build environment
-        if: always()
-        run: /usr/bin/python3 -c "import os, shutil; shutil.rmtree(os.path.join(os.environ['RUNNER_TEMP'], 'ed-afk-build'), ignore_errors=True)"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "ED AFK Monitor $GITHUB_REF_NAME" --generate-notes --latest
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
