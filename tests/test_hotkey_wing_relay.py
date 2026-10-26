@@ -9,7 +9,9 @@ from missions import merge_spreads
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_hotkey(serve_label):
+def load_hotkey(serve_label, wings=(), errors=None, local_total=3, turn_in=250000):
+    if errors is None:  # a stale wingmate by default: matches the shipped report shape
+        errors = ["mate.json: no updates for 30h - counts may be stale"]
     source = (ROOT / "afk_monitor.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
 
@@ -25,14 +27,28 @@ def load_hotkey(serve_label):
     lines = source.splitlines()
     body = textwrap.dedent("\n".join(lines[func.lineno - 1:func.end_lineno]))
     namespace = {
-        "wing_view": lambda: ([], ["mate.json: no updates for 30h - counts may be stale"]),
+        "wing_view": lambda: (list(wings), list(errors)),
         "mission_ledger": type("L", (), {"spread": lambda self: {
-            "done": 1, "total": 3, "left": 2, "turn_in": 250000, "rows": []}})(),
+            "done": min(1, local_total), "total": local_total, "left": 2,
+            "turn_in": turn_in, "rows": []}})(),
         "merge_spreads": merge_spreads,
         "wing_serve_label": serve_label,
     }
     exec(body, namespace)
     return namespace["hotkey_wing_report"]()
+
+
+class HotkeyEmptyWingTests(unittest.TestCase):
+    def test_nothing_configured_explains_how_to_start(self):
+        text = load_hotkey("", local_total=0, turn_in=0, errors=[])
+        self.assertIn("No wing ledgers yet", text)
+        self.assertIn("--wing-serve", text)
+
+    def test_errors_still_take_the_report(self):
+        text = load_hotkey("", local_total=0,
+                           errors=["mate.json: no updates for 30h - counts may be stale"])
+        self.assertIn("no updates for 30h", text)
+        self.assertNotIn("No wing ledgers yet", text)
 
 
 class HotkeyWingRelayTests(unittest.TestCase):

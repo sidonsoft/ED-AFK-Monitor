@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: [w] on a wing-less setup explains how to start one (2026-10-26)
+------------------------------------------------
+- The hotkey used to print an empty line when nothing is shared yet.
+  It now says: no ledgers yet, set [Wing] PushURL/FetchURL, or host
+  the wing yourself with --wing-serve. Real fetch errors still take
+  precedence over the hint.
+- Validation: 239 tests passed.
+
 Fork: relay hosts see their wingmates arrive (2026-10-26)
 ------------------------------------------------
 - Accepted pushes are logged on the hosting monitor: 'Wing relay:

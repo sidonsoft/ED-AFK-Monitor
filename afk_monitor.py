@@ -1429,7 +1429,11 @@ def main() -> None:
         combined = merge_spreads(([local] if local and local.get("total") else [])
                                  + [spread for _, spread in wings])
         if not combined["total"]:
-            return "\n".join(f"Wing relay fetch: {error}" for error in errors)
+            hints = [f"Wing relay fetch: {error}" for error in errors]
+            if not hints:
+                hints.append("No wing ledgers yet: set [Wing] PushURL/FetchURL "
+                             "or run --wing-serve to host the wing here")
+            return "\n".join(hints)
         text = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
                 f" {combined['done']}/{combined['total']} complete"
                 f" · {combined['left']} kills left across the wing")
