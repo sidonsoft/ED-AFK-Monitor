@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: a dead relay gives one honest push error, not five (2026-10-26)
+------------------------------------------------
+- Pushing five ledgers to a relay that is down used to print five
+  near-identical warnings differing only in the ledger name. Now:
+  'Could not push http://host:8099/wing/*.json: Connection refused
+  (same for all 5 file(s))'. Different failures still print apart.
+- Validation: 280 tests passed.
+
 Fork: two wingmates named 'default.json' stop looking like a bug (2026-10-26)
 ------------------------------------------------
 - 'sources: default.json, default.json' - which two mates are which?

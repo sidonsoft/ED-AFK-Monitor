@@ -76,3 +76,26 @@ class ServeDirExpansionTests(unittest.TestCase):
         exec(line, ns)
         self.assertEqual(ns["serve_dir"],
                          __import__("os").path.expanduser("~/ignored-when-flag-set"))
+
+
+class WingPushGroupingTests(unittest.TestCase):
+    def test_dead_relay_gets_one_grouped_warning_per_base(self):
+        import shutil
+        import subprocess
+        import sys
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            for py in ROOT.glob("*.py"):
+                shutil.copy(py, folder)
+            ledger = Path(folder) / "mission_ledger"
+            ledger.mkdir()
+            (ledger / "alpha.json").write_text('{"version": 1, "missions": []}', encoding="utf-8")
+            (ledger / "beta.json").write_text('{"version": 1, "missions": []}', encoding="utf-8")
+            run = subprocess.run(
+                [sys.executable, str(Path(folder) / "afk_monitor.py"), "--wing-push",
+                 "http://127.0.0.1:1/wing"],
+                capture_output=True, text=True, timeout=60, cwd=folder)
+            joined = run.stdout + run.stderr
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("same for all 2 file(s)", joined)
+        self.assertEqual(joined.count("Connection refused"), 1)

@@ -355,14 +355,22 @@ def main() -> None:
             sys.exit(1)
         pushed, failed = 0, 0
         for base in args.wing_push:
+            complaints = {}
             for path in paths:
                 failure = push_ledger(path, base)
                 if failure:
                     failed += 1
-                    msg.log(f"{WARNING} {failure}")
+                    # a dead relay fails every file identically except the
+                    # name in the URL; group on name-as-star so five ledgers
+                    # produce one honest line, not five
+                    key = failure.replace(Path(path).name, "*")
+                    complaints[key] = complaints.get(key, 0) + 1
                 else:
                     pushed += 1
                     msg.log(f"Pushed {path.name} to {base}")
+            for complaint, count in complaints.items():
+                msg.log(f"{WARNING} {complaint}"
+                        + (f" (same for all {count} file(s))" if count > 1 else ""))
         sys.exit(1 if failed and not pushed else 0)
 
     if args.missions:
