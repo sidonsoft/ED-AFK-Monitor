@@ -95,7 +95,8 @@ they append `?token=<value>`; without one, keep the port off the open Internet.
 - Set `AlertSound` has no meaning without a terminal; use ntfy or Discord
   webhooks for level-3 alerts instead.
 - The notification outbox retries anything that failed while the network or
-  Discord was down, so brief drops are not lost alerts.
+  Discord was down, so brief drops are not lost alerts. Peek at the queue with `--outbox`; drop a stale burst with
+  `--outbox-clear` before it ever arrives.
 - `--dashboard <port> --dashboard-host 0.0.0.0 --dashboard-token <secret>`
   exposes the live page on the LAN for the rest of the household/wing - the
   same settings live in `[Settings]` (`Dashboard`, `DashboardHost`,
