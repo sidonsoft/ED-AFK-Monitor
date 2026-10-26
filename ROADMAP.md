@@ -38,7 +38,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
     bootstrap and paves the way for everything below.
 11. ✅ **More channels** (★★ / † each) — ntfy, Pushover, generic JSON webhook, Home Assistant,
     email; reuse the dispatcher/outbox layer unchanged.
-12. **Local web dashboard** (★★★ / ††) — serve the existing `spread()`/`export()` JSON plus live
+12. ✅ **Local web dashboard** (★★★ / ††) — serve the existing `spread()`/`export()` JSON plus live
     stats as a localhost page; read-only, token-protected share link for wingmates without
     Discord.
 13. **Wing-shared ledgers** (★★ / ††) — merge ledgers from multiple wing members (a small relay or

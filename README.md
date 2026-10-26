@@ -199,6 +199,9 @@ You can pass the following arguments when launching AFK Monitor:
 --set <Section.Key=value>                   Override a config setting for this run
 --export <file>                           With --history, write sessions to .json/.csv/.png
 --share                                   With --history, print a compact shareable recap
+--dashboard <port>                        Serve a read-only web dashboard locally
+--dashboard-token <token>                 Protect the dashboard for share links
+--dashboard-host <address>                Bind address (0.0.0.0 shares on the LAN)
 ```
 
 ## Common Issues

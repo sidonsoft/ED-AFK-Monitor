@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: local web dashboard (2026-10-26)
+------------------------------------------------
+- '--dashboard <port>' serves a read-only localhost page with live session
+  totals and the mission spread JSON; no extra packages needed.
+- '--dashboard-token' protects share links (?token=...), '--dashboard-host
+  0.0.0.0' exposes it to the LAN for wingmates without Discord.
+- Validation: 164 tests passed.
+
 Fork: session exports and packaging (2026-10-26)
 ------------------------------------------------
 - '--history --export file.(json|csv|png)' writes portable session data or a

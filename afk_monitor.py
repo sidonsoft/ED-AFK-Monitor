@@ -18,6 +18,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
 from ship_pools import load_ship_pools
+from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
 from journal_schema import unhandled_types
@@ -94,6 +95,9 @@ parser.add_argument("--missions", action="store_true", help="Print the saved mas
 parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
 parser.add_argument("--export", metavar="file", help="With --history, write sessions to a .json/.csv file or a .png recap card (profile name is appended)")
 parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")
+parser.add_argument("--dashboard", type=int, metavar="port", help="Serve a read-only web dashboard on this port (e.g. 8765)")
+parser.add_argument("--dashboard-token", default="", metavar="token", help="Require this token for dashboard requests (share links use ?token=...)")
+parser.add_argument("--dashboard-host", default="127.0.0.1", metavar="address", help="Dashboard bind address (0.0.0.0 to share on the LAN)")
 parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
@@ -618,6 +622,26 @@ def record_run():
 
 msg.log("\nStarting... (Press Ctrl+C to stop)\n")
 track.runstart = time.time()
+
+def stats_payload(stats):
+    payload = {"kills": stats.kills, "bounties": stats.bounties, "scans_in": stats.scansin,
+               "merits": stats.merits}
+    payload["top_factions"] = dict(sorted(stats.factions.items(), key=lambda item: -item[1])[:10])
+    return payload
+
+if args.dashboard:
+    dashboard_server, dashboard_error = start_dashboard(
+        args.dashboard,
+        lambda: {"monitor": "ED AFK Monitor", "version": VERSION, "cmdrname": track.cmdrname,
+                 "session": stats_payload(session), "total": stats_payload(total)},
+        lambda: mission_ledger.spread(),
+        args.dashboard_token, args.dashboard_host)
+    if dashboard_error:
+        msg.log(f"{WARNING} Dashboard: {dashboard_error}")
+    else:
+        shown_host = "127.0.0.1" if args.dashboard_host in ("0.0.0.0", "") else args.dashboard_host
+        msg.log(f"Dashboard: http://{shown_host}:{args.dashboard}"
+                f"{'?token=... required' if args.dashboard_token else ''}")
 
 # Discord webhooks
 discord_webhook_log = args.webhook if args.webhook is not None else conf_discord["WebhookURL"]
