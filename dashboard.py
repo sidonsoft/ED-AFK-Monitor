@@ -26,6 +26,7 @@ PAGE = """<!doctype html>
  a { color:#78c8ff; }
 </style></head><body>
 <h1 id="title">ED AFK Monitor</h1>
+<p id="runtimes" style="color:#9aa4af;margin:.2rem 0 1rem;"></p>
 <div class="cols">
  <div class="panel"><h2>This session</h2><div id="session">loading…</div></div>
  <div class="panel"><h2>Run total</h2><div id="total">loading…</div></div>
@@ -33,7 +34,7 @@ PAGE = """<!doctype html>
 <div class="panel"><h2>Mission spread</h2><div id="missions">loading…</div></div>
 <div class="panel" id="wingpanel" hidden><h2>Wing view</h2><div id="wing"></div></div>
 <div class="panel" id="sessionspanel" hidden><h2>Recent sessions</h2><div id="sessions"></div></div>
-<p>Auto-refreshes every 15s · raw data: <a href="/live.json">/live.json</a>
+<p>Auto-refreshes every 15s · <span id="updated"></span> · raw data: <a href="/live.json">/live.json</a>
  · <a href="/missions.json">/missions.json</a></p>
 <script>
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -41,6 +42,11 @@ const fmt = n => typeof n === 'number' ? n.toLocaleString() : esc(n ?? '');
 const query = location.search;
 fetch('live.json' + query).then(r => r.json()).then(d => {
   if (d.cmdrname) document.getElementById('title').textContent = 'ED AFK Monitor · ' + d.cmdrname;
+  const parts = [];
+  if (d.session_time) parts.push('session ' + d.session_time);
+  if (d.total_time) parts.push('total ' + d.total_time);
+  if (parts.length) document.getElementById('runtimes').textContent = parts.join(' · ');
+  document.getElementById('updated').textContent = d.updated ? 'updated ' + d.updated : '';
   for (const key of ['session', 'total']) {
     const s = d[key];
     if (!s) continue;

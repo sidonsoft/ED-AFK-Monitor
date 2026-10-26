@@ -667,6 +667,17 @@ def main() -> None:
         errors.extend(stale_notes(wings))
         return wings, errors
 
+    def dashboard_live():
+        """Live stats plus the time context the panel needs to be readable."""
+        payload = {"monitor": "ED AFK Monitor", "version": VERSION, "cmdrname": track.cmdrname,
+                   "session": stats_payload(session), "total": stats_payload(total),
+                   "updated": datetime.now().strftime("%H:%M:%S"),
+                   "total_time": time_format(int(track.totaltime))}
+        if track.deploytime:
+            payload["session_time"] = time_format(
+                int((datetime.now(timezone.utc) - track.deploytime).total_seconds()))
+        return payload
+
     def dashboard_missions():
         data = mission_ledger.spread()
         if int(conf_log_levels.get("SummaryMissions", 0)) >= 3:
@@ -684,8 +695,7 @@ def main() -> None:
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(
             args.dashboard,
-            lambda: {"monitor": "ED AFK Monitor", "version": VERSION, "cmdrname": track.cmdrname,
-                     "session": stats_payload(session), "total": stats_payload(total)},
+            dashboard_live,
             dashboard_missions,
             args.dashboard_token, args.dashboard_host,
             sessions_provider=lambda: session_history.sessions(limit=10))

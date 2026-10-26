@@ -699,6 +699,10 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     deadline = time.monotonic() + 15
                     while 'Monitor started' not in ''.join(output) and time.monotonic() < deadline:
                         time.sleep(0.2)
+                    if 'Monitor started' not in ''.join(output):
+                        # a startup crash would otherwise surface only as
+                        # timeouts in every later step
+                        self.fail('monitor never started:\n' + ''.join(output)[-2000:])
                     deadline = time.monotonic() + 15
                     while 'Dashboard:' not in ''.join(output) and time.monotonic() < deadline:
                         time.sleep(0.2)
@@ -712,6 +716,10 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         except OSError:
                             time.sleep(0.5)
                     self.assertIsNotNone(dash, 'dashboard never answered')
+                    with urlopen(f'http://127.0.0.1:{dash_port}/live.json', timeout=5) as response:
+                        live = json.loads(response.read())
+                    self.assertIn('updated', live)
+                    self.assertIn('total_time', live)
                     with urlopen(f'http://127.0.0.1:{dash_port}/sessions.json', timeout=5) as response:
                         self.assertIsInstance(json.loads(response.read()), list)
                     with urlopen(f'http://127.0.0.1:{dash_port}/', timeout=5) as response:

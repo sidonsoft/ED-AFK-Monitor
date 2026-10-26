@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard live panel gains time context (2026-10-26)
+------------------------------------------------
+- /live.json now carries session and total run time plus an 'updated'
+  stamp; the page shows them under the title and next to the refresh
+  note - durations you could previously only read from the terminal.
+- The live scenario asserts /live.json's new keys and fails fast with
+  the captured output when the monitor never starts, instead of letting
+  a startup crash masquerade as 30s of connection timeouts.
+- Validation: 213 tests passed.
+
 Fork: dashboard gains a Recent sessions panel (2026-10-26)
 ------------------------------------------------
 - New /sessions.json endpoint (latest 10 runs from the session history
