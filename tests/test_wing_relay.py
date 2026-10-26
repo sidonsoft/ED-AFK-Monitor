@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
 from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
-                        redact, serve_advice, served_count,
+                        redact, serve_advice, served_count, wing_test_lines,
                         stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
@@ -201,6 +201,19 @@ class WingServeTests(unittest.TestCase):
             self.assertEqual(push_ledger(path, base, timeout=3), "")
         self.assertEqual([name for name, _ in seen], ["buddy.json"])
         self.assertGreater(seen[0][1], 0)
+
+    def test_wing_test_describes_roots_and_failures(self):
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        lines, ok = wing_test_lines([f"{self.base}/"], timeout=3)
+        self.assertTrue(ok)
+        self.assertEqual([kind for kind, _ in lines], ["ok"])
+        self.assertIn("mate.json: 0/1 complete · 2 left", lines[0][1])
+        lines, ok = wing_test_lines([f"{self.base}/ghost.json"], timeout=3)
+        self.assertFalse(ok)
+        self.assertEqual([kind for kind, _ in lines], ["warn"])
+        lines, ok = wing_test_lines([], timeout=3)
+        self.assertFalse(ok)
+        self.assertIn("yielded nothing", lines[0][1])
 
     def test_same_ledger_via_two_urls_counts_once(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")

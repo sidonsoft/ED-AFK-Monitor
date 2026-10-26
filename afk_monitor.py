@@ -21,7 +21,7 @@ from missions import (MissionLedger, merge_spreads, turnin_notice,
                         wing_spreads, wing_summary_line)
 from ship_pools import load_ship_pools
 from wing_relay import (fetch_spreads, push_ledger, serve_advice, served_count,
-                        stale_notes, start_wing_relay)
+                        stale_notes, start_wing_relay, wing_test_lines)
 from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -118,6 +118,9 @@ def main() -> None:
     parser.add_argument("--wing", action="store_true", help="With --missions, also merge shared wing ledgers from mission_ledger/wing")
     parser.add_argument("--wing-url", action="append", default=[], metavar="URL",
                         help="With --wing, also merge ledgers fetched from these URLs (repeatable)")
+    parser.add_argument("--wing-test", action="append", default=[], metavar="URL",
+                        help="Check a relay URL (root or ledger .json), print "
+                             "what it carries, and exit (repeatable)")
     parser.add_argument("--wing-push", action="append", default=[], metavar="BASE_URL",
                         help="Upload local ledgers to BASE_URL (a relay address works: "
                              "http://host:8099/wing/), then exit (repeatable)")
@@ -305,6 +308,19 @@ def main() -> None:
     if args.import_missions:
         sys.exit(import_missions(config_file_path / "mission_ledger",
                                  args.import_missions, args.profile))
+
+    if args.wing_test:
+        # the config object is parsed later; read the timeout straight
+        wing_timeout = 5
+        try:
+            wing_timeout = max(1, int(tomllib.load(config_file_path.open("rb"))
+                                      .get("Wing", {}).get("FetchTimeout", 5)))
+        except Exception:
+            pass
+        lines, usable = wing_test_lines(args.wing_test, timeout=wing_timeout)
+        for kind, text in lines:
+            msg.log(f"{WARNING} {text}" if kind == "warn" else f"OK  {text}")
+        sys.exit(0 if usable else 1)
 
     if args.wing_push:
         ledger_dir = config_file_path / "mission_ledger"

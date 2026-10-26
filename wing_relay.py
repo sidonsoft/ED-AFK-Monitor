@@ -85,6 +85,25 @@ def redact(url):
     return re.sub(r"([?&]token=)[^&]*", lambda m: m.group(1) + "\u2022", str(url))
 
 
+def wing_test_lines(urls, timeout=5):
+    """Diagnostic lines for --wing-test: ('ok', text) per usable ledger,
+    ('warn', text) per failure; plus whether anything usable was found."""
+    lines, ok = [], False
+    for url in as_url_list(urls):
+        spreads, errors = fetch_spreads(url, timeout=timeout)
+        for name, spread in spreads:
+            ok = True
+            lines.append(("ok", f"{name}: {spread.get('done', 0)}/{spread.get('total', 0)} "
+                                f"complete · {spread.get('left', 0)} left · "
+                                f"{spread.get('turn_in', 0):,} Cr ready"))
+        for error in errors:
+            lines.append(("warn", error))
+    if not lines:
+        lines.append(("warn", "that URL yielded nothing: is it a relay root "
+                              "ending in '/' or a ledger .json?"))
+    return lines, ok
+
+
 def _listing_entries(url, timeout=5):
     """A FetchURL ending in '/' is a relay address, not a ledger: pull the
     inventory and expand it into one URL per ledger. Tokens in the base

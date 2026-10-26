@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-test - diagnose a wing URL from the command line (2026-10-26)
+------------------------------------------------
+- ED-afk-monitor --wing-test http://host:8099/wing/ prints every ledger
+  that URL carries (progress, kills left, Cr ready) and every fetch
+  failure, then exits 0 if anything usable came back, 1 otherwise.
+  Tokens in the URL, wrong paths and unreachable hosts explain
+  themselves without starting a full monitor.
+- Validation: 252 tests passed.
+
 Fork: the turn-in nudge rides Discord and Telegram, not just consoles (2026-10-26)
 ------------------------------------------------
 - The wing summary line moved into one pure builder (wing_summary_line);
