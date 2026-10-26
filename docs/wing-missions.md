@@ -155,6 +155,10 @@ in `/` (e.g. `http://<host>:8099/wing/`) and the monitor pulls every ledger
 the host carries - no filenames, and a `?token=` on the base applies to them
 all.
 
+The relay address works for pushing too: `PushURL` or
+`--wing-push http://<host>:8099/wing/` uploads every local ledger in one
+line - trailing slash optional.
+
 Set `WingTurnInAlert = 1000000` under `[Settings]` and the monitor nudges once
 per session when the wing's completed-but-unbanked reward crosses that line -
 recruitment offices pay wings more, and someone has to remember.

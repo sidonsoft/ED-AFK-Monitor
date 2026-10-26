@@ -118,7 +118,8 @@ def main() -> None:
     parser.add_argument("--wing-url", action="append", default=[], metavar="URL",
                         help="With --wing, also merge ledgers fetched from these URLs (repeatable)")
     parser.add_argument("--wing-push", action="append", default=[], metavar="BASE_URL",
-                        help="Upload local ledgers as {base}/{file} over HTTP PUT, then exit (repeatable)")
+                        help="Upload local ledgers to BASE_URL (a relay address works: "
+                             "http://host:8099/wing/), then exit (repeatable)")
     parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
     parser.add_argument("--export", metavar="file", help="With --history, write sessions to a .json/.csv file or a .png recap card (profile name is appended)")
     parser.add_argument("--share", action="store_true", help="With --history, print a compact shareable recap instead of the table")

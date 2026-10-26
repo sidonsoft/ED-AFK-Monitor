@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: one-line wing-push to a relay address, documented (2026-10-26)
+------------------------------------------------
+- --wing-push http://host:8099/wing/ uploads every local ledger and
+  exits; the splice already handled the bare and slashed base forms,
+  but nobody told the --help or the guide. Now it says so.
+- Validation: 249 tests passed.
+
 Fork: every CLI flag must now be in the README (2026-10-26)
 ------------------------------------------------
 - Test extracts all long options from --help and greps the README for
