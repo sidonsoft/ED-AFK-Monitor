@@ -43,7 +43,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
     Discord.
 13. ✅ **Wing-shared ledgers** *(shared-folder sync; relay URL deferred)* (★★ / ††) — merge ledgers from multiple wing members (a small relay or
     a shared folder/URL) so the stack view reflects the whole wing, not one CMDR.
-14. **Interactive commands** (★★ / ††) — a Discord bot mode (`/stats`, `/missions`, `/mute`)
+14. ✅ **Interactive commands** *(terminal hotkeys: status/missions/mute; Discord bot slash-commands deferred - needs a gateway dependency)* (★★ / ††) — a Discord bot mode (`/stats`, `/missions`, `/mute`)
     complementing the webhook, or hotkeys on the terminal.
 15. **Session export & shareable card** (★★ / †) — CSV/JSON export per session, and a rendered
     PNG summary card for posting after a farm.

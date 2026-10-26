@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import tomllib
 import traceback
@@ -21,6 +22,7 @@ from ship_pools import load_ship_pools
 from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
+from hotkeys import format_keymap, parse_keymap, start_hotkeys
 from monitor_state import Stats, Tracking, num_format, per_hour, time_format
 from journal_schema import unhandled_types
 from config_overrides import apply_overrides, parse_overrides
@@ -100,6 +102,8 @@ parser.add_argument("--share", action="store_true", help="With --history, print 
 parser.add_argument("--dashboard", type=int, metavar="port", help="Serve a read-only web dashboard on this port (e.g. 8765)")
 parser.add_argument("--dashboard-token", default="", metavar="token", help="Require this token for dashboard requests (share links use ?token=...)")
 parser.add_argument("--dashboard-host", default="127.0.0.1", metavar="address", help="Dashboard bind address (0.0.0.0 to share on the LAN)")
+parser.add_argument("--no-hotkeys", action="store_false", default=True, dest="hotkeys",
+                    help="Disable terminal hotkeys: [s]tatus, [m]issions, [u]mute alerts")
 parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
@@ -732,8 +736,9 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
     if loglevel > 0 and not discord_test:
         msg.log(f"[{logtime}]{emoji}{msg_term}")
     
-    # Remote notifications
-    if (webhook_log or telegram_enabled) and loglevel > 1:
+    # Remote notifications (hotkey mute suppresses them for 10 minutes at a time)
+    muted = track.muted_until is not None and time.monotonic() < track.muted_until
+    if (webhook_log or telegram_enabled) and loglevel > 1 and not muted:
         if event is not None and track.dupeevent == event:
             track.duperepeats += 1
         else:
@@ -1207,6 +1212,8 @@ def update_status(reset=False):
             s_missions = mission_ledger.status_line()
             
             if conf_settings["LiveStatus"]:
+                status_line = f"[{time_clock}] 💥 {s_kills.strip()} | 📦 {s_scans.strip()} | ⏱️ {time_sesh.strip()} | 🎯 {s_missions.strip()}"
+                track.laststatusline = status_line
                 msg.set_status(f"{status_col}[{time_clock:>8}]💥 {s_kills:<23} | 📦 {s_scans:<23} | ⏱️ {time_sesh:<5} | 🎯 {s_missions}")
             
             # Window title (Windows only)
@@ -1224,6 +1231,33 @@ def update_status(reset=False):
 
 # Bind the live session stats and status hooks into the tracking core
 track.attach(session=session, on_debug=debug, on_status=update_status)
+
+def hotkey_status_report():
+    return track.laststatusline
+
+def hotkey_missions_report():
+    return mission_ledger.report_text() if mission_ledger.has_missions() else ""
+
+def hotkey_toggle_mute():
+    now = time.monotonic()
+    if track.muted_until is not None and now < track.muted_until:
+        track.muted_until = None
+        return "Remote alerts unmuted"
+    track.muted_until = now + 600
+    until = datetime.now(timezone.utc).astimezone() + timedelta(seconds=600)
+    return f"Remote alerts muted until {until.strftime('%H:%M')} (press the key again to unmute)"
+
+if args.hotkeys:
+    hotkey_map = parse_keymap("status,missions,mute", lambda warning: msg.log(f"{WARNING} {warning}"))
+    hotkey_error = start_hotkeys(hotkey_map, {"status": hotkey_status_report,
+                                              "missions": hotkey_missions_report,
+                                              "mute": hotkey_toggle_mute},
+                                 threading.Event())
+    if hotkey_error:
+        msg.log(f"{WARNING} {hotkey_error}")
+    else:
+        msg.log(f"Hotkeys ({format_keymap(hotkey_map)}) - only when this terminal is focused;"
+                " use --no-hotkeys to disable")
 
 def summary(stats, logtime=None, session=True, live=False):
     kill_type = track.killtype.capitalize()

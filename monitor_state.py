@@ -74,6 +74,8 @@ class Tracking:
         self.lastcheck: float | None = None
         self.live_update = None
         self.live_reset: bool = True
+        self.muted_until: float | None = None
+        self.laststatusline: str = ""
         self._session: Stats | None = None
         self._debug = lambda *args: None
         self._status = lambda reset=False: None

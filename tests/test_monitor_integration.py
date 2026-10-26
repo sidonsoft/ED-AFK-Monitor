@@ -71,7 +71,7 @@ class MonitorIntegrationTests(unittest.TestCase):
                           'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py'):
+                            'monitor_state.py', 'hotkeys.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8').replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
@@ -188,7 +188,7 @@ class SetupIntegrationTests(unittest.TestCase):
                           'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py'):
+                            'monitor_state.py', 'hotkeys.py'):
             shutil.copyfile(ROOT / name, root / name)
         (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
 
@@ -243,7 +243,7 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py'):
+                            'monitor_state.py', 'hotkeys.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -319,7 +319,7 @@ class MissionBackfillIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py'):
+                            'monitor_state.py', 'hotkeys.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -384,7 +384,7 @@ class MissionImportIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py'):
+                            'monitor_state.py', 'hotkeys.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'missions.csv').write_text(
                 'Target Faction,Kills,Wing\nLords of Ngaliba,40,yes\nNgaliba Blue Boys,30,no\n',

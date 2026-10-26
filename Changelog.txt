@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: terminal hotkeys (2026-10-26)
+------------------------------------------------
+- Press [s] for the current status line, [m] for the mission spread and [u] to
+  mute/unmute remote alerts for 10 minutes, while the monitor runs in a focused
+  terminal. Keybindings are customisable in code ('hotkeys.py' presets).
+- '--no-hotkeys' disables the watcher entirely (services and piped runs stay
+  untouched: the watcher only engages on interactive terminals).
+- Validation: 182 tests passed.
+
 Fork: service mode guide (2026-10-26)
 ------------------------------------------------
 - New docs/service-mode.md: systemd user service, macOS launchd agent, Windows

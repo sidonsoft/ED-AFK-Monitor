@@ -14,7 +14,8 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY afk_monitor.py journal_reader.py missions.py notifications.py outbox.py \
      session_store.py session_card.py ship_pools.py journal_schema.py \
-     config_overrides.py terminal_output.py dashboard.py monitor_state.py ships.json \
+     config_overrides.py terminal_output.py dashboard.py monitor_state.py \
+     hotkeys.py ships.json \
      afk_monitor.example.toml README.md LICENSE ./
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "afk_monitor.py", "--plain"]

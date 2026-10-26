@@ -284,7 +284,7 @@ class SummaryRoutingTests(unittest.TestCase):
         calls = []
         log = load_function('logevent', {
             'datetime': datetime, 'timezone': timezone, 're': re,
-            'track': SimpleNamespace(preloading=False, logged=0, dupeevent=None),
+            'track': SimpleNamespace(preloading=False, logged=0, dupeevent=None, muted_until=None),
             'discord_test': False, 'webhook_log': None, 'telegram_enabled': True,
             'conf_settings': {'UseUTC': True},
             'conf_discord': {'UserID': 0, 'Timestamp': False, 'PrependCmdrName': False},
@@ -420,7 +420,7 @@ class AlertRoutingTests(unittest.TestCase):
             'conf_settings': {'AlertSound': 'bell', 'UseUTC': False},
             'conf_discord': {'UserID': 0, 'Timestamp': True, 'PrependCmdrName': False},
             'track': SimpleNamespace(duperepeats=1, dupeevent=None, dupewarn=False,
-                                     cmdrname='Test', preloading=False, logged=0),
+                                     cmdrname='Test', preloading=False, logged=0, muted_until=None),
             'msg': SimpleNamespace(log=lambda *_: None, beep=beeps.append),
             'webhook_log': None, 'telegram_enabled': False, 'discord_test': False,
             'sendmessage': lambda **kwargs: None, 're': re_module,

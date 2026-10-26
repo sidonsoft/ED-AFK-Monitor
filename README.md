@@ -193,6 +193,7 @@ You can pass the following arguments when launching AFK Monitor:
 --telegram-token <token>                     Override Telegram bot token
 --telegram-chat <id>                         Override Telegram chat ID
 --no-follow                                 Monitor only the selected journal
+--no-hotkeys                                Disable [s]tatus [m]issions [u]mute hotkeys
 --plain                                     Plain text without colours, emojis or live status
 --missions                                  Print saved massacre-mission spread and exit
 --wing                                      With --missions, merge shared wing ledgers
