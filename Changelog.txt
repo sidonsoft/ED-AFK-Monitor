@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: hosting monitors speak in summaries before any wingmate joins (2026-10-26)
+------------------------------------------------
+- A serving monitor with no shared ledgers used to say nothing about
+  the wing in its summaries - silence read as 'wing not working'.
+  It now states: 'hosting the wing relay on 0.0.0.0:8099 - no wing
+  progress shared yet'.
+- Validation: 253 tests passed.
+
 Fork: the dashboard footer names the build it serves (2026-10-26)
 ------------------------------------------------
 - 'updated 21:33:05 · build v261043'. /live.json already carried the

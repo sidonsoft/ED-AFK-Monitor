@@ -1636,13 +1636,14 @@ def main() -> None:
                             live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
                         out_discord += f"\n\n{live_missions}"
 
-            if wing_wings and wing_combined and wing_combined.get("total"):
-                wing_line = wing_summary_line(wing_combined, len(wing_wings),
+            if wing_combined is not None or wing_serve_label:
+                wing_line = wing_summary_line(wing_combined or {}, len(wing_wings),
                                               wing_serve_label,
                                               conf_settings["WingTurnInAlert"])
-                out_terminal += f"\n{wing_line}"
-                if not live:
-                    out_telegram += f"\n{wing_line}"
+                if wing_line:
+                    out_terminal += f"\n{wing_line}"
+                    if not live:
+                        out_telegram += f"\n{wing_line}"
 
             if not live:
                 logevent(msg_term=f"{out_terminal}",

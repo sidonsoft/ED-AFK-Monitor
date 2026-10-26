@@ -626,6 +626,12 @@ class WingSummaryLineTests(unittest.TestCase):
                                " · 3 kills left across the wing · 250,000 Cr ready")
         self.assertIn("relay 0.0.0.0:8099", wing_summary_line(self.COMBINED, 0, "0.0.0.0:8099"))
 
+    def test_hosting_without_progress_still_speaks(self):
+        self.assertEqual(wing_summary_line({}, 0), "")
+        line = wing_summary_line({}, 0, "0.0.0.0:8099")
+        self.assertIn("hosting the wing relay on 0.0.0.0:8099", line)
+        self.assertIn("no wing progress shared yet", line)
+
     def test_alert_rides_the_line_until_resolved(self):
         line = wing_summary_line(self.COMBINED, 2, turnin_alert=200000)
         self.assertIn("\n  Wing has 250,000 Cr of completed missions ready", line)

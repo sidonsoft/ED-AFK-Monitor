@@ -877,7 +877,14 @@ class MissionLedger:
 
 
 def wing_summary_line(combined, shared_count, serve_label="", turnin_alert=0):
-    """The recurring summary's wing line, shared by every channel."""
+    """The recurring summary's wing line, shared by every channel;
+    '' when there is nothing worth saying. A serving host always speaks:
+    hosting a relay is worth a line even before wingmates push."""
+    if not combined or not combined.get("total"):
+        if serve_label:
+            return (f"Wing view: hosting the wing relay on {serve_label} "
+                    "- no wing progress shared yet")
+        return ""
     return (f"Wing view: local + {shared_count} shared ledger(s) ·"
             f" {combined['done']}/{combined['total']} complete"
             f" · {combined['left']} kills left across the wing"
