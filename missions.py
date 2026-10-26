@@ -532,6 +532,29 @@ class MissionLedger:
         done, total = self.progress()
         return f"{done}/{total}"
 
+    def expiring(self, window_minutes, now=None):
+        """Unfinished missions expiring within window_minutes, soonest first.
+
+        Returns (mission, minutes_left) pairs; already-past expiry gives a
+        negative value. Missions without a stored expiry are never reported.
+        """
+        now = datetime.now(timezone.utc) if now is None else now
+        found = []
+        for mission in self.missions.values():
+            if mission.done or not mission.expiry:
+                continue
+            try:
+                when = datetime.fromisoformat(str(mission.expiry).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            remaining = (when - now).total_seconds()
+            if remaining <= window_minutes * 60:
+                found.append((remaining, mission))
+        found.sort(key=lambda item: item[0])
+        return [(mission, int(remaining // 60)) for remaining, mission in found]
+
     def stacks(self):
         """Serial requirements per issuer, parallel requirements across issuers."""
         groups = {}

@@ -1,4 +1,5 @@
 """Mission ledger, faction spread and persistence."""
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -392,3 +393,46 @@ class IssuerStackTests(unittest.TestCase):
                 ledger.accept(accepted(i + 1, target='Anana Brotherhood', faction=f'Long issuing faction name number {i}' + ' x' * 70))
             self.assertLessEqual(len(ledger.report_live()), 1400)
             self.assertIn('More details', ledger.report_live())
+
+
+class MissionExpiryTests(unittest.TestCase):
+    NOW = datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+
+    def accept(self, ledger, mission_id, expiry):
+        return ledger.accept({"event": "MissionAccepted", "Name": "Mission_Massacre",
+                              "MissionID": mission_id, "Faction": "Issuer",
+                              "TargetFaction": "Pirate Faction", "KillCount": 10,
+                              "Expiry": expiry})
+
+    def test_expiring_returns_window_matches_soonest_first(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            self.accept(ledger, 1, (self.NOW + timedelta(minutes=5)).isoformat())
+            self.accept(ledger, 2, (self.NOW + timedelta(minutes=1)).isoformat())
+            self.accept(ledger, 3, (self.NOW + timedelta(minutes=120)).isoformat())
+            found = ledger.expiring(30, now=self.NOW)
+            self.assertEqual([mission.mission_id for mission, _ in found], [2, 1])
+            self.assertTrue(all(minutes <= 30 for _, minutes in found))
+
+    def test_past_expiry_included_with_negative_minutes(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            self.accept(ledger, 1, (self.NOW - timedelta(minutes=2)).isoformat())
+            found = ledger.expiring(15, now=self.NOW)
+            self.assertEqual([(m.mission_id, minutes) for m, minutes in found], [(1, -2)])
+
+    def test_done_missing_or_invalid_expiry_are_skipped(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            done = self.accept(ledger, 1, (self.NOW + timedelta(minutes=5)).isoformat())
+            done.done = True
+            self.accept(ledger, 2, "")
+            self.accept(ledger, 3, "not-a-date")
+            self.assertEqual(ledger.expiring(60, now=self.NOW), [])
+
+    def test_naive_expiry_treated_as_utc(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            self.accept(ledger, 1, (self.NOW + timedelta(minutes=10)).replace(tzinfo=None).isoformat())
+            found = ledger.expiring(30, now=self.NOW)
+            self.assertEqual([mission.mission_id for mission, _ in found], [1])

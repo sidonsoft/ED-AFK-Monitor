@@ -51,7 +51,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json"}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
@@ -292,6 +292,7 @@ class Tracking:
         self.dupeevent = ""
         self.duperepeats = 1
         self.dupewarn = False
+        self.warned_missions = set()
         self.preloading = True
         self.cmdrname = None
         self.cmdrship = None
@@ -457,7 +458,7 @@ conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
 conf_discord.update(getconfig("Discord", {"WebhookAvatarURL": WEBHOOK_AVATAR}, False))
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
-conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2}, False))
+conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2, "MissionExpiry": 3}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
 telegram_token = args.telegram_token if args.telegram_token is not None else os.environ.get("ED_AFK_TELEGRAM_TOKEN", conf_telegram["BotToken"])
 telegram_chat = args.telegram_chat if args.telegram_chat is not None else conf_telegram["ChatID"]
@@ -944,6 +945,7 @@ def processevent(line):
                 track.fighterhull = 0
                 track.live_update = None
                 track.missions = False
+                track.warned_missions = set()
                 # Duplicate suppression must not carry a previous session's counter over.
                 track.dupeevent = ""
                 track.duperepeats = 1
@@ -1350,6 +1352,21 @@ if __name__ == "__main__":
                                                 emoji="⚠️", loglevel=conf_log_levels["NoKills"])
                                         track.warnednokills = timemono
                             
+                                # Warn about unfinished missions approaching or past their expiry
+                                if conf_settings["WarnMissionExpiry"] and mission_ledger.has_missions():
+                                    for mission, minutes_left in mission_ledger.expiring(conf_settings["WarnMissionExpiry"]):
+                                        if mission.mission_id in track.warned_missions:
+                                            continue
+                                        track.warned_missions.add(mission.mission_id)
+                                        if minutes_left < 0:
+                                            detail = f"expired {-minutes_left}m ago and is still open"
+                                        else:
+                                            target = f" ({mission.target})" if mission.target else ""
+                                            detail = f"expires in {minutes_left}m{target}"
+                                        logevent(msg_term=f"{Col.WARN}Mission {detail}{Col.END}",
+                                                 emoji="⏳", timestamp=datetime.now(timezone.utc),
+                                                 loglevel=conf_log_levels["MissionExpiry"])
+
                             # Send a session summary update every minute
                             if webhook_live and (not track.live_update or timemono - track.live_update >= 60):
                                 summary(session, logtime=datetime.now(timezone.utc), live=True)

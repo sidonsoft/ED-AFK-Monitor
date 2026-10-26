@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: mission expiry alarms (2026-10-26)
+------------------------------------------------
+- Warn when an unfinished massacre mission expires within WarnMissionExpiry
+  minutes (Default: 15, 0 disables); already-expired-but-open missions are
+  reported once per game session. Log level 'MissionExpiry' (Default: 3).
+- Validation: 116 tests passed.
+
 Fork: roadmap 'Now' sprint (2026-10-26)
 ------------------------------------------------
 - Per-channel message length policy: over-long messages are split at line

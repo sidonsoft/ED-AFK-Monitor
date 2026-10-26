@@ -24,7 +24,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 6. **Projected income per hour** (★★★ / †) — combine live kill rate with mission reward/kill
    estimates (already in the ledger) to show live cr/h *including* mission turn-in value, plus
    "stack completes in ~X min at current rate" projections.
-7. **Mission expiry alarms** (★★ / †) — expiry dates are already stored; warn when an incomplete
+7. ✅ **Mission expiry alarms** (★★ / †) — expiry dates are already stored; warn when an incomplete
    mission or a high-value stack is about to expire while farming.
 8. **Discord embeds for mission spread** (★★ / †) — the live/summary blocks are plain text;
    embeds with fields, colours, and progress bars would make wing reports far scannable.
