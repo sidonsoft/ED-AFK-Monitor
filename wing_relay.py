@@ -134,7 +134,26 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.send_response(401)
             self.end_headers()
             return
-        name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
+        path = unquote(urlsplit(self.path).path)
+        name = path.lstrip("/").rsplit("/", 1)[-1]
+        if not name:
+            # 'GET /wing/' lists what this host carries: the quickest way for
+            # a wingmate to confirm a URL (or a token) actually works
+            ledgers = {}
+            for directory in reversed(self.directories):
+                for entry in sorted(directory.glob("*.json")):
+                    try:
+                        updated = json.loads(entry.read_bytes().decode("utf-8")).get("updated", 0)
+                    except (ValueError, OSError, UnicodeDecodeError):
+                        updated = entry.stat().st_mtime
+                    ledgers[entry.name] = updated
+            body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k]}
+                                           for k in sorted(ledgers)]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         found = next((d / name for d in self.directories
                       if name.endswith(".json") and (d / name).is_file()), None)
         if found is None:

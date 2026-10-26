@@ -171,6 +171,14 @@ class StaleNotesTests(unittest.TestCase):
 
 
 class WingServeTests(unittest.TestCase):
+    def test_directory_listing_covers_both_tiers(self):
+        (Path(self.folder.name) / "own.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        from urllib.request import urlopen
+        with urlopen(f"{self.base}/", timeout=3) as response:
+            listing = json.loads(response.read())
+        self.assertEqual([entry["name"] for entry in listing["ledgers"]], ["own.json"])
+        self.assertIn("updated", listing["ledgers"][0])
+
     def test_token_gates_get_and_put(self):
         self.server, error = start_wing_relay(0, self.folder.name, token="secret")
         self.assertEqual(error, "")
