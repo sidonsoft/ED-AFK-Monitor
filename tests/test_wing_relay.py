@@ -687,3 +687,19 @@ class NotARelayTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("not with a relay listing", errors[0])
         self.assertIn("Hello from some web server", errors[0])
+
+
+class RelayMetaNotARelayTests(unittest.TestCase):
+    def test_meta_probe_shares_the_plain_language_diagnosis(self):
+        RelayHandler.received = {}
+        RelayHandler.served = {"/": "<html>a blog, not a relay</html>"}
+        server = HTTPServer(("127.0.0.1", 0), RelayHandler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            build, fmt, err = relay_meta(f"http://127.0.0.1:{server.server_address[1]}/", timeout=3)
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual((build, fmt), ("", ""))
+        self.assertIn("not with a relay listing", err)
+        self.assertIn("a blog, not a relay", err)

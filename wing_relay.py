@@ -121,9 +121,14 @@ def relay_meta(url, timeout=5):
     try:
         with urlopen(Request(url, method="GET",
                              headers=wing_auth_headers(url)), timeout=timeout) as response:
-            listing = json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
     except Exception as failure:
         return "", "", _describe_failure(failure, url)
+    try:
+        listing = json.loads(raw)
+    except ValueError:
+        return "", "", (f"that URL answered, but not with a relay listing; "
+                        f"it sent {redact(raw[:60])!r}")
     if not isinstance(listing, dict):
         return "", "", "not a relay listing response"
     return str(listing.get("host_build", "")), str(listing.get("format", "")), ""

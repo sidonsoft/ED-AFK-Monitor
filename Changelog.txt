@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the --wing-test probe shares the plain-language diagnosis (2026-10-26)
+------------------------------------------------
+- relay_meta() against a blog or a captive portal now says 'that URL
+  answered, but not with a relay listing; it sent "<html>a blog...'
+  instead of a JSON parse traceback feel. Both client entry points
+  now speak the same sentence for the same mistake.
+- Validation: 273 tests passed.
+
 Fork: pointing a FetchURL at a website now says so in words (2026-10-26)
 ------------------------------------------------
 - Instead of 'could not read relay listing: Expecting value: line 1
