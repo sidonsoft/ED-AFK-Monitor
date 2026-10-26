@@ -18,6 +18,9 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
     - [Python version](#python-version)
   - [Telegram and reliable delivery](#telegram-and-reliable-delivery)
   - [Following game restarts](#following-game-restarts)
+  - [Wing mission stacks](#wing-mission-stacks)
+  - [Testing and updating](#testing-and-updating)
+  - [Development checks](#development-checks)
   - [Configuring log levels](#configuring-log-levels)
   - [Launch Arguments](#launch-arguments)
   - [Common Issues](#common-issues)
@@ -34,7 +37,9 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
 - Incoming scans of ship cargo by pirates
 - Bounties (i.e. kills) incl. faction and time since previous
 - Kill/bounty/merit summary and recent average rates
-- Mission kills completed and missions remaining
+- Wing mission stacks by issuing faction, kill progress, remaining kills and stack differences
+- Total/shareable mission rewards and value ready to turn in
+- Mission origins, destinations, expiry and individual payouts
 - Ship shields down/restored
 - Ship/fighter hull damage
 - Ship/fighter destroyed
@@ -53,13 +58,14 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
 
 ## Getting started
 
-The Telegram, journal-following and plain-output changes in this fork are available
+The wing mission stacks, Telegram, journal-following and plain-output changes in this fork are available
 from this branch's source code. Upstream standalone releases do not include them.
 Keep `afk_monitor.py`, `notifications.py`, `outbox.py`, `missions.py`,
 `journal_reader.py`, and `terminal_output.py` together when running from source.
 
-**Standalone (EXE) version**: Recommended for Windows users that aren't familiar with Python.  
-**Python version**: For everyone else, including Linux users.
+**Python version**: Use this fork’s source build for the features documented here.
+
+**Standalone (EXE) version**: The upstream build is available below; its feature set differs from this fork.
 
 > ℹ️ AFK Monitor uses features of modern terminal emulators such as [Windows Terminal](https://apps.microsoft.com/detail/9n0dx20hk701). Functionality will be degraded with older software such as the the Windows 10 console. For more information see [Terminal Support](https://github.com/PsiPab/ED-AFK-Monitor/wiki/Terminal-Support).
 
@@ -124,60 +130,41 @@ journal appears while a line is unfinished, the monitor waits briefly for the wr
 then switches, so an abandoned partial write cannot block following; that unfinished
 event is discarded.
 
-## Mission tracking and the spread
+## Wing mission stacks
 
-Massacre missions are recorded from `MissionAccepted` with their target faction, kill
-requirement, wing flag, expiry and reward, and saved to
-`mission_ledger/<profile>.json` next to `afk_monitor.py`. This matters because the
-journal's `Missions` event only lists mission IDs and expiry, so the details would
-otherwise be lost on a relog.
+Track massacre missions using the game's journals, with an Elite Tracker style
+breakdown in terminal and notification summaries. Elite Tracker does not need to run.
+The report includes issuer stacks, required and estimated kills, remaining kills,
+stack differences, total/shareable rewards and value ready to turn in. The detailed
+mission list also shows origins, destinations, expiry and individual payouts.
 
-Kills are estimated from the victim faction in `Bounty` events. A matching kill advances
-one unfinished mission per issuing faction, in acceptance order. Missions from the same
-issuer add together; different issuers progress in parallel. The unique requirement is
-the largest issuer total for each target faction. Existing saved kill estimates are
-preserved when upgrading; they cannot be corrected retrospectively without a full replay.
-
-The summary includes issuing-faction stacks with required/estimated kills, remaining
-kills, difference from the largest remaining stack, mission and wing counts, and rewards.
-It also shows total and shareable stack value, confirmed value ready to turn in, average
-credits per kill and mission, kill ratio, and estimated kills to the next completion.
-Shareable value means the reward on wing missions, without multiplying by wing size.
-`--missions` adds each mission's origin system/station, issuing faction, destination,
-progress, expiry, payout and wing status. Unknown location details appear as `?`.
-Origin details are captured from travel/docking events and recovered from recent journals
-when available. All these fields are also included in `--missions --json`.
-
-```text
-Mission spread: 0/3 complete | 3 wing | 216 kills left
-  Issuing faction stacks (estimated local kills):
-    Liberals of Ahayan -> Anana Brotherhood | 0/165 | 165 left | Diff 51 | 2 missions (2 wing) | 79,510,476 cr
-    United Tagg League -> Anana Brotherhood | 0/216 | 216 left | Diff 0 | 1 missions (1 wing) | 104,361,602 cr
+```powershell
+py afk_monitor.py --missions
+py afk_monitor.py --missions --json
 ```
 
-- `--missions` prints every saved ledger (including mission IDs) and exits without
-  starting the monitor, reading the journal or contacting Discord/Telegram.
-  `--missions --json` prints the same data as JSON for other tools.
-- `--import-missions <file>` adds a mission list to the ledger and exits (`-` reads
-  stdin). One mission per line as `TargetFaction, Kills [, wing]`, or
-  `MissionID, TargetFaction, Kills [, wing]`, or CSV with a header such as
-  `Target Faction,Kills,Wing`. Re-importing a list replaces the imported rows but keeps
-  their kill progress when the target faction, kill count and wing flag still match.
-  Imported rows are shown as `imported` and are marked complete when their kills reach
-  the requirement.
-- When `Missions` lists a mission the monitor has never seen, it searches up to 20 recent
-  journals for that `MissionAccepted` event to recover the faction and kill count.
-- `SummaryMissions` under `[LogLevels]` sets where the mission block is reported; the
-  default is 2 (terminal, Discord and Telegram). Set 1 for terminal only or 0 to hide it.
-  The block is appended to the periodic session-stats message and to the edited live
-  Discord session-stats message, which also refreshes on mission changes.
-- Wing missions progress from every wing member's kills, but the journal only records
-  your own kills, so `Done` is your contribution. `MissionRedirected` still marks a
-  mission complete when the wing finishes it.
-- Not every wanted ship of the target faction is a mission target, so kill credit is an
-  estimate. Missions accepted before the monitor first recorded them are recovered from
-  recent journals where possible; otherwise they show as "unknown target" and can be
-  added with `--import-missions`.
+These commands read saved ledgers and exit without contacting Discord/Telegram.
+Start the monitor normally first to load or refresh mission details. In the existing
+`[LogLevels]` section, `SummaryMissions = 2` enables terminal and configured notification
+summaries; `1` selects terminal only and `0` hides the block.
+
+Missions from the same issuer add together; different issuers progress in parallel
+against the same target faction. For example, 40 + 30 kills from issuer A and 50
+from issuer B require 70 unique kills. Progress is estimated from local bounty events;
+`MissionRedirected` confirms objective completion. Wing members' kills and missing
+journal events can make estimates differ from the game. Upgrades preserve old saved
+estimates rather than retroactively correcting them.
+
+See the [wing mission stack guide](docs/wing-missions.md) for field definitions,
+worked calculations, saved-state recovery, imports and accuracy limits. Long Discord
+reports are abbreviated; use the saved report or JSON for the full list.
+
+## Testing and updating
+
+See [testing, updates and rollback](docs/testing-and-updates.md) for source installation,
+backup steps, checks, live verification and the gaming-PC backup location. Updates
+use your existing settings and mission ledger. This build reports completion; it
+does not exit the game or turn in missions automatically.
 
 ## Configuring log levels
 
