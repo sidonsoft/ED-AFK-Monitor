@@ -16,6 +16,7 @@ from terminal_output import StatusLogger
 from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, check_response, telegram_send
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
+from ship_pools import load_ship_pools
 
 try:
     from discord_webhook import DiscordWebhook
@@ -33,7 +34,7 @@ def fallover(message):
 DEBUG_MODE = False
 DISCORD_TEST = False
 VERSION = 261017
-GITHUB_REPO = "PsiPab/ED-AFK-Monitor"
+DEFAULT_REPO = "sidonsoft/ED-AFK-Monitor"
 DUPE_MAX = 5
 FUEL_LOW = 0.2		# 20%
 FUEL_CRIT = 0.1		# 10%
@@ -43,14 +44,14 @@ REG_WEBHOOK = r"^https:\/\/(?:canary\.|ptb\.)?discord(?:app)?\.com\/api\/webhook
 WEBHOOK_AVATAR = "https://cdn.discordapp.com/attachments/1339930614064877570/1354083225923883038/t10.png"
 
 # Game stuff
-SHIPS_EASY = ["adder", "asp", "asp_scout", "cobramkiii", "cobramkiv", "cobramkv", "diamondback", "diamondbackxl", "eagle", "empire_courier", "empire_eagle", "krait_light", "sidewinder", "viper", "viper_mkiv"]
-SHIPS_HARD = ["anaconda", "empire_trader", "federation_dropship", "federation_dropship_mkii", "federation_gunship", "ferdelance", "krait_mkii", "python", "python_nx", "type9_military", "typex", "typex_2", "typex_3", "vulture"]
+DEFAULT_SHIPS_EASY = ["adder", "asp", "asp_scout", "cobramkiii", "cobramkiv", "cobramkv", "diamondback", "diamondbackxl", "eagle", "empire_courier", "empire_eagle", "krait_light", "sidewinder", "viper", "viper_mkiv"]
+DEFAULT_SHIPS_HARD = ["anaconda", "empire_trader", "federation_dropship", "federation_dropship_mkii", "federation_gunship", "ferdelance", "krait_mkii", "python", "python_nx", "type9_military", "typex", "typex_2", "typex_3", "vulture"]
 BAIT_MESSAGES = ["$Pirate_ThreatTooHigh", "$Pirate_NotEnoughCargo", "$Pirate_OnNoCargoFound"]
 COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", "Master", "Dangerous", "Deadly", "Elite", "Elite I", "Elite II", "Elite III", "Elite IV", "Elite V"]
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json"}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
@@ -93,25 +94,7 @@ args = parser.parse_args()
 
 msg = StatusLogger(plain=args.plain)
 
-# Update check (skipped for the offline mission report)
-url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-latest_version = 0
-if not (args.missions or args.import_missions):
-    try:
-        with urlopen(url, timeout=1) as response:
-            if response.status == 200:
-                release_data = json.loads(response.read())
-                latest_version = int(release_data["tag_name"][1:])
-    except Exception:
-        pass
-
-    # Print header
-    title = f"ED AFK Monitor v{VERSION} by CMDR PSIPAB"
-    msg.log(f"{Col.CYAN}{'='*len(title)}")
-    msg.log(f"{title}")
-    msg.log(f"{'='*len(title)}{Col.END}\n")
-    if VERSION < latest_version:
-        msg.log(f"{Col.YELL}Update v{latest_version} is available!{Col.END}\n{Col.WHITE}Download:{Col.END} https://github.com/{GITHUB_REPO}/releases\n")
+# The update check and banner run after config is loaded (they honour the 'Repo' setting).
 
 # Config loading and first run setup
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
@@ -472,6 +455,7 @@ for warning in mission_ledger.warnings:
 conf_settings = getconfig("Settings", DEFAULTS_SETTINGS)
 conf_settings.update(getconfig("Settings", DEFAULTS_EXTRA, False))
 conf_discord = getconfig("Discord", DEFAULTS_DISCORD)
+conf_discord.update(getconfig("Discord", {"WebhookAvatarURL": WEBHOOK_AVATAR}, False))
 conf_log_levels = getconfig("LogLevels", DEFAULTS_LOG_LEVELS)
 conf_log_levels.update(getconfig("LogLevels", {"SummaryMissions": 2}, False))
 conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
@@ -481,6 +465,32 @@ telegram_enabled = bool(telegram_token and telegram_chat)
 follow_journals = not (args.no_follow or args.setfile or args.fileselect)
 if bool(telegram_token) != bool(telegram_chat):
     msg.log("Telegram: both BotToken and ChatID are required; Telegram disabled")
+
+# Update check (offline mission commands exit before this point)
+github_repo = conf_settings["Repo"] or DEFAULT_REPO
+latest_version = 0
+try:
+    with urlopen(f"https://api.github.com/repos/{github_repo}/releases/latest", timeout=1) as response:
+        if response.status == 200:
+            release_data = json.loads(response.read())
+            latest_version = int(release_data["tag_name"][1:])
+except Exception:
+    pass
+
+title = f"ED AFK Monitor v{VERSION} by CMDR PSIPAB"
+msg.log(f"{Col.CYAN}{'='*len(title)}")
+msg.log(f"{title}")
+msg.log(f"{'='*len(title)}{Col.END}\n")
+if VERSION < latest_version:
+    msg.log(f"{Col.YELL}Update v{latest_version} is available!{Col.END}\n{Col.WHITE}Download:{Col.END} https://github.com/{github_repo}/releases\n")
+
+# Ship pools can be replaced with a data file so game updates do not need code edits
+ships_path = Path(conf_settings["ShipsFile"])
+if not ships_path.is_absolute():
+    ships_path = config_file_path / ships_path
+SHIPS_EASY, SHIPS_HARD, ship_warnings = load_ship_pools(ships_path, DEFAULT_SHIPS_EASY, DEFAULT_SHIPS_HARD)
+for warning in ship_warnings:
+    msg.log(f"{WARNING} {warning}")
 
 # Configure status line
 status_col = f"\x1b[48;{conf_settings['StatusColBG']}m" if conf_settings["StatusColBG"] else ""
@@ -507,7 +517,7 @@ if discord_available:
         webhook_log = DiscordWebhook(url=discord_webhook_log, timeout=5)
         if conf_discord["Identity"]:
             webhook_log.username = "ED AFK Monitor"
-            webhook_log.avatar_url = WEBHOOK_AVATAR
+            webhook_log.avatar_url = conf_discord["WebhookAvatarURL"]
         if conf_discord["ForumChannel"]:
             journal_start = datetime.fromisoformat(journal_file[8:-7])
             journal_start = datetime.strftime(journal_start, "%Y-%m-%d %H:%M:%S")
@@ -524,7 +534,7 @@ if discord_available:
         webhook_live = DiscordWebhook(url=discord_webhook_live, timeout=5)
         if conf_discord["Identity"]:
             webhook_live.username = "ED AFK Monitor Live"
-            webhook_live.avatar_url = WEBHOOK_AVATAR
+            webhook_live.avatar_url = conf_discord["WebhookAvatarURL"]
     elif discord_webhook_live:
         msg.log(f"{Col.WARN}Warning:{Col.END} Discord (live) webhook invalid URL; live stats for Discord disabled\n")
 elif discord_webhook_log or discord_webhook_live:
@@ -581,7 +591,8 @@ if senders and not discord_test:
     notifications_outbox = Outbox(
         config_file_path / "pending_notifications" / profile_directory_name(profile),
         [name for name in senders if name != "discord_live"])
-notifications = NotificationDispatcher(senders, preview=discord_test, outbox=notifications_outbox)
+notifications = NotificationDispatcher(senders, preview=discord_test, outbox=notifications_outbox,
+                                       max_lengths={"discord": 2000, "telegram": 4096})
 
 
 def notification_reports():
@@ -592,9 +603,7 @@ def notification_reports():
 def sendmessage(message="", telegram_message=None):
     notifications.submit("discord", message)
     if telegram_enabled:
-        text = message if telegram_message is None else telegram_message
-        for offset in range(0, len(text), 4096):
-            notifications.submit("telegram", text[offset:offset + 4096])
+        notifications.submit("telegram", message if telegram_message is None else telegram_message)
     notification_reports()
 
 
@@ -823,7 +832,7 @@ def processevent(line):
                 kills_t = f" x{session.kills}" if conf_settings["ExtendedStats"] else ""
                 kills_d = f"x{session.kills} " if conf_settings["ExtendedStats"] else ""
                 bountyvalue = f" [{num_format(bountyvalue)} cr]" if conf_settings["BountyValue"] else ""
-                victimfaction = j["VictimFaction_Localised"] if "VictimFaction_Localised" in j else j["VictimFaction"]
+                victimfaction = j.get("VictimFaction_Localised") or j.get("VictimFaction") or UNKNOWN
                 if j["event"] == "Bounty":
                     mission_ledger.kill(victimfaction, j.get("VictimFaction"))
                 session.factions[victimfaction] = session.factions.get(victimfaction, 0) + 1
@@ -859,8 +868,11 @@ def processevent(line):
                 if session.fuellasttime and track.deploytime and logtime > session.fuellasttime:
                     fuel_time = (logtime-session.fuellasttime).total_seconds()
                     fuel_hour = 3600 / fuel_time * (session.fuellastremain-j["FuelMain"])
-                    fuel_time_remain = time_format(j["FuelMain"] / fuel_hour * 3600)
-                    fuel_time_remain = f" (~{fuel_time_remain})"
+                    if fuel_hour > 0:
+                        fuel_time_remain = time_format(j["FuelMain"] / fuel_hour * 3600)
+                        fuel_time_remain = f" (~{fuel_time_remain})"
+                    else:
+                        fuel_time_remain = ""
                     #debug(f"Fuel used since previous: {round(session.fuellastremain-j["FuelMain"],2)}t in {time_format(fuel_time)}")
                 else:
                     fuel_time_remain = ""
@@ -1265,9 +1277,9 @@ if __name__ == "__main__":
             update_status(True)
 
         # Queue startup notifications
-        update_notice = f"\n:arrow_up: Update **[v{latest_version}](https://github.com/{GITHUB_REPO}/releases)** available!" if VERSION < latest_version else ""
+        update_notice = f"\n:arrow_up: Update **[v{latest_version}](https://github.com/{github_repo}/releases)** available!" if VERSION < latest_version else ""
 
-        startup_message = f"💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}](https://github.com/{GITHUB_REPO})){update_notice}"
+        startup_message = f"💥 **ED AFK Monitor** 💥 by CMDR PSIPAB ([v{VERSION}](https://github.com/{github_repo})){update_notice}"
         if conf_discord["ForumChannel"] and conf_discord["UserID"]:
             startup_message += f" <@{conf_discord['UserID']}>"
         sendmessage(startup_message,

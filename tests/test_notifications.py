@@ -9,7 +9,8 @@ from time import monotonic, sleep
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
-from notifications import DeliveryError, LiveUpdate, NotificationDispatcher, check_response, telegram_send
+from notifications import (DeliveryError, LiveUpdate, NotificationDispatcher, check_response,
+                       split_message, telegram_send)
 from outbox import Outbox
 
 
@@ -311,3 +312,46 @@ class SavedNotificationTests(unittest.TestCase):
         self.assertEqual(delivered, ["delivered anyway"])
         self.assertTrue(any("store unavailable" in report
                             for report in dispatcher.drain_reports()))
+
+
+class MessageLengthTests(unittest.TestCase):
+    def test_split_prefers_newline_boundaries_and_round_trips(self):
+        text = "\n".join(f"line {i} payload padding" for i in range(20))
+        chunks = split_message(text, 200)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 200 for chunk in chunks))
+        self.assertEqual("\n".join(chunks), text)
+
+    def test_split_force_splits_oversized_single_line(self):
+        text = "x" * 4500
+        chunks = split_message(text, 4096)
+        self.assertEqual([len(chunk) for chunk in chunks], [4096, 404])
+        self.assertEqual("".join(chunks), text)
+
+    def test_split_no_op_under_limit_or_without_limit(self):
+        self.assertEqual(split_message("short", 2000), ["short"])
+        self.assertEqual(split_message("x" * 5000, 0), ["x" * 5000])
+
+    def test_dispatcher_chunks_per_channel_limit_and_completes_outbox(self):
+        with TemporaryDirectory() as directory:
+            calls = []
+            outbox = Outbox(Path(directory) / "pending", ["discord"])
+            dispatcher = NotificationDispatcher({"discord": calls.append}, outbox=outbox,
+                                                max_lengths={"discord": 100})
+            text = "\n".join(["a" * 40] * 10)
+            self.assertTrue(dispatcher.submit("discord", text))
+            dispatcher.close()
+            self.assertGreater(len(calls), 1)
+            self.assertTrue(all(len(call) <= 100 for call in calls))
+            self.assertEqual("\n".join(calls), text)
+            pending, warnings = outbox.load()
+            self.assertEqual(warnings, [])
+            self.assertEqual(pending["discord"], [])
+
+    def test_live_update_objects_are_never_split(self):
+        calls = []
+        dispatcher = NotificationDispatcher({"discord_live": calls.append}, max_lengths={"discord_live": 10})
+        update = LiveUpdate("line one\nline two long enough to exceed the tiny limit", 1)
+        dispatcher.submit("discord_live", update)
+        dispatcher.close()
+        self.assertEqual(calls, [update])

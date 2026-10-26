@@ -56,6 +56,8 @@ ThreadCmdrNames = false
 Timestamp = true
 # Identity = true (default) provides default name and avatar for webhook, set false to use user-set
 Identity = true
+# WebhookAvatarURL overrides the avatar image used when Identity = true
+# WebhookAvatarURL = 'https://cdn.discordapp.com/attachments/1339930614064877570/1354083225923883038/t10.png'
 
 [Telegram]
 # Create a bot with @BotFather, then open the bot's chat and send /start.

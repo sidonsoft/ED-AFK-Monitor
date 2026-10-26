@@ -35,6 +35,30 @@ class DeliveryError(Exception):
         self.retry_after = retry_after
 
 
+def split_message(text, limit):
+    """Split text into <=limit chunks at newline boundaries, force-splitting long lines."""
+    if limit <= 0 or len(text) <= limit:
+        return [text]
+    chunks = []
+    current = ""
+    for line in text.split("\n"):
+        while len(line) > limit:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(line[:limit])
+            line = line[limit:]
+        add = line if not current else f"\n{line}"
+        if len(current) + len(add) <= limit:
+            current += add
+        else:
+            chunks.append(current)
+            current = line
+    if current:
+        chunks.append(current)
+    return [chunk for chunk in chunks if chunk]
+
+
 def check_response(status, retry_after=None):
     if not 200 <= status < 300:
         try:
@@ -92,10 +116,11 @@ def telegram_send(token, chat_id, message, timeout=5):
 
 class NotificationDispatcher:
     """One independent FIFO worker per channel; all terminal output stays on the caller."""
-    def __init__(self, senders, preview=False, capacity=200, attempts=3, outbox=None):
+    def __init__(self, senders, preview=False, capacity=200, attempts=3, outbox=None, max_lengths=None):
         self.senders = senders
         self.preview = preview
         self.attempts = attempts
+        self.max_lengths = dict(max_lengths or {})
         self.reports = Queue()
         self.stopped = Event()
         self.closed = False
@@ -134,6 +159,14 @@ class NotificationDispatcher:
     def submit(self, channel, message):
         if self.closed or channel not in self.senders or not message:
             return False
+        parts = split_message(message, self.max_lengths.get(channel, 0)) \
+            if isinstance(message, str) else [message]
+        for part in parts:
+            if not self._submit_one(channel, part):
+                return False
+        return True
+
+    def _submit_one(self, channel, message):
         if self.preview:
             self.reports.put(f"{channel.upper()} PREVIEW: {message}")
             return True

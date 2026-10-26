@@ -1,0 +1,5 @@
+{
+  "_comment": "Ship pools used for scan/kill classification. Edit freely; unknown names are simply never matched. Compare against the in-game ship list.",
+  "easy": ["adder", "asp", "asp_scout", "cobramkiii", "cobramkiv", "cobramkv", "diamondback", "diamondbackxl", "eagle", "empire_courier", "empire_eagle", "krait_light", "sidewinder", "viper", "viper_mkiv"],
+  "hard": ["anaconda", "empire_trader", "federation_dropship", "federation_dropship_mkii", "federation_gunship", "ferdelance", "krait_mkii", "python", "python_nx", "type9_military", "typex", "typex_2", "typex_3", "vulture"]
+}

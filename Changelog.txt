@@ -2,6 +2,22 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: roadmap 'Now' sprint (2026-10-26)
+------------------------------------------------
+- Per-channel message length policy: over-long messages are split at line
+  boundaries instead of being dropped by Discord (2000) or Telegram (4096).
+  Telegram chunking moved into the notification dispatcher.
+- New 'Repo' setting selects which GitHub repository announces updates;
+  defaults to this fork so fork users see fork releases. The check now
+  runs after config load.
+- New 'ShipsFile' setting plus ships.json data file: the 'easy'/'hard'
+  ship pools can be edited (or replaced) without code changes; invalid
+  files fall back to the built-in pools with a warning.
+- New 'WebhookAvatarURL' setting overrides the Discord webhook avatar.
+- Fuel reports no longer produce warnings when no fuel burned between samples.
+- Journal lines without VictimFaction (older game versions) no longer warn.
+- Validation: 112 tests passed (new ship pool and message-split coverage).
+
 Fork: wing mission stack test build (2026-10-26)
 ------------------------------------------------
 - Add issuer stacks, estimated kill progress, remaining kills and stack differences.

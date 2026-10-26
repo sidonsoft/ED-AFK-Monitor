@@ -23,6 +23,12 @@ WarnCooldown = 30
 RecentIntervals = [15, 30, 60]
 # WinTitleCmdrName prepends commander name to the window title (Default: false, requires DynamicTitle = true)
 WinTitleCmdrName = false
+# Repo selects the GitHub repository checked for update notifications (Default: "sidonsoft/ED-AFK-Monitor")
+# Set to "PsiPab/ED-AFK-Monitor" to track the original releases, or point it at your own fork
+Repo = 'sidonsoft/ED-AFK-Monitor'
+# ShipsFile points at a JSON file with "easy"/"hard" ship pools used for scan and kill classification
+# (Default: ships.json next to AFK Monitor; edit that file after game updates without touching code)
+ShipsFile = 'ships.json'
 
 # =====================
 # Status line
