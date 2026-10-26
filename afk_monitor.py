@@ -21,6 +21,7 @@ from ship_pools import load_ship_pools
 from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
+from monitor_state import Stats, Tracking, num_format, per_hour, time_format
 from journal_schema import unhandled_types
 from config_overrides import apply_overrides, parse_overrides
 
@@ -347,87 +348,6 @@ def debug(message):
         msg.log(f"{Col.WHITE}[Debug]{Col.END} {message} [{datetime.strftime(datetime.now(), '%H:%M:%S')}]")
 
 debug(f"Profile argument: {args.profile}")
-
-class Stats:
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.scansinrecents = []
-        self.scansoutrecents = []
-        self.lastkillutc = 0
-        self.lastkillmono = 0
-        self.killstime = 0
-        self.kill_times = []
-        self.scansin = 0
-        self.scanstime = 0
-        self.scan_times = []
-        self.lastscanutc = 0
-        self.lastscanmono = 0
-        self.kills = 0
-        self.bounties = 0
-        self.factions = {}
-        self.merits = 0
-        self.lastsecurity = ""
-        self.baitfails = 0
-        self.fuellasttime = 0
-        self.fuellastremain = 0
-        self.meritstoreport = 0
-
-class Tracking:
-    def __init__(self):
-        self.deploytime = None
-        self.totaltime = 0
-        self.warnednokills = None
-        self.warnedkillrate = None
-        self.fuelcapacity = 64
-        self.killtype = "bounties"
-        self.fighterhull = 0
-        self.logged = 0
-        self.lines = 0
-        self.missions = False
-        self.lasteventname = None
-        self.thiseventtime = None
-        self.dupeevent = ""
-        self.duperepeats = 1
-        self.dupewarn = False
-        self.warned_missions = set()
-        self.runstart = None
-        self.seen_events = {}
-        self.preloading = True
-        self.cmdrname = None
-        self.cmdrship = None
-        self.cmdrcombatrank = None
-        self.cmdrcombatprogress = None
-        self.cmdrgamemode = None
-        self.cmdrlocation = None
-        self.lastcheck = None
-        self.live_update = None
-        self.live_reset = True
-    
-    def sessionstart(self, reset=False, delta=0):
-        if not self.deploytime or reset:
-            if not delta:
-                self.deploytime = self.thiseventtime
-            else:
-                self.deploytime = self.thiseventtime - timedelta(seconds=delta)
-            session.reset()
-            debug(f"Session started: {self.deploytime}")
-            session.kill_times.append(self.deploytime)
-            session.scan_times.append(self.deploytime)
-            self.warnednokills = None
-            self.warnedkillrate = None
-            self.lastcheck = time.monotonic()
-            self.live_update = None
-            update_status()
-
-    def sessionend(self):
-        if self.deploytime:
-            self.totaltime += (self.thiseventtime - self.deploytime).total_seconds()
-            debug(f"Session ended: {self.thiseventtime} ({time_format((self.thiseventtime-self.deploytime).total_seconds())}) [Total: {time_format(self.totaltime)}]")
-            self.deploytime = None
-            self.live_reset = True
-            update_status(True)
 
 session = Stats()
 total = Stats()
@@ -840,12 +760,6 @@ def logevent(msg_term, msg_discord=None, emoji=None, timestamp=None, loglevel=2,
         msg.beep(conf_settings["AlertSound"])
 
 # Calculate somethings per hour
-def per_hour(seconds=0, precision=None):
-    if seconds > 0:
-        return round(3600 / seconds, precision)
-    else:
-        return 0
-
 def recent_rates(timestamps: list, checktime: datetime, intervals: list, precision=None):
     """Calculates the number of events per hour of a given time range"""
     
@@ -1234,31 +1148,6 @@ def processevent(line):
         msg.log(f"{Col.WARN}Warning:{Col.END} Process event error for [{event}]: {e} (logtime: {logtime})")
         debug(line)
 
-def time_format(seconds: int) -> str:
-	if seconds is not None and seconds >= 0:
-		seconds = int(seconds)
-		h = seconds // 3600
-		m = seconds % 3600 // 60
-		s = seconds % 3600 % 60
-		if h > 0:
-			return '{:d}h{:d}m'.format(h, m)
-		elif m > 0:
-			return '{:d}m{:d}s'.format(m, s)
-		else:
-			return '{:d}s'.format(s)
-	else:
-		return "-"
-
-def num_format(number: int) -> str:
-    if number is not None:
-        number = int(number)
-        if number >= 999_500:
-            return f"{round(number / 1_000_000, 1):g}m"
-        elif number >= 1_000:
-            return f"{round(number / 1_000):g}k"
-        else:
-            return number
-
 def update_status(reset=False):
     """Outputs realtime info to status line and window title"""
     
@@ -1332,6 +1221,10 @@ def update_status(reset=False):
                 msg.clear_status()
 
 # Output stats for kills, bounties and merits
+
+# Bind the live session stats and status hooks into the tracking core
+track.attach(session=session, on_debug=debug, on_status=update_status)
+
 def summary(stats, logtime=None, session=True, live=False):
     kill_type = track.killtype.capitalize()
     log_levels = {"Kills": conf_log_levels["SummaryKills"], "Faction": conf_log_levels["SummaryFaction"],

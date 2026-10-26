@@ -33,7 +33,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 
 ## Later — platform & UX
 
-10. **`main()` refactor + typed core** (★★ / †† for future features) — config dataclass, event
+10. 🔶 **`main()` refactor + typed core** *(typed core done: Stats/Tracking + helpers extracted to monitor_state.py with attach() DI and direct unit tests; main() flow decomposition deferred until items 14/19 need it)* (★★ / †† for future features) — config dataclass, event
     handlers as methods, injectable transports; unlocks unit-testing without the subprocess
     bootstrap and paves the way for everything below.
 11. ✅ **More channels** (★★ / † each) — ntfy, Pushover, generic JSON webhook, Home Assistant,

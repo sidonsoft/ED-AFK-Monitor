@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: typed session-state core (2026-10-26)
+------------------------------------------------
+- Stats, Tracking, per_hour, time_format and num_format now live in an
+  importable 'monitor_state' module with type hints and attach()-based
+  dependency injection, unit-testable without booting the monitor script.
+- Validation: 175 tests passed.
+
 Fork: wing-shared mission ledgers (2026-10-26)
 ------------------------------------------------
 - '--missions --wing' merges wingmate ledgers (mission_ledger/wing/*.json,

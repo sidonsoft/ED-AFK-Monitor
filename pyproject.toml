@@ -37,6 +37,7 @@ py-modules = [
     "journal_reader",
     "journal_schema",
     "missions",
+    "monitor_state",
     "notifications",
     "outbox",
     "session_card",
