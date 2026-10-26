@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  actions: write  # rerun-failed-jobs + workflow_dispatch bump
 
 jobs:
   tests:
@@ -27,7 +26,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # macOS coverage runs on the dedicated trusted runner
+        # (trusted-macos.yml); hosted macos pools are congestion-prone
+        os: [ubuntu-latest, windows-latest]
         python: ['3.12', '3.13']
     steps:
       - uses: actions/checkout@v6
@@ -38,40 +39,3 @@ jobs:
         run: python -m pip install pillow
       - name: Run regression tests without notification credentials
         run: python -m unittest discover -s tests -v
-
-      - name: Retry jobs cancelled by runner-pool eviction
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # macOS pool congestion cancels queued jobs before any step runs
-          # (zero logs). rerun-failed-jobs can't touch a still-active run, so
-          # the heal is a fresh workflow_dispatch for this branch tip - capped
-          # to one dispatch per sha so congestion can't loop runs forever.
-          attempt=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} -q .run_attempt)
-          if [ "$attempt" -ge 2 ]; then exit 0; fi
-          own="Python ${{ matrix.python }} on ${{ matrix.os }}"
-          sleep 20
-          statuses=""
-          for i in $(seq 1 40); do
-            statuses=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
-              --jq '.check_runs[] | select(.name | startswith("Python")) | .name + " " + .status + " " + .conclusion')
-            # this very job is still running while we wait; never block on it
-            if ! grep -v "^$own " <<<"$statuses" | grep -q ' in_progress\| queued'; then break; fi
-            sleep 30
-          done
-          if grep -q ' cancelled' <<<"$statuses"; then
-            dispatched=$(gh run list --workflow tests.yml -L 15 --json headSha,event \
-              --jq "[.[] | select(.headSha==\"${{ github.sha }}\" and .event==\"workflow_dispatch\")] | length")
-            if [ "${dispatched:-0}" -ge 1 ]; then
-              echo "::notice::dispatch for this sha already exists; not looping"
-            elif gh workflow run tests.yml --ref "${{ github.ref_name }}" -f reason="wrapper-cancelled"; then
-              echo "::notice::dispatched a fresh run for ${{ github.ref_name }} (cancelled jobs heal)"
-            else
-              echo "::error::dispatch failed; run stays honestly red"
-              exit 1
-            fi
-          fi
-            # stay green: the retried attempt (run_attempt>=2) reports honestly
-          fi
