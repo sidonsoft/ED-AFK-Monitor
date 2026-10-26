@@ -16,7 +16,7 @@ from journal_reader import JournalReader, read_complete_line, commander_from_lin
 from terminal_output import StatusLogger
 from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, check_response,
                        ntfy_send, telegram_send, webhook_send)
-from outbox import Outbox, profile_directory_name, summarize_pending
+from outbox import Outbox, profile_directory_name, view_outbox
 from missions import (MissionLedger, merge_spreads, turnin_notice,
                         wing_spreads, wing_summary_line)
 from ship_pools import load_ship_pools
@@ -322,19 +322,16 @@ def main() -> None:
         directory = (config_file_path / "pending_notifications"
                      / profile_directory_name(args.profile))
         channels = [f.stem for f in sorted(directory.glob("*.json"))] if directory.is_dir() else []
-        lines, warnings = summarize_pending(directory, channels)
+        lines, warnings, cleared = view_outbox(directory, channels, clear=args.outbox_clear)
         for complaint in warnings:
             msg.log(f"{WARNING} {complaint}")
         for line in lines:
             msg.log(f"Outbox {line}")
-        if not lines:
+        if not lines and cleared is None:
             msg.log("Outbox: nothing waiting on any channel - "
                     "every recent notification went out.")
-        if args.outbox_clear:
-            store = Outbox(directory, channels)
-            store.load()
-            dropped = sum(store.clear(channel) for channel in channels)
-            msg.log(f"Outbox: cleared {dropped} pending notification(s).")
+        if cleared is not None:
+            msg.log(f"Outbox: cleared {cleared} pending notification(s).")
         sys.exit(0)
 
     if args.wing_test:

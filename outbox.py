@@ -40,6 +40,18 @@ def summarize_pending(directory, channels, max_age=MAX_AGE, now=None):
     return lines, warnings
 
 
+def view_outbox(directory, channels, clear=False, max_age=MAX_AGE, now=None):
+    """--outbox's whole job, test-first: peek (never mutates unless asked)
+    and optionally drop. Returns (lines, warnings, cleared_or_None)."""
+    lines, warnings = summarize_pending(directory, channels, max_age=max_age, now=now)
+    cleared = None
+    if clear:
+        store = Outbox(directory, channels, max_age=max_age)
+        store.load(now=now)
+        cleared = sum(store.clear(channel) for channel in channels)
+    return lines, warnings, cleared
+
+
 class Outbox:
     """One bounded JSON file per channel, replaced atomically after each change.
 

@@ -5,7 +5,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from time import time
 
-from outbox import Outbox, profile_directory_name, summarize_pending
+from outbox import (Outbox, profile_directory_name, summarize_pending,
+                           view_outbox)
 
 
 class OutboxTests(unittest.TestCase):
@@ -103,3 +104,22 @@ class ClearTests(unittest.TestCase):
             self.assertEqual(pending["telegram"], [])
             self.assertEqual(warnings, [])
             self.assertEqual(store.clear("telegram"), 0)  # idempotent
+
+
+class ViewOutboxTests(unittest.TestCase):
+    def test_peek_then_clear_in_one_call_returns_both_views(self):
+        with TemporaryDirectory() as folder:
+            store = Outbox(Path(folder), ["telegram"], max_age=3600)
+            store.load(now=1000)
+            store.add("telegram", "m1", "Queue me", created=950)
+            lines, warnings, cleared = view_outbox(Path(folder), ["telegram"],
+                                                   max_age=3600, now=1500)
+            self.assertIsNone(cleared)  # peeking must not mutate
+            self.assertIn("telegram: 1 waiting", "\n".join(lines))
+            second = Outbox(Path(folder), ["telegram"], max_age=3600)
+            self.assertEqual(len(second.load(now=1500)[0]["telegram"]), 1)
+            lines, warnings, cleared = view_outbox(Path(folder), ["telegram"],
+                                                   clear=True, max_age=3600, now=1500)
+            self.assertEqual(cleared, 1)
+            third = Outbox(Path(folder), ["telegram"], max_age=3600)
+            self.assertEqual(third.load(now=1500)[0]["telegram"], [])

@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --outbox's whole job now lives in one tested function (2026-10-26)
+------------------------------------------------
+- No behavior change for users - but 'peeking never mutates unless
+  asked' is now a pinned guarantee, and the clear count comes from
+  the same call. The flag that once shipped unwired is now wired
+  test-first.
+- Validation: 278 tests passed.
+
 Fork: the relay answers HEAD requests (2026-10-26)
 ------------------------------------------------
 - 'curl -I http://host:8099/wing/' now works as an uptime/port check:
