@@ -5,10 +5,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      reason:
+        description: why a manual re-run happened
+        required: false
+        default: ""
 
 permissions:
   contents: read
-  actions: write  # rerun-failed-jobs on this run id (needs actions: write)
+  actions: write  # rerun-failed-jobs + workflow_dispatch bump
 
 jobs:
   tests:
@@ -59,8 +64,10 @@ jobs:
               >/dev/null; then
               echo "::notice::re-ran cancelled jobs in this run (attempt increments)"
             else
-              echo "::warning::could not re-run cancelled jobs (exit stays honest)"
-              exit 1
+              echo "::warning::rerun-failed-jobs failed; dispatching a fresh run instead"
+              gh workflow run tests.yml --ref "${{ github.ref_name }}" -r "${{ github.sha }}" \
+                -f reason="wrapper-fallback" \
+                || { echo "::error::fallback dispatch also failed"; exit 1; }
             fi
             # stay green: the retried attempt (run_attempt>=2) reports honestly
           fi
