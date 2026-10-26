@@ -27,7 +27,7 @@ jobs:
             runner: [windows-latest]
             binary: ed-afk-monitor-windows
           - platform: Linux x64
-            runner: [ubuntu-latest]
+            runner: [dell-ed-afk-linux-x64]
             binary: ed-afk-monitor-linux
           - platform: macOS ARM64
             runner: [ed-afk-trusted-macos-arm64]
