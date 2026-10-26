@@ -886,16 +886,21 @@ def merge_spreads(spreads):
         if data is None:
             continue
         out["ledgers"] += 1
-        out["updated"] = max(out["updated"], data.get("updated", 0) or 0)
+        # wingmates' files may come from odd builds: numbers must not be
+        # trusted to be numbers before arithmetic touches them
+        def numbers(source, key):
+            value = source.get(key, 0)
+            return value if isinstance(value, (int, float)) else 0
+        out["updated"] = max(out["updated"], numbers(data, "updated"))
         for key in ("done", "total", "wing", "left", "reward", "shareable_reward",
                     "turn_in", "shareable_turn_in", "unknown"):
-            out[key] += data.get(key, 0)
+            out[key] += numbers(data, key)
         for row in data.get("rows", []):
             into = merged.setdefault(row.get("faction", "Unknown"),
                                      {"faction": row.get("faction", "Unknown"),
                                       "missions": 0, "done": 0, "need": 0, "left": 0})
             for key in ("missions", "done", "need", "left"):
-                into[key] += row.get(key, 0)
+                into[key] += numbers(row, key)
     out["rows"] = sorted(merged.values(), key=lambda row: (-row["left"], row["faction"]))
     return out
 

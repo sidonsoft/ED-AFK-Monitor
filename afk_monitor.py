@@ -1393,8 +1393,8 @@ def main() -> None:
         if combined["turn_in"]:
             text += f" · {combined['turn_in']:,} Cr ready"
         for name, spread in wings:
-            text += (f"\n  {name[:-5]}: {spread['done']}/{spread['total']} complete"
-                     f" · {spread['left']} left")
+            text += (f"\n  {name[:-5]}: {spread.get('done', 0)}/{spread.get('total', 0)} complete"
+                     f" · {spread.get('left', 0)} left")
         for error in errors:
             text += f"\nWing relay fetch: {error}"
         return text

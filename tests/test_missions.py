@@ -589,3 +589,17 @@ class WingMergeTests(unittest.TestCase):
     def test_wing_spreads_missing_folder_is_empty(self):
         with TemporaryDirectory() as folder:
             self.assertEqual(wing_spreads(Path(folder) / "nope"), [])
+
+
+class MergeToleranceTests(unittest.TestCase):
+    def test_garbage_remote_values_cannot_crash_the_merge(self):
+        merged = merge_spreads([
+            {"done": 1, "total": 4, "left": 3, "turn_in": 100, "updated": 5.0},
+            {"done": "lots", "total": None, "left": [3], "updated": "yesterday",
+             "rows": [{"faction": "Pirates", "left": "five"}]},
+            None])
+        self.assertEqual(merged["done"], 1)
+        self.assertEqual(merged["total"], 4)
+        self.assertEqual(merged["updated"], 5.0)
+        self.assertEqual(merged["rows"][0]["left"], 0)  # garbage row cells -> 0
+        self.assertEqual(merged["ledgers"], 2)
