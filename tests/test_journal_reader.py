@@ -2,6 +2,7 @@
 import ast
 import json
 from pathlib import Path
+import textwrap
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -13,10 +14,13 @@ SOURCE = Path(__file__).resolve().parents[1] / "afk_monitor.py"
 
 
 def load_function(name, namespace=None):
-    tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
-    function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name)
+    source = SOURCE.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    # Production functions may be nested inside main(); search the whole tree.
+    function = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
+    segment = textwrap.dedent(ast.get_source_segment(source, function))
     scope = {} if namespace is None else namespace
-    exec(compile(ast.Module(body=[function], type_ignores=[]), str(SOURCE), "exec"), scope)
+    exec(compile(ast.Module(body=[ast.parse(segment).body[0]], type_ignores=[]), str(SOURCE), "exec"), scope)
     return scope[name]
 
 
@@ -110,7 +114,8 @@ class LiveDeliveryTests(unittest.TestCase):
         webhook.edit = edit
         send = load_function('discord_live_send', {
             'webhook_live': webhook, 'DeliveryError': DeliveryError,
-            'check_response': check_response, 'live_delivery_generation': None})
+            'check_response': check_response,
+            'track': SimpleNamespace(live_delivery_generation=None)})
         send(LiveUpdate('first session', 1))
         send(LiveUpdate('first update', 1))
         send(LiveUpdate('second session', 2))
@@ -125,7 +130,8 @@ class LiveDeliveryTests(unittest.TestCase):
             return SimpleNamespace(status_code=500 if len(calls) == 1 else 200)
         send = load_function('discord_live_send', {
             'webhook_live': SimpleNamespace(execute=execute), 'DeliveryError': DeliveryError,
-            'check_response': check_response, 'live_delivery_generation': None})
+            'check_response': check_response,
+            'track': SimpleNamespace(live_delivery_generation=None)})
         with self.assertRaises(DeliveryError):
             send(LiveUpdate('session', 1))
         send(LiveUpdate('session', 1))
@@ -226,10 +232,11 @@ class SummaryRoutingTests(unittest.TestCase):
         webhook = SimpleNamespace(id='message-1', content=None, edit=edit, execute=execute)
         send = load_function('discord_live_send', {
             'webhook_live': webhook, 'DeliveryError': DeliveryError,
-            'check_response': check_response, 'live_delivery_generation': 1})
+            'check_response': check_response,
+            'track': SimpleNamespace(live_delivery_generation=1)})
         send(LiveUpdate('session stats', 1))
         self.assertEqual(calls, ['edit', 'execute'])
-        self.assertEqual(send.__globals__['live_delivery_generation'], 1)
+        self.assertEqual(send.__globals__['track'].live_delivery_generation, 1)
 
     def test_live_message_without_id_is_created(self):
         from types import SimpleNamespace
@@ -239,7 +246,8 @@ class SummaryRoutingTests(unittest.TestCase):
                                                    or SimpleNamespace(status_code=200)))
         send = load_function('discord_live_send', {
             'webhook_live': webhook, 'DeliveryError': DeliveryError,
-            'check_response': check_response, 'live_delivery_generation': 1})
+            'check_response': check_response,
+            'track': SimpleNamespace(live_delivery_generation=1)})
         send(LiveUpdate('session stats', 1))
         self.assertEqual(calls, ['execute'])
 

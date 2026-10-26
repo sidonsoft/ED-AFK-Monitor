@@ -33,7 +33,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 
 ## Later — platform & UX
 
-10. 🔶 **`main()` refactor + typed core** *(typed core done: Stats/Tracking + helpers extracted to monitor_state.py with attach() DI and direct unit tests; main() flow decomposition deferred until items 14/19 need it)* (★★ / †† for future features) — config dataclass, event
+10. ✅ **`main()` refactor + typed core** *(two phases: monitor_state.py typed core with attach() DI + direct unit tests; then all module globals removed (live-generation counters, journal_file -> Tracking state) and the top-level flow wrapped in main(); further helper decomposition left as optional)* (★★ / †† for future features) — config dataclass, event
     handlers as methods, injectable transports; unlocks unit-testing without the subprocess
     bootstrap and paves the way for everything below.
 11. ✅ **More channels** (★★ / † each) — ntfy, Pushover, generic JSON webhook, Home Assistant,
@@ -45,14 +45,14 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
     a shared folder/URL) so the stack view reflects the whole wing, not one CMDR.
 14. ✅ **Interactive commands** *(terminal hotkeys: status/missions/mute; Discord bot slash-commands deferred - needs a gateway dependency)* (★★ / ††) — a Discord bot mode (`/stats`, `/missions`, `/mute`)
     complementing the webhook, or hotkeys on the terminal.
-15. **Session export & shareable card** (★★ / †) — CSV/JSON export per session, and a rendered
+15. ✅ **Session export & shareable card** *(CSV/JSON export + Pillow PNG summary card + --share text)* (★★ / †) — CSV/JSON export per session, and a rendered
     PNG summary card for posting after a farm.
 16. ✅ **Packaging & ops** *(pip metadata, extras, Docker, PyInstaller release builds and a service-mode guide delivered; self-update and automatic log rotation deferred)* (★★ / ††) — `pip install ed-afk-monitor` entry point, GitHub Actions
     PyInstaller release builds, `--self-update` link, log file with rotation, service mode
     (Task Scheduler/launchd/systemd) and Docker for headless rigs.
-17. **Config quality of life** (★ / †) — `tomlkit` so the app can edit config without destroying
+17. ✅ **Config quality of life** *(`--set Section.Key=value` typed overrides shipped; tomlkit comment-preserving edits deferred)* (★ / †) — `tomlkit` so the app can edit config without destroying
     comments; `--set key=value` CLI; config hot-reload.
-18. **Journal schema drift detector** (★ / †) — count unknown events/fields and report them in the
+18. ✅ **Journal schema drift detector** *(seen-event counting + handled/ignored catalogue + drift report on exit)* (★ / †) — count unknown events/fields and report them in the
     summary; add a corpus of real journal fixtures to CI so game updates surface as failing tests,
     not silent warnings.
 19. ✅ **Multi-instance watch mode** *(supervisor: one process per folder/profile; single-process tailing deferred)* (★★ / ††) — one process tailing several journal folders

@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: main() wrapper + typed runtime state (2026-10-26)
+------------------------------------------------
+- afk_monitor.py top-level flow now runs inside main(); module import no
+  longer executes the monitor pipeline.
+- All module-level globals removed: live-delivery generation counters and
+  the active journal file live on the Tracking object (monitor_state.py).
+- Tests can extract production functions even when nested in main()
+  (ast.walk + dedented source segments in the loader).
+- Validation: 188 tests passed.
+
 Fork: multi-instance watch mode (2026-10-26)
 ------------------------------------------------
 - '--instance label=journal_folder' (repeatable) supervises one monitor per
