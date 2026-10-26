@@ -271,6 +271,27 @@ class WingServeTests(unittest.TestCase):
                        timeout=3).read().decode("utf-8")
         self.assertIn("silent wingmate", page)
 
+    def test_format_mismatch_put_is_refused_with_an_explanation(self):
+        for body, label in [({"version": FILE_VERSION - 1, "missions": []}, "old format"),
+                            ({"missions": []}, "no version"),
+                            ([1, 2, 3], "not an object")]:
+            req = Request(f"{self.base}/junk.json", method="PUT",
+                          data=json.dumps(body).encode(),
+                          headers={"Content-Type": "application/json"})
+            try:
+                urlopen(req, timeout=3)
+                self.fail(f"{label} should 409")
+            except urllib.error.HTTPError as caught:
+                self.assertEqual(caught.code, 409)
+                self.assertIn("not a v", json.loads(caught.read())["error"])
+        # and the good one still lands
+        req = Request(f"{self.base}/good.json", method="PUT",
+                      data=json.dumps(LEDGER).encode(),
+                      headers={"Content-Type": "application/json"})
+        with urlopen(req, timeout=3) as response:
+            self.assertEqual(response.status, 204)
+        self.assertFalse((Path(self.folder.name) / "junk.json").exists())
+
     def test_page_lists_recent_pushes_newest_first(self):
         req = Request(f"{self.base}/one.json", method="PUT",
                       data=json.dumps(LEDGER).encode(), headers={"Content-Type": "application/json"})

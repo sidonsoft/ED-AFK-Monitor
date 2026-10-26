@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay refuses wrong-format pushes at the door (2026-10-26)
+------------------------------------------------
+- A wingmate on an older monitor now gets 'that is not a v... ledger
+  (its version field is 7); update the sending monitor...' the moment
+  it pushes, instead of the file sitting on the host silently ignored
+  by every wing view forever. Junk and non-object bodies likewise
+  refuse to land.
+- Validation: 266 tests passed.
+
 Fork: --wing-test tells you how stale each ledger is (2026-10-26)
 ------------------------------------------------
 - Every probe line ends with 'updated just now / under 1 h ago /

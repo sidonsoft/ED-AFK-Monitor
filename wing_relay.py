@@ -410,10 +410,23 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                 self._status(413)
                 self.end_headers()
                 return
-            json.loads(body.decode("utf-8"))  # only real ledgers on disk
+            parsed = json.loads(body.decode("utf-8"))  # only real ledgers on disk
         except (ValueError, UnicodeDecodeError):
             self._status(400)
             self.end_headers()
+            return
+        from missions import FILE_VERSION
+        got = parsed.get("version") if isinstance(parsed, dict) else None
+        if got != FILE_VERSION:
+            # say so now instead of storing junk the merge will silently
+            # skip forever: the pusher's own run fails with this sentence
+            self._status(409)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": (
+                f"that is not a v{FILE_VERSION} ledger (its version field is "
+                f"{got!r}); update the sending monitor - this relay only keeps "
+                "ledgers its own wing view can actually merge")}).encode())
             return
         (self.directories[0] / name).write_bytes(body)
         # newest-first ring, shared by every thread of this bound handler
