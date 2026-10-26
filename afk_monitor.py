@@ -1450,6 +1450,10 @@ def main() -> None:
                 f" · {combined['left']} kills left across the wing")
         if combined["turn_in"]:
             text += f" · {combined['turn_in']:,} Cr ready"
+            note = turnin_notice(combined["turn_in"],
+                                 conf_settings["WingTurnInAlert"], False)
+            if note:
+                text += f"\n  {note}"
         for name, spread in wings:
             text += (f"\n  {name[:-5]}: {spread.get('done', 0)}/{spread.get('total', 0)} complete"
                      f" · {spread.get('left', 0)} left")

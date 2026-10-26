@@ -2,6 +2,12 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: [w] echoes the WingTurnInAlert nudge (2026-10-26)
+------------------------------------------------
+- Asking for the wing report with the banked reward over the threshold
+  says so right in the report, same wording as the summary nudge.
+- Validation: 248 tests passed.
+
 Fork: the [w] hotkey names the last wingmate push (2026-10-26)
 ------------------------------------------------
 - 'last push: putmate.json (4,096 bytes) at 21:04' - console parity
