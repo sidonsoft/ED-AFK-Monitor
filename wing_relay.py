@@ -178,23 +178,29 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_PUT(self):
+        name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
+        try:
+            declared = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            declared = -1
+        if declared < 0 or declared > 16 * MAX_LEDGER_BYTES:
+            # absurd or unparseable: answer without ingesting the request
+            self.send_response(413 if declared > 0 else 400)
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            return
+        # read the body before any verdict: answering mid-request on a
+        # keep-alive connection wedges the client before it finishes
+        # sending, so the 401/400 it was promised never arrives intact
+        body = self.rfile.read(declared)
         if not self._authorized():
             return self._deny()
-        name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
         if not name.endswith(".json"):
             self.send_response(400)
             self.end_headers()
             return
         try:
-            declared = int(self.headers.get("Content-Length", 0))
-            if declared > 16 * MAX_LEDGER_BYTES:
-                # absurd: answer without ingesting the request at all
-                self.send_response(413)
-                self.send_header("Connection", "close")
-                self.end_headers()
-                self.close_connection = True
-                return
-            body = self.rfile.read(declared)
             if len(body) > MAX_LEDGER_BYTES:
                 self.send_response(413)
                 self.end_headers()

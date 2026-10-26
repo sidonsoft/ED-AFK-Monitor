@@ -227,6 +227,14 @@ class WingServeTests(unittest.TestCase):
             self.assertTrue((Path(self.folder.name) / "mate2.json").is_file())
         _, _, error = fetch_spread(f"{base}/mate2.json?token=wrong")
         self.assertIn("Unauthorized", error)
+        # a wrong-token PUSH must also surface as a clean 401, not a wedged
+        # connection: the body has to be drained before the verdict
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "mate3.json"
+            path.write_text(json.dumps(LEDGER), encoding="utf-8")
+            failure = push_ledger(path, f"{base}?token=wrong", timeout=3)
+        self.assertIn("Unauthorized", failure)
+        self.assertFalse((Path(self.folder.name) / "mate3.json").exists())
 
     """The monitor-embedded relay (start_wing_relay) round-trips ledgers."""
 
