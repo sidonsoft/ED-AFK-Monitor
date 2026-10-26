@@ -667,3 +667,23 @@ class MixedFormatWingTests(unittest.TestCase):
         # same-format relays (the real handler) stay warning-free
         spreads, errors = fetch_spreads(self.base + "/mate.json", timeout=3)
         self.assertEqual(errors, [])
+
+
+class NotARelayTests(unittest.TestCase):
+    def setUp(self):
+        RelayHandler.received = {}
+        RelayHandler.served = {"/": "Hello from some web server"}
+        self.server = HTTPServer(("127.0.0.1", 0), RelayHandler)
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_html_answer_explains_this_is_not_a_relay(self):
+        spreads, errors = fetch_spreads(f"{self.base}/", timeout=3)
+        self.assertEqual(spreads, [])
+        self.assertEqual(len(errors), 1)
+        self.assertIn("not with a relay listing", errors[0])
+        self.assertIn("Hello from some web server", errors[0])

@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: pointing a FetchURL at a website now says so in words (2026-10-26)
+------------------------------------------------
+- Instead of 'could not read relay listing: Expecting value: line 1
+  column 1 (char 0)', a URL that answers with anything non-JSON gets
+  'that URL answered, but not with a relay listing - an ED AFK relay
+  root answers JSON like {"ledgers": [...]}; this one sent "Hello..."'.
+  Wrong port, wrong path, plain website - the message tells the story.
+- Validation: 272 tests passed.
+
 Fork: the relay page keeps a 'recent trouble' list (2026-10-26)
 ------------------------------------------------
 - The last 5 refused pushes - wrong format, non-JSON body, oversized,

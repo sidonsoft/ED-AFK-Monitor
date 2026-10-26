@@ -179,9 +179,16 @@ def _listing_entries(url, timeout=5):
     try:
         with urlopen(Request(url, method="GET",
                              headers=wing_auth_headers(url)), timeout=timeout) as response:
-            listing = json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
     except Exception as failure:
         return None, f"could not read relay listing: {_describe_failure(failure, url)}", ""
+    try:
+        listing = json.loads(raw)
+    except ValueError:
+        return None, ("that URL answered, but not with a relay listing - "
+                      "an ED AFK relay root answers JSON like "
+                      '{"ledgers": [...]}; this one sent '
+                      f"{redact(raw[:60])!r}"), ""
     entries = listing.get("ledgers") if isinstance(listing, dict) else None
     if not isinstance(entries, list):
         return None, "relay listing response has no 'ledgers' list", ""
