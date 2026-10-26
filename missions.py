@@ -748,7 +748,9 @@ class MissionLedger:
         if wing_combined and wing_combined.get("total"):
             value = (f"local + {wing_sources} shared ledger(s) ·"
                      f" {wing_combined['done']}/{wing_combined['total']} complete\n"
-                     f"{wing_combined['left']} kills left across the wing")
+                     f"{wing_combined['left']} kills left across the wing"
+                     + (f" · {wing_combined.get('turn_in', 0):,} cr ready"
+                        if wing_combined.get("turn_in") else ""))
             if wing_errors:
                 value += "\n⚠ " + "; ".join(wing_errors)[:700]
             fields.append({"name": "Wing view", "value": value, "inline": False})

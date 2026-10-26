@@ -701,7 +701,7 @@ def main() -> None:
                 local = mission_ledger.spread()
                 combined = merge_spreads(([local] if local.get("total") else [])
                                          + [spread for _, spread in wings])
-                data["wing_view"] = {"combined": {key: combined[key] for key in ("done", "total", "left")},
+                data["wing_view"] = {"combined": {key: combined[key] for key in ("done", "total", "left", "turn_in")},
                                      "sources": [name for name, _ in wings],
                                      "errors": errors}
         return data
@@ -1377,6 +1377,8 @@ def main() -> None:
         text = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
                 f" {combined['done']}/{combined['total']} complete"
                 f" · {combined['left']} kills left across the wing")
+        if combined["turn_in"]:
+            text += f" · {combined['turn_in']:,} Cr ready"
         for name, spread in wings:
             text += (f"\n  {name[:-5]}: {spread['done']}/{spread['total']} complete"
                      f" · {spread['left']} left")
@@ -1532,7 +1534,9 @@ def main() -> None:
             if wing_wings and wing_combined and wing_combined.get("total"):
                 wing_line = (f"Wing view: local + {len(wing_wings)} shared ledger(s) ·"
                              f" {wing_combined['done']}/{wing_combined['total']} complete"
-                             f" · {wing_combined['left']} kills left across the wing")
+                             f" · {wing_combined['left']} kills left across the wing"
+                             + (f" · {wing_combined['turn_in']:,} Cr ready"
+                                if wing_combined["turn_in"] else ""))
                 out_terminal += f"\n{wing_line}"
                 if not live:
                     out_telegram += f"\n{wing_line}"

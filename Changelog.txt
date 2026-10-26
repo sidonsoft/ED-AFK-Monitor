@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing view shows credits ready across the wing (2026-10-26)
+------------------------------------------------
+- Combined wing totals now include 'Cr ready' (merged turn-in value)
+  on the [w] hotkey, session summaries, the Discord embed's Wing view
+  field and the dashboard wing panel.
+- Validation: 216 tests passed.
+
 Fork: wing relay push gets a second chance (2026-10-26)
 ------------------------------------------------
 - A failed relay push is retried once - with a 2s backoff mid-session,

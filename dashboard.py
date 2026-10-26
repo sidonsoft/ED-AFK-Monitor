@@ -76,7 +76,9 @@ fetch('missions.json' + query).then(r => r.json()).then(d => {
     document.getElementById('wingpanel').hidden = false;
     const c = wing.combined;
     let w = 'local + ' + wing.sources.length + ' shared ledger(s) · ' + c.done + '/' + c.total
-      + ' complete · ' + fmt(c.left) + ' kills left across the wing<br>sources: '
+      + ' complete · ' + fmt(c.left) + ' kills left across the wing'
+      + (c.turn_in ? ' · ' + fmt(c.turn_in) + ' cr ready' : '')
+      + '<br>sources: '
       + esc(wing.sources.join(', ') || 'none');
     if (wing.errors && wing.errors.length)
       w += '<div class="warn">' + wing.errors.map(esc).join('<br>') + '</div>';

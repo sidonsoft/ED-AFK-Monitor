@@ -750,7 +750,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 self.assertIn('mate: no updates for', combined)  # stale wingmate flagged
                 self.assertIn("'name': 'Wing view'", combined)  # the Discord embed carries it too
                 self.assertIn('mate.json', dash['wing_view']['sources'])
-                self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5})
+                self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5, 'turn_in': 0})
                 self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
                 self.assertTrue(any('no updates for' in error for error in dash['wing_view']['errors']))
                 self.assertIn('/wing/default.json', store)
