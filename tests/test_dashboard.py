@@ -65,8 +65,10 @@ class DashboardTests(unittest.TestCase):
         try:
             try:
                 get(port, "/live.json")
-            except (urllib.error.HTTPError, ConnectionResetError, urllib.error.URLError):
-                pass  # handler exception closes the socket; acceptable for a local panel
+                self.fail("broken provider should answer 500")
+            except urllib.error.HTTPError as caught:
+                self.assertEqual(caught.code, 500)
+                self.assertIn("state gone", json.loads(caught.read())["error"])
             self.assertEqual(json.loads(get(port, "/missions.json")[1]), {"total": 1})
         finally:
             server.shutdown()

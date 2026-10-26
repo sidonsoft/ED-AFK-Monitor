@@ -132,6 +132,16 @@ def make_handler(live_provider, missions_provider, token="", sessions_provider=N
             self.end_headers()
             self.wfile.write(payload)
 
+        def _json(self, provider):
+            # one bad state read must cost one request, not the panel:
+            # an escaping exception here would kill the handler thread and
+            # the connection with it (flaky clients see a reset instead of
+            # a usable error)
+            try:
+                return self._send(200, json.dumps(provider(), ensure_ascii=False))
+            except Exception as failure:
+                return self._send(500, json.dumps({"error": str(failure)}))
+
         def do_GET(self):
             path, _, query = self.path.partition("?")
             supplied = self.headers.get("X-Dashboard-Token", "")
@@ -144,11 +154,11 @@ def make_handler(live_provider, missions_provider, token="", sessions_provider=N
             if path in ("/", "/index.html"):
                 return self._send(200, PAGE, "text/html; charset=utf-8")
             if path == "/live.json":
-                return self._send(200, json.dumps(live_provider(), ensure_ascii=False))
+                return self._json(live_provider)
             if path == "/missions.json":
-                return self._send(200, json.dumps(missions_provider(), ensure_ascii=False))
+                return self._json(missions_provider)
             if path == "/sessions.json" and sessions_provider is not None:
-                return self._send(200, json.dumps(sessions_provider(), ensure_ascii=False))
+                return self._json(sessions_provider)
             return self._send(404, json.dumps({"error": "not found"}))
 
     return DashboardHandler

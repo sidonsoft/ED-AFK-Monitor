@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard provider errors answer 500 instead of dropping the socket (2026-10-26)
+------------------------------------------------
+- A state read blowing up during a live/missions/sessions request used
+  to kill the handler thread mid-response; clients saw connection
+  resets (a CI flake on loaded runners). Now one failed request, one
+  clean 500 with the error text; the panel and browser keep going.
+- Validation: 234 tests passed.
+
 Fork: a fresh host advertises its relay before any missions exist (2026-10-26)
 ------------------------------------------------
 - The dashboard wing panel used to hide until some ledger had data,
