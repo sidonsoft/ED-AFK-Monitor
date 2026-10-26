@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: broken wing URLs are flagged at startup, not per-summary (2026-10-26)
+------------------------------------------------
+- 'host:8099/wing' (missing scheme) and 'ftp://...' entries now warn
+  once when the monitor starts instead of repeating their fetch error
+  into every summary for hours.
+- Validation: 256 tests passed.
+
 Fork: --version also reports the interpreter (2026-10-26)
 ------------------------------------------------
 - 'ED AFK Monitor 261045 (Python 3.12.11)'. Bug reports and mystery

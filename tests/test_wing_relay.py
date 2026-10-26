@@ -10,7 +10,8 @@ from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
 from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
-                        redact, serve_advice, served_count, wing_test_lines,
+                        redact, serve_advice, served_count, url_shape_warnings,
+                        wing_test_lines,
                         stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
@@ -452,3 +453,12 @@ class ServedCountTests(unittest.TestCase):
             (wing / "own.json").write_text("{}", encoding="utf-8")
             self.assertEqual(served_count([wing, Path(folder)]), 2)
             self.assertEqual(served_count([Path(folder) / "missing"]), 0)
+
+
+class UrlShapeWarningTests(unittest.TestCase):
+    def test_bare_hostnames_and_schemes_flag_once_each(self):
+        warns = url_shape_warnings(["host:8099/wing", "http://ok/x", "ftp://x/y",
+                                    "https://ok/", ""])
+        self.assertEqual(len(warns), 2)  # empty entries are dropped upstream
+        self.assertTrue(any("host:8099/wing" in w for w in warns))
+        self.assertTrue(any("ftp://x/y" in w for w in warns))

@@ -176,6 +176,18 @@ def push_ledger(path, base_url, timeout=5):
     return ""
 
 
+def url_shape_warnings(urls):
+    """Config-time smell test: entries that can never be fetched. Cheaper
+    than watching the same fetch error repeat in every summary."""
+    warnings = []
+    for url in as_url_list(urls):
+        if not str(url).startswith(("http://", "https://")):
+            warnings.append(f"'{redact(url)}' is not an http(s) URL - "
+                            "wingmates will use it verbatim, so a bare "
+                            "hostname or missing scheme fails every fetch")
+    return warnings
+
+
 def wing_auth_headers(url):
     """ED_AFK_WING_TOKEN (like ED_AFK_TELEGRAM_TOKEN before it) carries the
     relay secret in the environment; URLs keep working with ?token=, and an

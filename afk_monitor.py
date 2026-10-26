@@ -21,7 +21,8 @@ from missions import (MissionLedger, merge_spreads, turnin_notice,
                         wing_spreads, wing_summary_line)
 from ship_pools import load_ship_pools
 from wing_relay import (fetch_spreads, push_ledger, serve_advice, served_count,
-                        stale_notes, start_wing_relay, wing_test_lines)
+                        stale_notes, start_wing_relay, url_shape_warnings,
+                        wing_test_lines)
 from dashboard import share_warning, start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -781,6 +782,8 @@ def main() -> None:
     if args.dashboard_host == "127.0.0.1":
         args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
 
+    for complaint in url_shape_warnings(conf_wing["FetchURL"]) + url_shape_warnings(conf_wing["PushURL"]):
+        msg.log(f"{WARNING} Wing config: {complaint}")
     wing_serve_label = ""
     wing_serve_dirs = []
     wing_last_push = {}  # last ledger the relay accepted, for the panel
