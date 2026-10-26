@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: session history (2026-10-26)
+------------------------------------------------
+- Each monitor run with logged activity is saved to a per-profile
+  session database when the monitor stops; use --history (with --json
+  for machine-readable output) to print per-run duration, kills and
+  rate, bounty credits and rate, merits and mission progress with totals.
+- 'HistoryDays' setting controls retention (Default: 90).
+- Validation: 125 tests passed.
+
 Fork: mission value projections (2026-10-26)
 ------------------------------------------------
 - Session and live summaries now include a projection line: mission

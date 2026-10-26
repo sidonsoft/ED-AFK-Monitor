@@ -18,7 +18,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 
 ## Next — insight & value tracking
 
-5. **Session database + history** (★★★ / ††) — SQLite log of sessions (duration, kill/scan rates,
+5. ✅ **Session database + history** (★★★ / ††) — SQLite log of sessions (duration, kill/scan rates,
    bounties/hr, merits, mission value); `--history` trend report; answers "is this ring better
    than last week?"
 6. ✅ **Projected income per hour** (★★★ / †) — combine live kill rate with mission reward/kill

@@ -17,6 +17,7 @@ from notifications import NotificationDispatcher, DeliveryError, LiveUpdate, che
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger
 from ship_pools import load_ship_pools
+from session_store import SessionStore
 
 try:
     from discord_webhook import DiscordWebhook
@@ -51,7 +52,7 @@ COMBAT_RANKS = ["Harmless", "Mostly Harmless", "Novice", "Competent", "Expert", 
 
 # Config defaults
 DEFAULTS_SETTINGS = {"JournalFolder": "", "UseUTC": False, "LiveStatus": True, "DynamicTitle": True, "WarnKillRate": 20, "WarnNoKills": 20, "PirateNames": False, "BountyFaction": False, "BountyValue": False, "ExtendedStats": False, "MinScanLevel": 1}
-DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15}
+DEFAULTS_EXTRA = {"RecentFiles": 10, "TruncatePirate": 25, "TruncateFaction": 30, "WarnNoKillsInitial": 5, "WarnKillRateDelay": 5, "WarnCooldown": 30, "RecentIntervals": [15, 30, 60], "WinTitleCmdrName": False, "StatusPadChar": " ", "StatusColBG": "5;236", "StatusColFG": "5;254", "StatusSafeMargin": 2, "Repo": "sidonsoft/ED-AFK-Monitor", "ShipsFile": "ships.json", "WarnMissionExpiry": 15, "HistoryDays": 90}
 DEFAULTS_DISCORD = {"WebhookURL": "", "WebhookLiveURL": "", "UserID": 0, "PrependCmdrName": False, "ForumChannel": False, "ThreadCmdrNames": False, "Timestamp": True, "Identity": True}
 DEFAULTS_TELEGRAM = {"BotToken": "", "ChatID": 0}
 DEFAULTS_LOG_LEVELS = {"ScanIncoming": 1, "ScanEasy": 1, "ScanHard": 2, "KillEasy": 2, "KillHard": 2, "FighterHull": 2, "FighterDown": 3, "ShipShields": 3, "ShipHull": 3, "Died": 3, "CargoLost": 3, "BaitValueLow": 2, "SecurityScan": 2, "SecurityAttack": 3, "FuelReport": 1, "FuelLow": 2, "FuelCritical": 3, "Missions": 2, "MissionsAll": 3, "Merits": 0, "NoKills": 3, "KillRate": 3, "SummaryKills": 2, "SummaryFaction": 0, "SummaryScans": 0, "SummaryBounties": 2, "SummaryMerits": 2}
@@ -84,7 +85,8 @@ parser.add_argument("--telegram-token", help="Override Telegram token (prefer ED
 parser.add_argument("--telegram-chat", type=int, help="Override Telegram chat ID")
 parser.add_argument("--no-follow", action="store_true", help="Keep monitoring only the selected journal")
 parser.add_argument("--missions", action="store_true", help="Print the saved massacre-mission ledger and exit")
-parser.add_argument("--json", action="store_true", help="With --missions, print machine-readable JSON")
+parser.add_argument("--history", action="store_true", help="Print the saved session history and exit")
+parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
 file_group = parser.add_mutually_exclusive_group()
@@ -126,6 +128,30 @@ def show_mission_ledgers(directory, as_json=False):
             msg.log(warning)
         msg.log("")
         msg.log(ledger.report_text(include_missions=True, title=True))
+
+
+def show_session_histories(directory, profile=None, as_json=False):
+    if profile:
+        target = Path(directory) / f"{profile_directory_name(profile)}.db"
+        paths = [target] if target.is_file() else []
+    else:
+        paths = sorted(Path(directory).glob("*.db")) if Path(directory).is_dir() else []
+    if as_json:
+        data = []
+        for path in paths:
+            store = SessionStore(path)
+            data.append({"file": path.name, "sessions": store.sessions(), "totals": store.totals()})
+            store.close()
+        sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        return
+    if not paths:
+        msg.log("No saved sessions found; they are recorded automatically when the monitor stops.")
+        return
+    for path in paths:
+        store = SessionStore(path)
+        msg.log("")
+        msg.log(store.report_text(title=path.stem))
+        store.close()
 
 
 def import_missions(directory, source, profile=None):
@@ -172,6 +198,10 @@ if args.import_missions:
 
 if args.missions:
     show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json)
+    sys.exit()
+
+if args.history:
+    show_session_histories(config_file_path / "session_history", args.profile, as_json=args.json)
     sys.exit()
 
 config_file = Path(config_file_path / "afk_monitor.toml")
@@ -293,6 +323,7 @@ class Tracking:
         self.duperepeats = 1
         self.dupewarn = False
         self.warned_missions = set()
+        self.runstart = None
         self.preloading = True
         self.cmdrname = None
         self.cmdrship = None
@@ -504,7 +535,31 @@ debug(f"Settings: {conf_settings}")
 debug(f"Discord logging configured: {bool(conf_discord['WebhookURL'])}; live configured: {bool(conf_discord['WebhookLiveURL'])}")
 debug(f"Log levels: {conf_log_levels}")
 
+session_history = SessionStore(config_file_path / "session_history" / f"{profile_directory_name(profile)}.db")
+if session_history.error:
+    msg.log(f"{WARNING} Session history unavailable: {session_history.error}")
+pruned = session_history.prune(conf_settings["HistoryDays"])
+if pruned:
+    debug(f"History: pruned {pruned} old session(s)")
+
+def record_run():
+    if not track.runstart:
+        return
+    ended = time.time()
+    if total.kills == 0 and (ended - track.runstart) < 300:
+        return  # Skip trivial launches with nothing logged
+    done, mission_total = mission_ledger.progress()
+    if session_history.record(track.runstart, ended,
+                              {"kills": total.kills, "scans": total.scansin,
+                               "bounties": total.bounties, "merits": total.merits},
+                              {"done": done, "total": mission_total},
+                              journal=journal_file, gamemode=track.cmdrgamemode or ""):
+        debug(f"History: session saved (kills {total.kills}, {time_format(ended - track.runstart)})")
+    elif session_history.error:
+        msg.log(f"{WARNING} Session history not saved: {session_history.error}")
+
 msg.log("\nStarting... (Press Ctrl+C to stop)\n")
+track.runstart = time.time()
 
 # Discord webhooks
 discord_webhook_log = args.webhook if args.webhook is not None else conf_discord["WebhookURL"]
@@ -1402,6 +1457,8 @@ if __name__ == "__main__":
         track.sessionend()
         mission_ledger.save()
         summary(total, session=False)
+        record_run()
+        session_history.close()
         logevent(msg_term=f"Monitor stopped ({journal_file})",
             msg_discord=f"**Monitor stopped** ({journal_file})",
             emoji="📕", loglevel=2)
@@ -1416,6 +1473,8 @@ if __name__ == "__main__":
     except Exception as e:
         msg.log(f"{Col.WARN}Warning:{Col.END} Something went wrong: {e} (journal line #{track.lines})")
         traceback.print_tb(e.__traceback__)
+        record_run()
+        session_history.close()
         notifications.close()
         notification_reports()
         msg.show_cursor()

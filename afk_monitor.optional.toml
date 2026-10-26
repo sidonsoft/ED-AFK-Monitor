@@ -29,6 +29,8 @@ Repo = 'sidonsoft/ED-AFK-Monitor'
 # ShipsFile points at a JSON file with "easy"/"hard" ship pools used for scan and kill classification
 # (Default: ships.json next to AFK Monitor; edit that file after game updates without touching code)
 ShipsFile = 'ships.json'
+# HistoryDays keeps saved sessions (for --history) this many days old (Default: 90, 0 disables pruning)
+HistoryDays = 90
 # WarnMissionExpiry warns in minutes before an unfinished mission expires (Default: 15, 0 disables)
 # Already-expired-but-still-open missions are reported once as well; log level 'MissionExpiry' in [LogLevels]
 WarnMissionExpiry = 15
