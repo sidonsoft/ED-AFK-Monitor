@@ -8,8 +8,7 @@ on:
 
 permissions:
   contents: read
-  actions: read  # find the run id
-  checks: write  # retry cancelled jobs (RerunFailedJobs = PUT check-suite re_request)
+  actions: write  # rerun-failed-jobs on this run id (needs actions: write)
 
 jobs:
   tests:
@@ -53,7 +52,12 @@ jobs:
             sleep 30
           done
           if grep -q ' cancelled' <<<"$statuses"; then
-            gh api -X POST "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/rerun-failed-jobs" \
-              >/dev/null && echo "::notice::re-ran cancelled jobs in this run (attempt increments)"
+            if gh api -X POST "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/rerun-failed-jobs" \
+              >/dev/null; then
+              echo "::notice::re-ran cancelled jobs in this run (attempt increments)"
+            else
+              echo "::warning::could not re-run cancelled jobs (exit stays honest)"
+              exit 1
+            fi
             # stay green: the retried attempt (run_attempt>=2) reports honestly
           fi
