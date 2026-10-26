@@ -24,10 +24,10 @@ jobs:
       matrix:
         include:
           - platform: Windows x64
-            runner: [windows-latest]
+            runner: [dell-sidonsoft-windows-x64]
             binary: ed-afk-monitor-windows
           - platform: Linux x64
-            runner: [dell-ed-afk-linux-x64]
+            runner: [dell-sidonsoft-linux-x64]
             binary: ed-afk-monitor-linux
           - platform: macOS ARM64
             runner: [ed-afk-trusted-macos-arm64]
@@ -53,6 +53,8 @@ jobs:
           fi
       - name: Install build dependencies
         run: python -m pip install pyinstaller discord-webhook pillow
+      - name: Run regression tests before bundling
+        run: python -m unittest discover -s tests -v
       - name: Bundle executable
         shell: bash
         run: |
