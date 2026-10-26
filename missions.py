@@ -276,6 +276,7 @@ class MissionLedger:
         self.path = Path(path)
         self.commander = commander or ""
         self.profile = profile or ""
+        self.updated = 0.0
         self.save_interval = save_interval
         self.details_lookup = details_lookup
         self.origin_system = ""
@@ -641,7 +642,8 @@ class MissionLedger:
                 "average_per_kill": reward / need if need else 0,
                 "average_per_mission": reward / total if total else 0,
                 "kill_ratio": sum(m.kill_count for m in self.missions.values() if m.known) / need if need else 0,
-                "next_completion": min(next_by_issuer.values(), default=0)}
+                "next_completion": min(next_by_issuer.values(), default=0),
+                "updated": self.updated}
 
     def projections(self, kills_per_hour):
         """Mission income projections at the current kill rate; {} when unavailable.
@@ -820,6 +822,10 @@ class MissionLedger:
             self.commander = str(data.get("commander") or "")
         if not self.profile:
             self.profile = str(data.get("profile") or "")
+        try:
+            self.updated = float(data.get("updated") or 0)
+        except (TypeError, ValueError):
+            self.updated = 0.0
         for raw in data.get("missions") or ():
             mission = Mission.from_dict(raw)
             if mission is not None:
@@ -869,12 +875,14 @@ class MissionLedger:
 def merge_spreads(spreads):
     """Combine per-CMDR spread() dicts into one wing view (rows merged by faction)."""
     out = {"done": 0, "total": 0, "wing": 0, "left": 0, "reward": 0, "shareable_reward": 0,
-           "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 0, "rows": []}
+           "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 0, "rows": [],
+           "updated": 0}
     merged = {}
     for data in spreads:
         if data is None:
             continue
         out["ledgers"] += 1
+        out["updated"] = max(out["updated"], data.get("updated", 0) or 0)
         for key in ("done", "total", "wing", "left", "reward", "shareable_reward",
                     "turn_in", "shareable_turn_in", "unknown"):
             out[key] += data.get(key, 0)

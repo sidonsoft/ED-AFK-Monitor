@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import as_url_list, fetch_spread, fetch_spreads, push_ledger
+from wing_relay import as_url_list, fetch_spread, fetch_spreads, push_ledger, stale_spread
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -115,3 +115,18 @@ class UrlListTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class StaleLedgerTests(unittest.TestCase):
+    NOW = 1_800_000_000.0
+
+    def test_fresh_and_missing_never_stale(self):
+        self.assertIsNone(stale_spread({"updated": self.NOW - 60}, self.NOW))
+        self.assertIsNone(stale_spread({"updated": 0}, self.NOW))
+        self.assertIsNone(stale_spread({}, self.NOW))
+        self.assertIsNone(stale_spread({"updated": "nonsense"}, self.NOW))
+
+    def test_day_old_flags_hours(self):
+        hours = stale_spread({"updated": self.NOW - 30 * 3600}, self.NOW)
+        self.assertIsNotNone(hours)
+        self.assertAlmostEqual(hours, 30, delta=0.01)

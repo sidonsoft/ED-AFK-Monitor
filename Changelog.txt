@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: stale wingmate detection (2026-10-26)
+------------------------------------------------
+- A shared ledger nobody saved for >24h now flags itself in the wing-view
+  warnings: 'mate: no updates for 48h - counts may be stale' - the dead
+  wingmate's finished missions no longer masquerade as current progress.
+- Ledgers carry their 'updated' timestamp into spread()/merge results,
+  so folder-copied AND relay-fetched ledgers are both checked; the flag
+  shows in summaries, the [w] hotkey and the dashboard wing_view.
+- Validation: 210 tests passed.
+
 Fork: WatchdogSeconds - tunable time-based check cadence (2026-10-26)
 ------------------------------------------------
 - '[Settings] WatchdogSeconds = 60': idle watchdog now configurable -

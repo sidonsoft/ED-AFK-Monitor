@@ -19,7 +19,7 @@ from notifications import (NotificationDispatcher, DeliveryError, LiveUpdate, ch
 from outbox import Outbox, profile_directory_name
 from missions import MissionLedger, merge_spreads, wing_spreads
 from ship_pools import load_ship_pools
-from wing_relay import fetch_spreads, push_ledger
+from wing_relay import fetch_spreads, push_ledger, stale_spread
 from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
@@ -663,6 +663,10 @@ def main() -> None:
         wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
         fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
         wings.extend(fetched)
+        for name, spread in wings:
+            hours = stale_spread(spread)
+            if hours is not None:
+                errors.append(f"{name[:-5]}: no updates for {hours:.0f}h - counts may be stale")
         return wings, errors
 
     def dashboard_missions():

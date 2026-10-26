@@ -622,7 +622,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
         port = relay.server_address[1]
         Thread(target=relay.serve_forever, daemon=True).start()
         mate = {"version": FILE_VERSION, "commander": "Wingy Mate", "profile": "mate",
-                "updated": 0,
+                "updated": time.time() - 2 * 86400,  # two days quiet: must flag as stale
                 "missions": [{"id": 7001, "name": "Sweep", "faction": "Security",
                               "target": "Pirates", "kill_count": 4, "wing": True,
                               "expiry": "", "reward": 50000, "accepted": 1761000000.0,
@@ -723,10 +723,12 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 combined = ''.join(output)
                 self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
                 self.assertIn('Wing relay fetch', combined)  # the missing URL warns once
+                self.assertIn('mate: no updates for', combined)  # stale wingmate flagged
                 self.assertIn("'name': 'Wing view'", combined)  # the Discord embed carries it too
                 self.assertIn('mate.json', dash['wing_view']['sources'])
                 self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5})
                 self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
+                self.assertTrue(any('no updates for' in error for error in dash['wing_view']['errors']))
                 self.assertIn('/wing/default.json', store)
                 self.assertIn('/wing/default.json', pushed_midrun)  # PushEvery, not just on stop
                 pushed = json.loads(store['/wing/default.json'])

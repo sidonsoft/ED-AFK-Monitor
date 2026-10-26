@@ -3,9 +3,25 @@
 The relay is deliberately dumb - any host that accepts PUT (static bucket,
 nginx dav, a tiny relay) works: each ledger lands at {base}/{filename}.
 """
+from time import time
 import json
 from pathlib import Path
 from urllib.request import Request, urlopen
+
+
+STALE_AFTER_SECS = 24 * 3600  # a ledger nobody updated in a day is wingmate-lying
+
+
+def stale_spread(spread, now=None):
+    """Hours since the ledger last saved, when that exceeds STALE_AFTER_SECS."""
+    try:
+        updated = float(spread.get("updated") or 0)
+    except (TypeError, ValueError):
+        return None
+    if updated <= 0:
+        return None
+    hours = ((now if now is not None else time()) - updated) / 3600
+    return hours if hours > STALE_AFTER_SECS / 3600 else None
 
 
 def as_url_list(value):
