@@ -34,6 +34,7 @@ jobs:
 
       - name: Retry jobs cancelled by runner-pool eviction
         if: always()
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
