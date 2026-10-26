@@ -612,7 +612,7 @@ def main() -> None:
     conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0,
                                "StaleHours": 24, "ServePort": 0,
                                "ServeHost": "", "ServeToken": "",
-                               "FetchTimeout": 5}, False)
+                               "FetchTimeout": 5, "ServeDir": ""}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -816,7 +816,8 @@ def main() -> None:
     wing_host = args.wing_serve_host or str(conf_wing["ServeHost"] or "") or "127.0.0.1"
     wing_token = args.wing_serve_token or str(conf_wing["ServeToken"] or "")
     if wing_port:
-        wing_serve_dirs = [Path(args.wing_serve_dir) if args.wing_serve_dir
+        serve_dir = args.wing_serve_dir or str(conf_wing["ServeDir"] or "")
+        wing_serve_dirs = [Path(serve_dir) if serve_dir
                            else config_file_path / "mission_ledger" / "wing",
                            config_file_path / "mission_ledger"]
         wing_serve_dirs[0].mkdir(parents=True, exist_ok=True)

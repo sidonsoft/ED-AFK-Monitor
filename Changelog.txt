@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: ServeDir - pick the served folder from config, not just the flag (2026-10-26)
+------------------------------------------------
+- [Wing] ServeDir = 'D:/wing-shared' does what --wing-serve-dir does;
+  the flag still wins for one-off runs. Service deployments keep their
+  whole relay setup in one readable file.
+- Validation: 263 tests passed.
+
 Fork: --outbox-clear, and the docs guard learned both directions (2026-10-26)
 ------------------------------------------------
 - --outbox-clear drops everything queued (shows the queue first when

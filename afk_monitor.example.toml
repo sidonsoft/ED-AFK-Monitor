@@ -124,6 +124,7 @@ PushEvery = 0                # >0: also push mid-session, every N seconds (check
 StaleHours = 24               # wingmate ledgers quieter than this flag as possibly stale
 ServePort = 0                # >0: serve ledgers over HTTP (mates push/fetch here)
 ServeHost = ''               # 0.0.0.0 to reach wingmates beyond this machine
+ServeDir = ''                # folder of ledgers to serve; default mission_ledger/wing
 ServeToken = ''              # if set, mates' URLs need ?token= (401 otherwise)
 #   (mates can keep their copy of the secret in the environment instead:
 #    ED_AFK_WING_TOKEN is sent as the X-Wing-Token header, never in a URL)
