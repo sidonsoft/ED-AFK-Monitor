@@ -13,17 +13,12 @@ on:
 
 permissions:
   contents: read
-  actions: write  # rerun-failed-jobs + workflow_dispatch bump
 
 jobs:
   tests:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # timeout-minutes includes QUEUE time, and a busy pool can hold jobs
-    # queued for an hour. Cancelled-before-start jobs never reach the retry
-    # wrapper (nothing runs), so the budget must absorb realistic queueing;
-    # healthy suites still finish in ~3 minutes.
-    timeout-minutes: 90
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -38,36 +33,3 @@ jobs:
         run: python -m pip install pillow
       - name: Run regression tests without notification credentials
         run: python -m unittest discover -s tests -v
-
-      - name: Retry jobs cancelled by runner-pool eviction
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # macOS pool congestion cancels queued jobs before any step runs
-          # (zero logs). One targeted re-request per run; this wrapper run
-          # reports success once the retry is at least in flight.
-          attempt=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} -q .run_attempt)
-          if [ "$attempt" -ge 2 ]; then exit 0; fi  # the retried run trusts its own results
-          own="Python ${{ matrix.python }} on ${{ matrix.os }}"
-          sleep 20
-          for i in $(seq 1 40); do
-            statuses=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
-              --jq '.check_runs[] | select(.name | startswith("Python")) | .name + " " + .status + " " + .conclusion')
-            # this very job is still running while we wait; never block on it
-            if ! grep -v "^$own " <<<"$statuses" | grep -q ' in_progress\| queued'; then break; fi
-            sleep 30
-          done
-          if grep -q ' cancelled' <<<"$statuses"; then
-            if gh api -X POST "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/rerun-failed-jobs" \
-              >/dev/null; then
-              echo "::notice::re-ran cancelled jobs in this run (attempt increments)"
-            else
-              echo "::warning::rerun-failed-jobs failed; dispatching a fresh run instead"
-              gh workflow run tests.yml --ref "${{ github.ref_name }}" -r "${{ github.sha }}" \
-                -f reason="wrapper-fallback" \
-                || { echo "::error::fallback dispatch also failed"; exit 1; }
-            fi
-            # stay green: the retried attempt (run_attempt>=2) reports honestly
-          fi
