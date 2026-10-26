@@ -121,7 +121,8 @@ URL = ''
 PushURL = ''
 FetchURL = []
 PushEvery = 0                # >0: also push mid-session, every N seconds (checked ~1/min)
-StaleHours = 24               # wingmate ledgers quieter than this flag as possibly stale
+StaleHours = 24               # ledgers quieter than this (hours) flag as possibly stale;
+#                              junk or 0 falls back to 24
 ServePort = 0                # >0: serve ledgers over HTTP (mates push/fetch here)
 ServeHost = ''               # 0.0.0.0 to reach wingmates beyond this machine
 ServeDir = ''                # folder of ledgers to serve; default mission_ledger/wing

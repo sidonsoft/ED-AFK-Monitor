@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: StaleHours docs match the code's actual fallback rule (2026-10-26)
+------------------------------------------------
+- The example toml line was half-garbled ('quieter than this flag
+  as'); it now reads cleanly and states that junk or 0 falls back to
+  24 - the same guarantee the wing guide now spells out, matching
+  what rounds 113/117 made the code do.
+- Validation: 273 tests passed.
+
 Fork: the --wing-test probe shares the plain-language diagnosis (2026-10-26)
 ------------------------------------------------
 - relay_meta() against a blog or a captive portal now says 'that URL
