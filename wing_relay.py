@@ -353,6 +353,9 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                         "header (or via any monitor's --wing-test).</p>"
                         "<table border=1 cellpadding=4><tr><th>ledger</th>"
                         f"<th>last update</th></tr>{''.join(rows)}</table>"
+                        + ("<p><small>served by ED AFK Monitor"
+                           + (f" build v{html_escape(self.build)}" if self.build else "")
+                           + f", ledger format v{__import__('missions').FILE_VERSION}</small></p>")
                         + (("<h3>recent pushes</h3><ul>"
                             + "".join(f"<li>{html_escape(n)} at "
                                       f"{datetime.fromtimestamp(t).strftime('%H:%M:%S')}</li>"
@@ -444,7 +447,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
 
 
 def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
-                   stale_hours=None, banner=""):
+                   stale_hours=None, banner="", build=""):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -462,7 +465,8 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                     "on_put": staticmethod(on_put) if callable(on_put) else None,
                     "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600),
                     "recent": deque(maxlen=8),
-                    "banner": str(banner or "")})
+                    "banner": str(banner or ""),
+                    "build": str(build or "")})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:

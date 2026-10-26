@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay page states its hosting build and ledger format (2026-10-26)
+------------------------------------------------
+- 'served by ED AFK Monitor build v261055, ledger format v1' in the
+  page footer - a wing whose totals stop merging can now spot the
+  mixed versions without anyone running a single command.
+- Validation: 267 tests passed.
+
 Fork: the relay refuses wrong-format pushes at the door (2026-10-26)
 ------------------------------------------------
 - A wingmate on an older monitor now gets 'that is not a v... ledger

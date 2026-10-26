@@ -306,6 +306,18 @@ class WingServeTests(unittest.TestCase):
         self.assertIn("recent pushes", page)
         self.assertLess(page.index("two.json at"), page.index("one.json at"))
 
+    def test_page_advertises_hosting_build_and_ledger_format(self):
+        server, error = start_wing_relay(0, self.folder.name, build="999999")
+        self.assertEqual(error, "")
+        try:
+            page = urlopen(Request(f"http://127.0.0.1:{server.server_address[1]}/wing/",
+                                   headers={"Accept": "text/html"}),
+                           timeout=3).read().decode("utf-8")
+        finally:
+            server.shutdown()
+        self.assertIn("ED AFK Monitor build v999999", page)
+        self.assertIn(f"ledger format v{FILE_VERSION}", page)
+
     def test_open_relay_advertises_its_own_exposure_on_the_page(self):
         server, error = start_wing_relay(0, self.folder.name, host="0.0.0.0",
                                          banner=serve_advice("0.0.0.0", ""))
