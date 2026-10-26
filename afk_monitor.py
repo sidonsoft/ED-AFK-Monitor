@@ -23,6 +23,7 @@ from dashboard import start_dashboard
 from session_card import render_card
 from session_store import SessionStore
 from hotkeys import format_keymap, parse_keymap, start_hotkeys
+from instance_runner import parse_instances, run_instances
 from monitor_state import Stats, Tracking, num_format, per_hour, time_format
 from journal_schema import unhandled_types
 from config_overrides import apply_overrides, parse_overrides
@@ -103,7 +104,9 @@ parser.add_argument("--dashboard", type=int, metavar="port", help="Serve a read-
 parser.add_argument("--dashboard-token", default="", metavar="token", help="Require this token for dashboard requests (share links use ?token=...)")
 parser.add_argument("--dashboard-host", default="127.0.0.1", metavar="address", help="Dashboard bind address (0.0.0.0 to share on the LAN)")
 parser.add_argument("--no-hotkeys", action="store_false", default=True, dest="hotkeys",
-                    help="Disable terminal hotkeys: [s]tatus, [m]issions, [u]mute alerts")
+                    help="Disable terminal hotkeys: [s]status, [m]issions, [u]mute alerts")
+parser.add_argument("--instance", action="append", default=[], metavar="label=journal_folder",
+                    help="Supervise multiple journal folders, one monitor process each (repeatable)")
 parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
 parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
 parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
@@ -357,6 +360,14 @@ session = Stats()
 total = Stats()
 track = Tracking()
 
+# Multi-instance supervisor mode: one process per journal folder/profile
+if args.instance:
+    instances = parse_instances(args.instance, lambda warning: msg.log(f"{WARNING} {warning}"))
+    child_flags = [flag for flag, enabled in (("--test", args.test), ("--plain", args.plain),
+                                              ("--debug", args.debug)) if enabled]
+    sys.exit(run_instances(instances, child_flags, script=str(Path(__file__).resolve()),
+                           report=lambda line: msg.log(line)))
+
 # Set journal directory
 if not setting_journal_dir:
     journal_dir = Path.home() / "Saved Games" / "Frontier Developments" / "Elite Dangerous"
@@ -504,16 +515,17 @@ follow_journals = not (args.no_follow or args.setfile or args.fileselect)
 if bool(telegram_token) != bool(telegram_chat):
     msg.log("Telegram: both BotToken and ChatID are required; Telegram disabled")
 
-# Update check (offline mission commands exit before this point)
+# Update check (offline mission commands exit before this point; --test stays fully offline)
 github_repo = conf_settings["Repo"] or DEFAULT_REPO
 latest_version = 0
-try:
-    with urlopen(f"https://api.github.com/repos/{github_repo}/releases/latest", timeout=1) as response:
-        if response.status == 200:
-            release_data = json.loads(response.read())
-            latest_version = int(release_data["tag_name"][1:])
-except Exception:
-    pass
+if not discord_test:
+    try:
+        with urlopen(f"https://api.github.com/repos/{github_repo}/releases/latest", timeout=1) as response:
+            if response.status == 200:
+                release_data = json.loads(response.read())
+                latest_version = int(release_data["tag_name"][1:])
+    except Exception:
+        pass
 
 title = f"ED AFK Monitor v{VERSION} by CMDR PSIPAB"
 msg.log(f"{Col.CYAN}{'='*len(title)}")

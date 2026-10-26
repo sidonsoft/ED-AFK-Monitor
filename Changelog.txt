@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: multi-instance watch mode (2026-10-26)
+------------------------------------------------
+- '--instance label=journal_folder' (repeatable) supervises one monitor per
+  journal folder - each keeps its own profile, ledgers, history and outbox,
+  so multi-CMDR rigs or alpha+live setups run under a single command.
+- Crashed instances restart (bounded); one Ctrl+C stops everything cleanly.
+- '--test' now skips the GitHub update check, staying fully offline.
+- Validation: 188 tests passed.
+
 Fork: terminal hotkeys (2026-10-26)
 ------------------------------------------------
 - Press [s] for the current status line, [m] for the mission spread and [u] to

@@ -55,7 +55,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 18. **Journal schema drift detector** (★ / †) — count unknown events/fields and report them in the
     summary; add a corpus of real journal fixtures to CI so game updates surface as failing tests,
     not silent warnings.
-19. **Multi-instance watch mode** (★★ / ††) — one process tailing several journal folders
+19. ✅ **Multi-instance watch mode** *(supervisor: one process per folder/profile; single-process tailing deferred)* (★★ / ††) — one process tailing several journal folders
     (multi-CMDR setups, alpha + live), each with its own profile/outbox.
 20. ✅ **Audio/desktop alerts** (★ / †) — optional local sound on level-3 events for in-room
     notification alongside remote channels.

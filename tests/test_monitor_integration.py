@@ -71,7 +71,8 @@ class MonitorIntegrationTests(unittest.TestCase):
                           'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py', 'hotkeys.py'):
+                            'monitor_state.py', 'hotkeys.py',
+                            'instance_runner.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8').replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
@@ -188,7 +189,8 @@ class SetupIntegrationTests(unittest.TestCase):
                           'missions.py', 'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py', 'hotkeys.py'):
+                            'monitor_state.py', 'hotkeys.py',
+                            'instance_runner.py'):
             shutil.copyfile(ROOT / name, root / name)
         (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
 
@@ -243,7 +245,8 @@ class MissionLedgerIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py', 'hotkeys.py'):
+                            'monitor_state.py', 'hotkeys.py',
+                            'instance_runner.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -319,7 +322,8 @@ class MissionBackfillIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py', 'hotkeys.py'):
+                            'monitor_state.py', 'hotkeys.py',
+                            'instance_runner.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
             config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
@@ -384,7 +388,8 @@ class MissionImportIntegrationTests(unittest.TestCase):
                          'ship_pools.py', 'ships.json', 'session_store.py',
                             'journal_schema.py', 'config_overrides.py',
                             'session_card.py', 'dashboard.py',
-                            'monitor_state.py', 'hotkeys.py'):
+                            'monitor_state.py', 'hotkeys.py',
+                            'instance_runner.py'):
                 shutil.copyfile(ROOT / name, root / name)
             (root / 'missions.csv').write_text(
                 'Target Faction,Kills,Wing\nLords of Ngaliba,40,yes\nNgaliba Blue Boys,30,no\n',
@@ -408,3 +413,90 @@ class MissionImportIntegrationTests(unittest.TestCase):
             self.assertEqual(payload[0]['profile'], 'Test')
             self.assertEqual(len(payload[0]['missions']), 2)
             self.assertEqual(payload[0]['spread']['manual'], 2)
+
+
+class MultiInstanceIntegrationTests(unittest.TestCase):
+    def test_supervisor_runs_one_monitor_per_journal_folder(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('afk_monitor.py', 'notifications.py', 'journal_reader.py',
+                         'terminal_output.py', 'outbox.py', 'missions.py',
+                         'ship_pools.py', 'ships.json', 'session_store.py',
+                         'journal_schema.py', 'config_overrides.py',
+                         'session_card.py', 'dashboard.py', 'monitor_state.py',
+                         'hotkeys.py', 'instance_runner.py'):
+                shutil.copyfile(ROOT / name, root / name)
+            (root / 'bootstrap.py').write_text(BOOTSTRAP, encoding='utf-8')
+            config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
+            config = config.replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
+            config = config.replace('ChatID = 0', 'ChatID = -123')
+            config = config.replace('LiveStatus = true', 'LiveStatus = false')
+            (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
+            for folder, cmdr in (('journalsA', 'Alpha Oneone'), ('journalsB', 'Bravo Twotwo')):
+                journals = root / folder
+                journals.mkdir()
+                events = [{'event': 'Commander', 'Name': cmdr},
+                          {'event': 'LoadGame', 'Ship': 'Cobra Mk IV', 'GameMode': 'Open'},
+                          {'event': 'HullDamage', 'PlayerPilot': False, 'Fighter': True, 'Health': 0.8},
+                          {'event': 'Shutdown'}]
+                with (journals / 'Journal.2026-10-20T120000.01.log').open('w', encoding='utf-8') as file:
+                    for event in events:
+                        file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
+
+            env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
+            env.pop('ED_AFK_TELEGRAM_TOKEN', None)
+            process = subprocess.Popen(
+                [sys.executable, 'bootstrap.py', '--instance', 'one=journalsA',
+                 '--instance', 'two=journalsB'],
+                cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, stdin=subprocess.DEVNULL, encoding='utf-8')
+            lines = queue.Queue()
+            output = []
+            def collect():
+                for line in process.stdout:
+                    lines.put(line)
+            thread = Thread(target=collect, daemon=True)
+            thread.start()
+            try:
+                def wait_for(text, timeout=12):
+                    deadline = time.monotonic() + timeout
+                    while time.monotonic() < deadline:
+                        if text in ''.join(output):
+                            return
+                        try:
+                            output.append(lines.get(timeout=0.2))
+                        except queue.Empty:
+                            if process.poll() is not None:
+                                break
+                    self.fail(f'Missing {text!r}: {"".join(output)}')
+                wait_for('Instance one: watching')
+                wait_for('Instance two: watching')
+                for cmdr in ('Alpha Oneone', 'Bravo Twotwo'):
+                    wait_for(f'TELEGRAM PREVIEW: {cmdr}:')
+                def wait_count(text, count, timeout=12):
+                    deadline = time.monotonic() + timeout
+                    while time.monotonic() < deadline:
+                        joined = ''.join(output)
+                        if joined.count(text) >= count:
+                            return
+                        try:
+                            output.append(lines.get(timeout=0.2))
+                        except queue.Empty:
+                            if process.poll() is not None:
+                                break
+                    self.fail(f'Expected {count}x {text!r} in {"".join(output)}')
+                wait_count('Monitor started', 2)
+                (root / 'stop-requested').touch()
+                process.wait(timeout=15)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+            while not lines.empty():
+                output.append(lines.get_nowait())
+            thread.join(timeout=1)
+            combined = ''.join(output)
+            self.assertEqual(process.returncode, 0, combined)
+            # 2 channels (discord + telegram preview) x 2 instances
+            self.assertEqual(combined.count('Monitor started'), 4)
+            self.assertIn('Stopping all instances', combined)
