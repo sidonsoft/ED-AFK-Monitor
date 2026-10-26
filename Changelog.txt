@@ -4,7 +4,7 @@ ED AFK Monitor Changelog
 
 Fork: --wing-serve-host makes the embedded relay reachable (2026-10-26)
 ------------------------------------------------
-- --wing-serve alone binds 127.0.0.1, i.e. only本机. Add
+- --wing-serve alone binds 127.0.0.1, i.e. this machine only. Add
   --wing-serve-host 0.0.0.0 (or one interface) and wingmates on the
   LAN/mesh can actually push and fetch. Startup log names the bind.
 - Validation: 226 tests passed.
