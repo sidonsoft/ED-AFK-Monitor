@@ -660,7 +660,8 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 config = config.replace('LiveStatus = true', 'LiveStatus = false')
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
-                config = config.replace("PushEvery = 0", f"PushEvery = 1\nServePort = {serve_port}")
+                config = config.replace("PushEvery = 0", "PushEvery = 1")
+                config = config.replace("ServePort = 0", f"ServePort = {serve_port}")
                 config = config.replace("WarnNoKills = 20",
                                    f"WarnNoKills = 20\nWatchdogSeconds = 5"
                                    f"\nDashboard = {dash_port}", 1)  # config-file dashboard, no flag

@@ -7,6 +7,7 @@ from hmac import compare_digest
 from time import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
 import threading
 from pathlib import Path
 from urllib.parse import unquote, urlsplit, urlunsplit
@@ -50,13 +51,19 @@ def as_url_list(value):
     return [str(url).strip() for url in value if str(url).strip()]
 
 
+def redact(url):
+    """Hide relay ?token= values: wing summaries log failing URLs verbatim,
+    and every wingmate reads those summaries."""
+    return re.sub(r"([?&]token=)[^&]*", lambda m: m.group(1) + "\u2022", str(url))
+
+
 def fetch_spreads(urls, timeout=5):
     """Fetch every URL; returns ([(name, spread)], [error strings])."""
     spreads, errors = [], []
     for url in as_url_list(urls):
         spread, name, error = fetch_spread(url, timeout=timeout)
         if error:
-            errors.append(f"{url}: {error}")
+            errors.append(f"{redact(url)}: {error}")
         else:
             spreads.append((name, spread))
     return spreads, errors
@@ -76,9 +83,10 @@ def push_ledger(path, base_url, timeout=5):
         with urlopen(Request(url, data=body, method="PUT",
                              headers={"Content-Type": "application/json"}), timeout=timeout) as response:
             if not 200 <= response.status < 300:
-                return f"Relay rejected {url}: HTTP {response.status}"
+                return f"Relay rejected {redact(url)}: HTTP {response.status}"
     except Exception as failure:
-        return f"Could not push {url}: {getattr(failure, 'reason', None) or failure}"
+        return (f"Could not push {redact(url)}: "
+                f"{getattr(failure, 'reason', None) or failure}")
     return ""
 
 
@@ -90,7 +98,8 @@ def fetch_spread(url, timeout=5):
                 return None, "", f"HTTP {response.status} from {url}"
             data = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
-        return None, "", f"Could not fetch {url}: {getattr(failure, 'reason', None) or failure}"
+        return None, "", (f"Could not fetch {redact(url)}: "
+                          f"{getattr(failure, 'reason', None) or failure}")
     from missions import FILE_VERSION, MissionLedger
     from urllib.parse import urlsplit, unquote
     name = unquote(urlsplit(url).path).rstrip("/").rsplit("/", 1)[-1] or "remote.json"

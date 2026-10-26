@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
 from wing_relay import (as_url_list, fetch_spread, fetch_spreads, push_ledger,
+                        redact,
                         stale_notes, stale_spread, start_wing_relay)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
@@ -233,3 +234,16 @@ class WingServeTests(unittest.TestCase):
         server, error = start_wing_relay(0, self.folder.name, host="no.such.host.invalid")
         self.assertIsNone(server)
         self.assertIn("could not bind", error)
+
+
+class RedactTests(unittest.TestCase):
+    def test_tokens_never_appear_in_reported_urls(self):
+        hidden = redact("http://h:1/wing?token=hunter2&x=1")
+        self.assertNotIn("hunter2", hidden)
+        self.assertIn("token=\u2022&x=1", hidden)
+        self.assertEqual(redact("http://h/wing/x.json"), "http://h/wing/x.json")
+
+    def test_fetch_failure_with_token_query_is_redacted(self):
+        _, _, error = fetch_spread("http://127.0.0.1:1/nobody.json?token=s3cret", timeout=1)
+        self.assertNotIn("s3cret", error)
+        self.assertIn("nobody.json", error)
