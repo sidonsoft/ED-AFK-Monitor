@@ -5,13 +5,13 @@ from pathlib import Path
 
 def render_card(store, path, title="ED AFK Monitor"):
     """Render totals and the best runs to a shareable PNG; returns '' or an error string."""
+    totals = store.totals()
+    if not totals["runs"]:
+        return "No saved sessions yet; they are recorded automatically when the monitor stops."
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
         return "PNG cards need 'pip install pillow'"
-    totals = store.totals()
-    if not totals["runs"]:
-        return "No saved sessions yet; they are recorded automatically when the monitor stops."
     best = sorted((row for row in store.sessions(limit=10_000) if row["duration"] > 0),
                   key=lambda row: row["bounties"], reverse=True)[:5]
 

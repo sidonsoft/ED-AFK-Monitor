@@ -41,4 +41,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" dist/ed-afk-monitor* --clobber
+        run: |
+          # A pushed tag is not a release; the first job to arrive creates it
+          # (the others harmlessly lose the race and just upload).
+          gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ED AFK Monitor ${GITHUB_REF_NAME}" \
+            --generate-notes --latest 2>/dev/null || true
+          gh release upload "${GITHUB_REF_NAME}" dist/ed-afk-monitor* --clobber
