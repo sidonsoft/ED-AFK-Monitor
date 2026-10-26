@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: --wing-test reports the remote relay's build (2026-10-26)
+------------------------------------------------
+- Probing a relay root now leads with 'relay answers (build v261055),
+  ledger format v1' - a wingmate on an old monitor learns why their
+  pushes are 409ing without the host describing anything.
+- A relay that answers counts as an ok result even with zero ledgers;
+  silence is the failure worth flagging.
+- Validation: 268 tests passed.
+
 Fork: the relay page states its hosting build and ledger format (2026-10-26)
 ------------------------------------------------
 - 'served by ED AFK Monitor build v261055, ledger format v1' in the

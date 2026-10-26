@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from missions import FILE_VERSION
-from wing_relay import (_age_words, _listing_entries, as_url_list, fetch_spread, fetch_spreads, push_ledger, redact, serve_advice, served_count, stale_notes, stale_spread, start_wing_relay, url_shape_warnings, wing_test_lines)
+from wing_relay import (_age_words, _listing_entries, as_url_list, fetch_spread, fetch_spreads, push_ledger, redact, relay_meta, serve_advice, served_count, stale_notes, stale_spread, start_wing_relay, url_shape_warnings, wing_test_lines)
 
 LEDGER = {"version": FILE_VERSION, "commander": "Wing Mate", "profile": "mate",
           "missions": [{"id": 4242, "name": "Clean the skies", "faction": "Security",
@@ -205,8 +205,9 @@ class WingServeTests(unittest.TestCase):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         lines, ok = wing_test_lines([f"{self.base}/"], timeout=3)
         self.assertTrue(ok)
-        self.assertEqual([kind for kind, _ in lines], ["ok"])
-        self.assertIn("mate.json: 0/1 complete · 2 left", lines[0][1])
+        self.assertEqual([kind for kind, _ in lines], ["ok", "ok"])  # meta + ledger
+        self.assertIn("mate.json: 0/1 complete · 2 left",
+                      next(text for _, text in lines if text.startswith("mate.json")))
         lines, ok = wing_test_lines([f"{self.base}/ghost.json"], timeout=3)
         self.assertFalse(ok)
         self.assertEqual([kind for kind, _ in lines], ["warn"])
@@ -305,6 +306,20 @@ class WingServeTests(unittest.TestCase):
                        timeout=3).read().decode("utf-8")
         self.assertIn("recent pushes", page)
         self.assertLess(page.index("two.json at"), page.index("one.json at"))
+
+    def test_wing_test_learns_the_remote_relay_build(self):
+        server, error = start_wing_relay(0, self.folder.name, build="4242")
+        self.assertEqual(error, "")
+        try:
+            lines, ok = wing_test_lines(
+                [f"http://127.0.0.1:{server.server_address[1]}/wing/"], timeout=3)
+        finally:
+            server.shutdown()
+        self.assertTrue(ok)
+        self.assertTrue(any("build v4242" in text for kind, text in lines))
+        self.assertTrue(any("ledger format v" in text for kind, text in lines))
+        build, fmt, err = relay_meta(f"{self.base}/", timeout=3)
+        self.assertEqual(err, "")  # setUp server: format known, build blank
 
     def test_page_advertises_hosting_build_and_ledger_format(self):
         server, error = start_wing_relay(0, self.folder.name, build="999999")

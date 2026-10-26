@@ -105,11 +105,31 @@ def _age_words(updated, now=None):
     return f"{hours // 24} d ago"
 
 
+def relay_meta(url, timeout=5):
+    """Ask a relay root what it is: ('build', 'format', '') or ('', '', error)."""
+    try:
+        with urlopen(Request(url, method="GET",
+                             headers=wing_auth_headers(url)), timeout=timeout) as response:
+            listing = json.loads(response.read().decode("utf-8"))
+    except Exception as failure:
+        return "", "", _describe_failure(failure, url)
+    if not isinstance(listing, dict):
+        return "", "", "not a relay listing response"
+    return str(listing.get("host_build", "")), str(listing.get("format", "")), ""
+
+
 def wing_test_lines(urls, timeout=5):
     """Diagnostic lines for --wing-test: ('ok', text) per usable ledger,
     ('warn', text) per failure; plus whether anything usable was found."""
     lines, ok = [], False
     for url in as_url_list(urls):
+        if not urlsplit(url).path.rsplit("/", 1)[-1].endswith(".json"):
+            build, fmt, meta_error = relay_meta(url, timeout=timeout)
+            if not meta_error:
+                ok = True  # a talking relay is news even with zero ledgers
+                lines.append(("ok", "relay answers"
+                                    + (f" (build v{build})" if build else "")
+                                    + (f", ledger format v{fmt}" if fmt else "")))
         spreads, errors = fetch_spreads(url, timeout=timeout)
         for name, spread in spreads:
             ok = True
@@ -366,8 +386,10 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            from missions import FILE_VERSION as host_format
             body = json.dumps({"ledgers": [{"name": k, "updated": ledgers[k],
-                                           "stale": silent[k]} for k in names]}).encode()
+                                           "stale": silent[k]} for k in names],
+                               "host_build": self.build, "format": host_format}).encode()
             self._status(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
