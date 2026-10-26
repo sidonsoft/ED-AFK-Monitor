@@ -1,4 +1,4 @@
-"""Small read-only localhost dashboard for live stats and mission spread.
+"""Small read-only localhost dashboard: rendered stats, mission table and wing view.
 
 Served with the standard library only. Keep handlers tiny: every payload
 comes from a provider callable supplied by the monitor, so this module has
@@ -15,24 +15,68 @@ PAGE = """<!doctype html>
 <style>
  body { background:#0d1117; color:#e6e8eb; font-family:system-ui,monospace; margin:2rem; }
  h1 { color:#f0a500; font-size:1.4rem; }
+ h2 { color:#78c8ff; font-size:1.05rem; margin-bottom:.4rem; }
  pre { background:#161b22; padding:1rem; border-radius:8px; overflow-x:auto; }
+ table { border-collapse:collapse; margin:.4rem 0; }
+ td, th { padding:.15rem .6rem; text-align:right; }
+ th { color:#9aa4af; font-weight:normal; border-bottom:1px solid #30363d; }
+ .panel { background:#161b22; padding:1rem; border-radius:8px; margin-bottom:1rem; }
+ .warn { color:#ffb86c; }
+ .cols { display:flex; gap:1rem; flex-wrap:wrap; }
  a { color:#78c8ff; }
 </style></head><body>
-<h1>ED AFK Monitor</h1>
-<pre id="live">loading…</pre>
-<h1>Mission spread</h1>
-<pre id="missions">loading…</pre>
+<h1 id="title">ED AFK Monitor</h1>
+<div class="cols">
+ <div class="panel"><h2>This session</h2><div id="session">loading…</div></div>
+ <div class="panel"><h2>Run total</h2><div id="total">loading…</div></div>
+</div>
+<div class="panel"><h2>Mission spread</h2><div id="missions">loading…</div></div>
+<div class="panel" id="wingpanel" hidden><h2>Wing view</h2><div id="wing"></div></div>
 <p>Auto-refreshes every 15s · raw data: <a href="/live.json">/live.json</a>
  · <a href="/missions.json">/missions.json</a></p>
 <script>
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmt = n => typeof n === 'number' ? n.toLocaleString() : esc(n ?? '');
 const query = location.search;
-fetch('live.json' + query).then(r => r.json()).then(d =>
-  document.getElementById('live').textContent = JSON.stringify(d, null, 1));
-fetch('missions.json' + query).then(r => r.json()).then(d =>
-  document.getElementById('missions').textContent = JSON.stringify(d, null, 1));
+fetch('live.json' + query).then(r => r.json()).then(d => {
+  if (d.cmdrname) document.getElementById('title').textContent = 'ED AFK Monitor · ' + d.cmdrname;
+  for (const key of ['session', 'total']) {
+    const s = d[key];
+    if (!s) continue;
+    let html = '<table><tr><th>kills</th><th>bounties</th><th>scans</th><th>merits</th></tr>'
+      + '<tr><td>' + fmt(s.kills) + '</td><td>' + fmt(s.bounties) + '</td><td>'
+      + fmt(s.scans_in) + '</td><td>' + fmt(s.merits) + '</td></tr></table>';
+    const tops = Object.entries(s.top_factions || {});
+    if (tops.length) html += '<table><tr><th>top factions</th><th>kills</th></tr>'
+      + tops.map(([f, k]) => '<tr><td>' + esc(f) + '</td><td>' + fmt(k) + '</td></tr>').join('')
+      + '</table>';
+    document.getElementById(key).innerHTML = html;
+  }
+});
+fetch('missions.json' + query).then(r => r.json()).then(d => {
+  if (!d.rows) { document.getElementById('missions').textContent = JSON.stringify(d, null, 1); return; }
+  let html = (d.total ? (d.done + '/' + d.total + ' complete · ' + fmt(d.left) + ' kills left · '
+             + fmt(d.reward) + ' cr stack') : 'no open massacre missions');
+  if (d.rows.length) html += '<table><tr><th>target faction</th><th>open</th><th>wing</th>'
+    + '<th>need</th><th>done</th><th>left</th></tr>' + d.rows.map(row =>
+      '<tr><td>' + esc(row.faction) + '</td><td>' + fmt(row.missions) + '</td><td>' + fmt(row.wing)
+      + '</td><td>' + fmt(row.need) + '</td><td>' + fmt(row.done) + '</td><td>' + fmt(row.left)
+      + '</td></tr>').join('') + '</table>';
+  document.getElementById('missions').innerHTML = html;
+  const wing = d.wing_view;
+  if (wing) {
+    document.getElementById('wingpanel').hidden = false;
+    const c = wing.combined;
+    let w = 'local + ' + wing.sources.length + ' shared ledger(s) · ' + c.done + '/' + c.total
+      + ' complete · ' + fmt(c.left) + ' kills left across the wing<br>sources: '
+      + esc(wing.sources.join(', ') || 'none');
+    if (wing.errors && wing.errors.length)
+      w += '<div class="warn">' + wing.errors.map(esc).join('<br>') + '</div>';
+    document.getElementById('wing').innerHTML = w;
+  }
+});
 </script></body></html>
 """
-
 
 def make_handler(live_provider, missions_provider, token=""):
     """Build a request handler bound to the monitor's data providers."""

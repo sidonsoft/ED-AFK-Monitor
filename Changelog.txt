@@ -2,6 +2,16 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard renders readable panels, not JSON walls (2026-10-26)
+------------------------------------------------
+- The --dashboard page now shows session/total stat tables, a mission
+  spread table, and a wing panel (combined totals, sources, staleness
+  and relay warnings in amber) instead of two raw JSON blobs.
+- /live.json and /missions.json keep the exact same payloads; unknown
+  mission payload shapes still fall back to the JSON dump.
+- No dependencies: standard-library http.server plus plain vanilla JS.
+- Validation: 211 tests passed.
+
 Fork: staleness reaches the offline --missions --wing view (2026-10-26)
 ------------------------------------------------
 - wing_relay.stale_notes() is now the single freshness check: summaries,

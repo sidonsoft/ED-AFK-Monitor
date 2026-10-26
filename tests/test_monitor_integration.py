@@ -712,6 +712,9 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         except OSError:
                             time.sleep(0.5)
                     self.assertIsNotNone(dash, 'dashboard never answered')
+                    with urlopen(f'http://127.0.0.1:{dash_port}/', timeout=5) as response:
+                        page = response.read().decode('utf-8')
+                    self.assertIn('id="wingpanel"', page)  # the rendered page ships too
                     # Periodic pushes ride the idle watchdog; the scenario
                     # shortens its cadence via WatchdogSeconds = 5.
                     deadline = time.monotonic() + 60

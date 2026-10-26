@@ -25,6 +25,11 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertIn(b"ED AFK Monitor", body)
             self.assertEqual(json.loads(get(port, "/live.json")[1]), {"kills": 3})
+            status, body = get(port, "/")
+            self.assertEqual(status, 200)
+            page = body.decode("utf-8")
+            self.assertIn('id="wingpanel"', page)
+            self.assertIn("Mission spread", page)
             self.assertEqual(json.loads(get(port, "/missions.json")[1]), {"total": 1})
             with self.assertRaises(urllib.error.HTTPError) as caught:
                 get(port, "/nope")
