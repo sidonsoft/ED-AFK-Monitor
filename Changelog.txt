@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: a junk StaleHours can't blind the wing to staleness (2026-10-26)
+------------------------------------------------
+- stale_spread now parses the configured threshold defensively: a typo
+  falls back to the default 24h window instead of raising (crashing
+  every summary that reads the wing) or silently disabling staleness
+  detection. Numeric strings ('6') keep working as written.
+- Validation: 240 tests passed.
+
 Fork: periodic summaries show the serving address too (2026-10-26)
 ------------------------------------------------
 - The console summary's wing line gains 'relay <host>:<port>' when the

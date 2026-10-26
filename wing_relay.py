@@ -20,16 +20,22 @@ STALE_AFTER_SECS = 24 * 3600  # a ledger nobody updated in a day is wingmate-lyi
 def stale_spread(spread, now=None, older_than_hours=None):
     """Hours since the ledger last saved, when that exceeds the threshold.
 
-    older_than_hours defaults to STALE_AFTER_SECS (a day); None keeps the
-    config-driven value from _default_stale_hours."""
+    older_than_hours: config-driven threshold in hours; None falls back to
+    STALE_AFTER_SECS (a day). Junk thresholds fall back too - a crash here
+    would take down every summary that reads the wing."""
     try:
         updated = float(spread.get("updated") or 0)
     except (TypeError, ValueError):
         return None
+    try:
+        threshold = (STALE_AFTER_SECS / 3600 if older_than_hours is None
+                     else max(1, int(older_than_hours)))
+    except (TypeError, ValueError):
+        # a config typo must not blind the wing to staleness: fall back to
+        # the default day, never to 'nothing is ever stale'
+        threshold = STALE_AFTER_SECS / 3600
     if updated <= 0:
         return None
-    threshold = (STALE_AFTER_SECS / 3600 if older_than_hours is None
-                 else max(1, int(older_than_hours)))
     hours = ((now if now is not None else time()) - updated) / 3600
     return hours if hours > threshold else None
 

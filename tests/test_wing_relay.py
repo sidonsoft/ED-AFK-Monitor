@@ -150,6 +150,13 @@ class StaleLedgerTests(unittest.TestCase):
                                        self.NOW, older_than_hours=48))
         self.assertIsNotNone(stale_spread({"updated": self.NOW - 10 * 3600},
                                           self.NOW, older_than_hours=6))
+        self.assertIsNone(stale_spread({"updated": self.NOW - 10 * 3600},
+                                       self.NOW, older_than_hours="not-a-number"))
+        # junk threshold behaves like the 24h default, not like 'never stale'
+        self.assertIsNotNone(stale_spread({"updated": self.NOW - 30 * 3600},
+                                          self.NOW, older_than_hours="not-a-number"))
+        self.assertIsNotNone(stale_spread({"updated": self.NOW - 10 * 3600},
+                                          self.NOW, older_than_hours="6"))
         hours = stale_spread({"updated": self.NOW - 30 * 3600}, self.NOW)
         self.assertIsNotNone(hours)
         self.assertAlmostEqual(hours, 30, delta=0.01)
