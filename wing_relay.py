@@ -132,11 +132,18 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         supplied = parse_qs(urlsplit(self.path).query).get("token", [""])[0]
         return compare_digest(supplied.encode("utf-8"), self.token.encode("utf-8"))
 
+    def _deny(self):
+        # a bare 401 makes people rebuild the URL from scratch; spell out
+        # the query form so a browser visit self-documents the token rule
+        self.send_response(401)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(
+            {"error": "this relay needs ?token=<value> in the URL"}).encode())
+
     def do_GET(self):
         if not self._authorized():
-            self.send_response(401)
-            self.end_headers()
-            return
+            return self._deny()
         path = unquote(urlsplit(self.path).path)
         name = path.lstrip("/").rsplit("/", 1)[-1]
         if not name:
@@ -171,9 +178,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         if not self._authorized():
-            self.send_response(401)
-            self.end_headers()
-            return
+            return self._deny()
         name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
         if not name.endswith(".json"):
             self.send_response(400)

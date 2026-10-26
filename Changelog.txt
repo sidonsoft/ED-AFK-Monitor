@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: token-gated relay answers 401 with instructions (2026-10-26)
+------------------------------------------------
+- A browser or curl visit to a token relay now gets
+  {"error": "this relay needs ?token=<value> in the URL"} instead of
+  a silent empty 401 - setup mistakes explain themselves.
+- Validation: 236 tests passed.
+
 Fork: [w]ing hotkey reports the relay this monitor serves (2026-10-26)
 ------------------------------------------------
 - The console wing report gains 'this monitor serves the wing on

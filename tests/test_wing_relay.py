@@ -197,6 +197,12 @@ class WingServeTests(unittest.TestCase):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         _, _, error = fetch_spread(f"{base}/mate.json")
         self.assertIn("Unauthorized", error)
+        from urllib.request import urlopen as _open
+        try:
+            _open(f"{base}/mate.json", timeout=3)
+            self.fail("no-token GET should 401")
+        except urllib.error.HTTPError as caught:
+            self.assertIn("needs ?token=", json.loads(caught.read())["error"])
         spread, name, error = fetch_spread(f"{base}/mate.json?token=secret")
         self.assertEqual(error, "")
         self.assertEqual(spread["total"], 1)
