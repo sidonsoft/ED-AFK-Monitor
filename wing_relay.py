@@ -438,7 +438,14 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self._status(404)
             self.end_headers()
             return
-        body = found.read_bytes()
+        try:
+            body = found.read_bytes()
+        except OSError:
+            # vanished between the check and the read (host tidy-up, tier
+            # swap): a clean 404 beats a handler-thread traceback
+            self._status(404)
+            self.end_headers()
+            return
         self._status(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()

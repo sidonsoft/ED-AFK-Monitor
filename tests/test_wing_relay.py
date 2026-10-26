@@ -724,3 +724,26 @@ class OnRejectCallbackTests(unittest.TestCase):
                 server.shutdown()
         self.assertEqual([n for n, _ in seen], ["bad.txt", "old.json"])
         self.assertIn("ledger format", dict(seen)["old.json"])
+
+
+class VanishedLedgerTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = TemporaryDirectory()
+        self.server, error = start_wing_relay(0, self.folder.name)
+        self.assertEqual(error, "")
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}/wing"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.folder.cleanup()
+
+    def test_ledger_deleted_mid_request_answers_a_clean_404(self):
+        from unittest import mock
+        (Path(self.folder.name) / "ghost.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        with mock.patch.object(Path, "read_bytes", side_effect=OSError("vanished")):
+            try:
+                urlopen(f"{self.base}/ghost.json", timeout=3)
+                self.fail("vanished mid-read should 404")
+            except urllib.error.HTTPError as caught:
+                self.assertEqual(caught.code, 404)
