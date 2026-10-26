@@ -170,15 +170,22 @@ def _listing_entries(url, timeout=5):
                              headers=wing_auth_headers(url)), timeout=timeout) as response:
             listing = json.loads(response.read().decode("utf-8"))
     except Exception as failure:
-        return None, f"could not read relay listing: {_describe_failure(failure, url)}"
+        return None, f"could not read relay listing: {_describe_failure(failure, url)}", ""
     entries = listing.get("ledgers") if isinstance(listing, dict) else None
     if not isinstance(entries, list):
-        return None, "relay listing response has no 'ledgers' list"
+        return None, "relay listing response has no 'ledgers' list", ""
+    from missions import FILE_VERSION
+    warning = ""
+    remote_format = str(listing.get("format", "") if isinstance(listing, dict) else "")
+    if remote_format and remote_format != str(FILE_VERSION):
+        warning = (f"relay {redact(url)} speaks ledger format v{remote_format}, "
+                   f"this monitor merges v{FILE_VERSION}: its ledgers may be "
+                   "skipped - whoever hosts it should update their monitor")
     base = urlsplit(url)
     root = base.path if base.path.endswith("/") else base.path + "/"
     return [urlunsplit((base.scheme, base.netloc, root + str(entry.get("name", "")),
                         base.query, ""))
-            for entry in entries if isinstance(entry, dict) and entry.get("name")], ""
+            for entry in entries if isinstance(entry, dict) and entry.get("name")], "", warning
 
 
 def fetch_spreads(urls, timeout=5):
@@ -192,10 +199,12 @@ def fetch_spreads(urls, timeout=5):
     spreads, errors, seen = [], [], set()
     for url in as_url_list(urls):
         if not urlsplit(url).path.rsplit("/", 1)[-1].endswith(".json"):
-            targets, error = _listing_entries(url, timeout=timeout)
+            targets, error, warning = _listing_entries(url, timeout=timeout)
             if targets is None:
                 errors.append(f"{redact(url)}: {error}")
                 continue
+            if warning:
+                errors.append(warning)
         else:
             targets = [url]
         for target in targets:

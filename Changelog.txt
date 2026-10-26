@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: mixed-format wings shout instead of quietly undercounting (2026-10-26)
+------------------------------------------------
+- Fetching from a relay that writes a different ledger format now adds
+  'relay ... speaks ledger format v999, this monitor merges v1: its
+  ledgers may be skipped - whoever hosts it should update their
+  monitor' to the usual wing error notes. Before, the totals just got
+  mysteriously small and every skipped ledger had to fail individually.
+- Validation: 269 tests passed.
+
 Fork: --wing-test reports the remote relay's build (2026-10-26)
 ------------------------------------------------
 - Probing a relay root now leads with 'relay answers (build v261055),

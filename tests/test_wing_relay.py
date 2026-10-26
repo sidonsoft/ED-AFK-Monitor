@@ -591,7 +591,7 @@ class RelayExplainsItselfTests(unittest.TestCase):
                 spread, name, failure = fetch_spread(f"{base}/mate.json", timeout=3)
                 self.assertIn("needs ?token=", failure)
                 self.assertTrue(failure.startswith("Could not fetch"))
-                listing, reason = _listing_entries(base + "/", timeout=3)
+                listing, reason, _ = _listing_entries(base + "/", timeout=3)
                 self.assertIsNone(listing)
                 self.assertIn("needs ?token=", reason)
             finally:
@@ -607,3 +607,26 @@ class AgeWordsTests(unittest.TestCase):
         self.assertEqual(_age_words(now - 200 * 3600, now), "8 d ago")
         self.assertEqual(_age_words(None, now), "unknown when")
         self.assertEqual(_age_words("junk", now), "unknown when")
+
+
+class MixedFormatWingTests(unittest.TestCase):
+    def setUp(self):
+        RelayHandler.received = {}
+        RelayHandler.served = {"/mate.json": LEDGER,
+                               "/": {"ledgers": [{"name": "mate.json", "updated": time()}],
+                                     "format": 999, "host_build": "7"}}
+        self.server = HTTPServer(("127.0.0.1", 0), RelayHandler)
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_format_drift_warns_once_per_summary_not_silently(self):
+        spreads, errors = fetch_spreads(f"{self.base}/", timeout=3)
+        self.assertEqual([name for name, _ in spreads], ["mate.json"])
+        self.assertTrue(any("speaks ledger format v999" in e for e in errors))
+        # same-format relays (the real handler) stay warning-free
+        spreads, errors = fetch_spreads(self.base + "/mate.json", timeout=3)
+        self.assertEqual(errors, [])
