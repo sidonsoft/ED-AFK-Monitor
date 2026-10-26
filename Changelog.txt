@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: token-denied pushes fail cleanly, not wedged (2026-10-26)
+------------------------------------------------
+- The relay used to answer 401 before reading the PUT body, so the
+  client died mid-send and saw a connection error instead of the
+  'needs ?token=' hint. Bodies are now drained before any verdict.
+- Malformed Content-Length answers 400 with Connection: close.
+- Validation: 239 tests passed.
+
 Fork: [w] on a wing-less setup explains how to start one (2026-10-26)
 ------------------------------------------------
 - The hotkey used to print an empty line when nothing is shared yet.
