@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: mission kill attribution accuracy (2026-10-26)
+------------------------------------------------
+- Combat bond events (FactionKillBond) now advance mission stacks too, and
+  events carrying an exact MissionID credit that specific mission.
+- Kills no longer credit missions whose destination system is known and
+  differs from the system the kill happened in.
+- Validation: 128 tests passed.
+
 Fork: session history (2026-10-26)
 ------------------------------------------------
 - Each monitor run with logged activity is saved to a per-profile

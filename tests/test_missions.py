@@ -185,6 +185,34 @@ if __name__ == "__main__":
 
 
 class MissionAttributionTests(unittest.TestCase):
+    def test_exact_mission_id_credits_that_mission_directly(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            ledger.accept(accepted(1, target="Pirate Faction", kills=5))
+            ledger.accept(accepted(2, target="Pirate Faction", kills=5))
+            credited = ledger.kill("", None, mission_id=2)
+            self.assertEqual([m.mission_id for m in credited], [2])
+            self.assertEqual(ledger.missions[1].kills, 0)
+            self.assertEqual(ledger.missions[2].kills, 1)
+
+    def test_unknown_mission_id_falls_back_to_faction_credit(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            ledger.accept(accepted(1, target="Pirate Faction", kills=5))
+            credited = ledger.kill("Pirate Faction", None, mission_id=999)
+            self.assertEqual([m.mission_id for m in credited], [1])
+
+    def test_kill_gated_when_mission_destination_system_known_elsewhere(self):
+        with TemporaryDirectory() as folder:
+            ledger = MissionLedger(Path(folder) / "missions.json")
+            event = accepted(1, target="Pirate Faction", kills=5)
+            event["DestinationSystem"] = "LTT 9750"
+            ledger.accept(event)
+            ledger.observe_location({"event": "FSDJump", "StarSystem": "Shinrarta Dezhra"})
+            self.assertEqual(ledger.kill("Pirate Faction"), [])
+            ledger.observe_location({"event": "FSDJump", "StarSystem": "LTT 9750"})
+            self.assertEqual(len(ledger.kill("Pirate Faction")), 1)
+
     def test_kill_matches_raw_or_localised_faction_once(self):
         with TemporaryDirectory() as folder:
             ledger = MissionLedger(Path(folder) / "missions.json")

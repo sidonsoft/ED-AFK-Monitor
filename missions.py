@@ -265,7 +265,10 @@ class MissionLedger:
 
     The journal only gives faction and kill count in MissionAccepted, so those details
     are persisted. One matching kill advances the oldest unfinished mission per issuer.
-    Bounty events cannot distinguish mission targets from other wanted ships.
+    Bounty events cannot distinguish mission targets from other wanted ships; a kill is
+    not credited to a mission whose destination system is known and differs from the
+    system the commander is currently in, and events carrying an exact MissionID credit
+    that mission directly.
     """
 
     def __init__(self, path, commander="", profile="", save_interval=SAVE_INTERVAL,
@@ -277,6 +280,7 @@ class MissionLedger:
         self.details_lookup = details_lookup
         self.origin_system = ""
         self.origin_station = ""
+        self.current_system = ""
         self.missions = {}
         self.warnings = []
         self.backfilled = 0
@@ -295,6 +299,9 @@ class MissionLedger:
             self.origin_station = str(event.get("StationName") or "")
         elif event.get("event") == "Undocked":
             self.origin_station = ""
+        system = str(event.get("StarSystem") or "")
+        if system:
+            self.current_system = system
 
     def accept(self, event):
         name = str(event.get("Name") or "")
@@ -405,7 +412,18 @@ class MissionLedger:
         self.save()
         return removed
 
-    def kill(self, victim_faction, alternate=None):
+    def kill(self, victim_faction, alternate=None, mission_id=None):
+        """Credit a kill; an exact MissionID (e.g. FactionKillBond) is definitive."""
+        if mission_id is not None:
+            mission = self.missions.get(_int(mission_id))
+            if (mission is not None and mission.known and not mission.done
+                    and mission.kills < mission.kill_count
+                    and (not self.preloading or mission.fresh)):
+                mission.kills += 1
+                if mission.manual and mission.kills >= mission.kill_count:
+                    mission.done = True
+                self._dirty = True
+                return [mission]
         keys = {faction_key(victim_faction), faction_key(alternate)}
         keys.discard("")
         if not keys:
@@ -416,6 +434,10 @@ class MissionLedger:
             if mission.done or not mission.known:
                 continue
             if faction_key(mission.target) not in keys:
+                continue
+            # A known mission destination must match the system the kill happened in.
+            if (mission.target_system and self.current_system
+                    and mission.target_system.casefold() != self.current_system.casefold()):
                 continue
             if self.preloading and not mission.fresh:
                 continue

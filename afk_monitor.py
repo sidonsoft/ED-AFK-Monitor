@@ -889,8 +889,7 @@ def processevent(line):
                 kills_d = f"x{session.kills} " if conf_settings["ExtendedStats"] else ""
                 bountyvalue = f" [{num_format(bountyvalue)} cr]" if conf_settings["BountyValue"] else ""
                 victimfaction = j.get("VictimFaction_Localised") or j.get("VictimFaction") or UNKNOWN
-                if j["event"] == "Bounty":
-                    mission_ledger.kill(victimfaction, j.get("VictimFaction"))
+                mission_ledger.kill(victimfaction, j.get("VictimFaction"), j.get("MissionID"))
                 session.factions[victimfaction] = session.factions.get(victimfaction, 0) + 1
                 total.factions[victimfaction] = total.factions.get(victimfaction, 0) + 1
                 factioncount = f" x{session.factions[victimfaction]}" if conf_settings["ExtendedStats"] else ""
