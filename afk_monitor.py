@@ -726,6 +726,7 @@ def main() -> None:
                                          + [spread for _, spread in wings])
                 data["wing_view"] = {"combined": {key: combined[key] for key in ("done", "total", "left", "turn_in")},
                                      "sources": [name for name, _ in wings],
+                                     "serve": wing_serve_label,
                                      "errors": errors}
         return data
 
@@ -742,6 +743,7 @@ def main() -> None:
     if args.dashboard_host == "127.0.0.1":
         args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
 
+    wing_serve_label = ""
     # the relay can also be switched on from config alone (service/Docker
     # deployments have no convenient place for CLI flags)
     wing_port = args.wing_serve or int(conf_wing["ServePort"] or 0)
@@ -755,6 +757,7 @@ def main() -> None:
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:
+            wing_serve_label = f"{wing_host}:{wing_port}"
             msg.log(f"Wing relay: serving mission_ledger/wing on "
                     f"{wing_host}:{wing_port}")
 

@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: dashboard shows where your relay is (2026-10-26)
+------------------------------------------------
+- When this monitor serves the wing relay, the wing panel's headline
+  appends 'relay <host>:<port>' - wingmates copying your config can
+  see exactly what to point Fetch/Push URLs at.
+- Relay error URLs in logs and summaries now print token=• instead of
+  the live token (every wingmate reads those lines).
+- Validation: 229 tests passed.
+
 Fork: docs - wing relay as a service, honest test counts (2026-10-26)
 ------------------------------------------------
 - service-mode guide gained the container recipe for hosting a wing
