@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay pages are readable on a phone (2026-10-26)
+------------------------------------------------
+- Viewport meta on the landing and 401 pages. Wing setups get checked
+  from the couch as often as the gaming rig; the pages no longer
+  render as a 980px postage stamp on a phone.
+- Validation: 278 tests passed.
+
 Fork: --outbox's whole job now lives in one tested function (2026-10-26)
 ------------------------------------------------
 - No behavior change for users - but 'peeking never mutates unless

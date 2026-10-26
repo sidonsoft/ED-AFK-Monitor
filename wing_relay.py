@@ -348,6 +348,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(("<!doctype html><meta charset=utf-8>"
+                              "<meta name=viewport content='width=device-width,initial-scale=1'>"
                               "<title>ED AFK Monitor wing relay</title>"
                               "<h2>401 - wing relay needs a token</h2><p>"
                               + html_escape(self.DENY_MESSAGE) + ".</p>"
@@ -397,7 +398,9 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                     rows.append(f'<tr><td><a href="{html_escape(name)}">'
                                 f"{html_escape(name)}</a></td>"
                                 f"<td>{when}{' - silent wingmate' if silent[name] else ''}</td></tr>")
-                body = ("<!doctype html><meta charset=utf-8><title>ED AFK Monitor "
+                body = ("<!doctype html><meta charset=utf-8>"
+                        "<meta name=viewport content='width=device-width,initial-scale=1'>"
+                        "<title>ED AFK Monitor "
                         "wing relay</title><h2>ED AFK Monitor wing relay</h2>"
                         + (f"<p><b>{html_escape(self.banner)}</b></p>" if self.banner else "")
                         + f"<p>{len(names)} ledger(s) served here. "

@@ -395,6 +395,7 @@ class WingServeTests(unittest.TestCase):
                 page = caught.read().decode("utf-8")
                 self.assertIn("text/html", caught.headers.get("Content-Type"))
                 self.assertIn("needs ?token=", page)
+                self.assertIn("width=device-width", page)  # deny page too
                 # machines (no explicit html Accept) keep getting JSON
                 try:
                     urlopen(f"{base}/", timeout=3)
@@ -410,6 +411,7 @@ class WingServeTests(unittest.TestCase):
             page = response.read().decode("utf-8")
             self.assertIn("text/html", response.headers.get("Content-Type"))
         self.assertIn("<a href=\"mate.json\">mate.json</a>", page)
+        self.assertIn("width=device-width", page)
         self.assertIn("ledger(s) served here", page)
         with urlopen(f"{self.base}/", timeout=3) as response:
             self.assertEqual(response.headers.get("Content-Type"), "application/json")
