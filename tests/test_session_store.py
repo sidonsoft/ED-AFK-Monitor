@@ -144,3 +144,24 @@ class SessionExportTests(unittest.TestCase):
             store = SessionStore(Path(folder) / "s.db")
             self.assertIn("No saved sessions", store.share_text())
             store.close()
+
+
+class TrackingSessionStartTests(unittest.TestCase):
+    def test_startup_reset_without_event_arms_deploytime_now(self):
+        from datetime import datetime, timedelta, timezone
+        from monitor_state import Tracking
+        track = Tracking()
+        track.sessionstart(reset=True)
+        self.assertIsNotNone(track.deploytime)
+        self.assertLess(abs((datetime.now(timezone.utc) - track.deploytime).total_seconds()), 5)
+        # sessionend with no events yet must not crash
+        track.sessionend()
+
+    def test_event_time_still_preferred_when_present(self):
+        from datetime import datetime, timedelta, timezone
+        from monitor_state import Tracking
+        track = Tracking()
+        event = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
+        track.thiseventtime = event
+        track.sessionstart(delta=30)
+        self.assertEqual(track.deploytime, event - timedelta(seconds=30))

@@ -531,7 +531,7 @@ def main() -> None:
     conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
     conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
-    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": []}, False)
+    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -603,13 +603,25 @@ def main() -> None:
     if pruned:
         debug(f"History: pruned {pruned} old session(s)")
 
-    def push_wing_ledger():
-        """Hand the local ledger to the configured relay (wing automation)."""
+    def push_wing_ledger(periodic=False):
+        """Hand the local ledger to the configured relay (wing automation).
+
+        Periodic calls (watchdog) only act when PushEvery seconds have passed;
+        exit paths always push.
+        """
         if not conf_wing["PushURL"]:
             return
+        if periodic:
+            every = max(0, int(conf_wing["PushEvery"] or 0))
+            now = time.monotonic()
+            debug(f"periodic push check: every={every} since={now - track.last_relay_push:.1f} deploy={track.deploytime}")
+            if not every or now - track.last_relay_push < every:
+                return
         failure = push_ledger(mission_ledger.path, conf_wing["PushURL"])
         if failure:
             msg.log(f"{WARNING} Wing relay push: {failure}")
+        else:
+            track.last_relay_push = time.monotonic()
 
     def report_unseen_events():
         """Surface journal events this version does not handle (schema drift)."""
@@ -1596,6 +1608,8 @@ def main() -> None:
                                                     emoji="⚠️", loglevel=conf_log_levels["NoKills"])
                                             track.warnednokills = timemono
                             
+                                    push_wing_ledger(periodic=True)
+
                                     # Warn about unfinished missions approaching or past their expiry
                                     if conf_settings["WarnMissionExpiry"] and mission_ledger.has_missions():
                                         for mission, minutes_left in mission_ledger.expiring(conf_settings["WarnMissionExpiry"]):

@@ -4,7 +4,7 @@ Importable on its own (no terminal, journal or network side effects), which
 lets these classes be unit-tested without booting the full monitor script.
 """
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 __all__ = ["Stats", "Tracking", "per_hour", "time_format", "num_format"]
 
@@ -78,6 +78,7 @@ class Tracking:
         self.live_delivery_generation: int | None = None
         self.journalfile: str = ""
         self.relay_warned: bool = False
+        self.last_relay_push: float = 0.0
         self.muted_until: float | None = None
         self.laststatusline: str = ""
         self._session: Stats | None = None
@@ -95,10 +96,11 @@ class Tracking:
 
     def sessionstart(self, reset: bool = False, delta: int = 0) -> None:
         if not self.deploytime or reset:
-            if not delta:
-                self.deploytime = self.thiseventtime
-            else:
-                self.deploytime = self.thiseventtime - timedelta(seconds=delta)
+            # --resetsession runs at startup, before any journal event set
+            # thiseventtime; fall back to "now" so the time-based watchdog
+            # (warnings, relay pushes) stays armed.
+            base = self.thiseventtime or datetime.now(timezone.utc)
+            self.deploytime = base if not delta else base - timedelta(seconds=delta)
             if self._session is not None:
                 self._session.reset()
                 self._session.kill_times.append(self.deploytime)
@@ -111,7 +113,7 @@ class Tracking:
             self._status()
 
     def sessionend(self) -> None:
-        if self.deploytime:
+        if self.deploytime and self.thiseventtime:
             self.totaltime += (self.thiseventtime - self.deploytime).total_seconds()
             self._debug(f"Session ended: {self.thiseventtime}"
                         f" ({time_format((self.thiseventtime - self.deploytime).total_seconds())})"

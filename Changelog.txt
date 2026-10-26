@@ -2,6 +2,18 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: mid-session relay pushes ([Wing] PushEvery) + startup-session fix (2026-10-26)
+------------------------------------------------
+- '[Wing] PushEvery = N': wingmates now get ledger updates while you fly,
+  not just when you stop; piggybacks the ~1/min watchdog, exit always pushes.
+- Fixed: --resetsession set deploytime to None (no journal event processed
+  yet), permanently disarming every time-based watchdog - kill-rate/no-kill
+  warnings, mission expiry alerts, live status and now relay pushes. Session
+  start falls back to 'now'; sessionend guards a still-empty session.
+- Live relay scenario proves the mid-session PUT lands before shutdown
+  (it waits out the real ~60s watchdog cadence; suite time 34s -> 92s).
+- Validation: 208 tests passed.
+
 Fork: dashboard missions.json gains a wing_view section (2026-10-26)
 ------------------------------------------------
 - With SummaryMissions = 3 and wing sources configured, the dashboard's

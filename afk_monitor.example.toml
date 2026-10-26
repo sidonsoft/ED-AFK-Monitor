@@ -119,6 +119,7 @@ URL = ''
 # FetchURL: list of wingmate ledger URLs folded into summaries (SummaryMissions = 3).
 PushURL = ''
 FetchURL = []
+PushEvery = 0                # >0: also push mid-session, every N seconds (checked ~1/min)
 
 [Webhook]
 # Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks

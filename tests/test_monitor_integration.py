@@ -646,6 +646,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 config = config.replace('LiveStatus = true', 'LiveStatus = false')
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
+                config = config.replace("PushEvery = 0", "PushEvery = 1")
                 config = config.replace("FetchURL = []", f"FetchURL = ['http://127.0.0.1:{port}/wing/mate.json', 'http://127.0.0.1:{port}/wing/nobody.json']")
                 (root / 'afk_monitor.toml').write_text(config, encoding='utf-8')
                 ledgers = root / 'mission_ledger'
@@ -672,7 +673,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                         file.write(json.dumps({'timestamp': '2026-10-20T12:00:00Z', **event}) + '\n')
 
                 env = {**os.environ, 'PYTHONUNBUFFERED': '1', 'PYTHONIOENCODING': 'utf-8'}
-                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', '18931'],
+                process = subprocess.Popen([sys.executable, 'bootstrap.py', '--dashboard', '18931', '--resetsession'],
                                            cwd=root, env=env,
                                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                            text=True, stdin=subprocess.DEVNULL, encoding='utf-8')
@@ -693,6 +694,12 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     from urllib.request import urlopen
                     with urlopen('http://127.0.0.1:18931/missions.json', timeout=5) as response:
                         dash = json.loads(response.read())
+                    # The watchdog tick that hosts periodic pushes runs ~60s
+                    # after the session starts; wait it out once, here.
+                    deadline = time.monotonic() + 90
+                    while '/wing/default.json' not in store and time.monotonic() < deadline:
+                        time.sleep(0.5)
+                    pushed_midrun = dict(store)  # before the exit push can land anything
                     (root / 'stop-requested').touch()
                     process.wait(timeout=20)
                 finally:
@@ -708,6 +715,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5})
                 self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
                 self.assertIn('/wing/default.json', store)
+                self.assertIn('/wing/default.json', pushed_midrun)  # PushEvery, not just on stop
                 pushed = json.loads(store['/wing/default.json'])
                 self.assertEqual(pushed['missions'][0]['id'], 4242)
         finally:

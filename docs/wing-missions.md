@@ -147,6 +147,7 @@ For hands-free operation, configure it once in `afk_monitor.toml`:
 ```toml
 [Wing]
 PushURL = 'https://relay.example/wing'                     # pushed on every monitor stop
+PushEvery = 900                                            # ...and mid-session, every 15 minutes
 FetchURL = ['https://relay.example/wing/ana.json',
             'https://relay.example/wing/bruno.json']       # folded into summaries (SummaryMissions = 3)
 ```
