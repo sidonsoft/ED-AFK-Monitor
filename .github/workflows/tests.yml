@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  actions: read  # find the run id
+  checks: write  # retry cancelled jobs (RerunFailedJobs = PUT check-suite re_request)
 
 jobs:
   tests:
@@ -29,3 +31,28 @@ jobs:
         run: python -m pip install pillow
       - name: Run regression tests without notification credentials
         run: python -m unittest discover -s tests -v
+
+      - name: Retry jobs cancelled by runner-pool eviction
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # macOS pool congestion cancels queued jobs before any step runs
+          # (zero logs). One targeted re-request per run; this wrapper run
+          # reports success once the retry is at least in flight.
+          attempt=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.run_id }} -q .run_attempt)
+          if [ "$attempt" -ge 2 ]; then exit 0; fi  # the retried run trusts its own results
+          sleep 20
+          for i in $(seq 1 20); do
+            statuses=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs?per_page=100" \
+              --jq '.check_runs[] | select(.name | startswith("Python")) | .name + " " + .status + " " + .conclusion')
+            if ! grep -q ' in_progress\| queued' <<<"$statuses"; then break; fi
+            sleep 30
+          done
+          if grep -q ' cancelled' <<<"$statuses"; then
+            suite_id=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-suites" \
+              --jq '.check_suites[] | select(.name=="Regression tests") | .id')
+            gh api -X POST "repos/${{ github.repository }}/actions/workflows/${{ github.workflow_id }}/reruns" \
+              -f head_sha="${{ github.sha }}" >/dev/null && \
+              echo "::notice::re-requested run for cancelled jobs (suite $suite_id)"
+          fi
