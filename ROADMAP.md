@@ -47,7 +47,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
     complementing the webhook, or hotkeys on the terminal.
 15. **Session export & shareable card** (★★ / †) — CSV/JSON export per session, and a rendered
     PNG summary card for posting after a farm.
-16. ✅ **Packaging & ops** *(pip metadata, extras, Docker, PyInstaller release builds delivered; self-update, rotating log files and service schedulers deferred)* (★★ / ††) — `pip install ed-afk-monitor` entry point, GitHub Actions
+16. ✅ **Packaging & ops** *(pip metadata, extras, Docker, PyInstaller release builds and a service-mode guide delivered; self-update and automatic log rotation deferred)* (★★ / ††) — `pip install ed-afk-monitor` entry point, GitHub Actions
     PyInstaller release builds, `--self-update` link, log file with rotation, service mode
     (Task Scheduler/launchd/systemd) and Docker for headless rigs.
 17. **Config quality of life** (★ / †) — `tomlkit` so the app can edit config without destroying

@@ -23,6 +23,7 @@ Real-time monitoring of Elite Dangerous journal files for logging AFK massacre f
   - [Development checks](#development-checks)
   - [Configuring log levels](#configuring-log-levels)
   - [Launch Arguments](#launch-arguments)
+  - [Service mode](docs/service-mode.md)
   - [Common Issues](#common-issues)
     - [No new terminal output during a live session](#no-new-terminal-output-during-a-live-session)
     - [Some kills are not being logged](#some-kills-are-not-being-logged)
@@ -167,6 +168,7 @@ See [testing, updates and rollback](docs/testing-and-updates.md) for source inst
 backup steps, checks, live verification and the gaming-PC backup location. Updates
 use your existing settings and mission ledger. This build reports completion; it
 does not exit the game or turn in missions automatically.
+Prefer an always-on box? The [service mode guide](docs/service-mode.md) covers systemd, launchd, Task Scheduler and Docker setups.
 
 ## Configuring log levels
 

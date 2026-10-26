@@ -2,6 +2,12 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: service mode guide (2026-10-26)
+------------------------------------------------
+- New docs/service-mode.md: systemd user service, macOS launchd agent, Windows
+  Task Scheduler keep-alive and Docker guidance for always-on headless rigs.
+- Validation: 175 tests passed.
+
 Fork: typed session-state core (2026-10-26)
 ------------------------------------------------
 - Stats, Tracking, per_hour, time_format and num_format now live in an
