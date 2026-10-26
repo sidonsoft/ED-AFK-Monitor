@@ -2,7 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
-Fork: --wing-serve-token guards the open relay (2026-10-26)
+Fork: relay usable from config alone; host's own ledgers served (2026-10-26)
+------------------------------------------------
+- [Wing] ServePort/ServeHost/ServeToken = the --wing-serve flags as
+  config, so Docker/service deployments switch the relay on without
+  CLI plumbing (flags still win).
+- The embedded relay now answers GETs from its pushed-copies folder
+  and, failing that, the host's own ledgers - so 'point your wing at
+  one monitor' actually shows that monitor's missions too.
+- Validation: 227 tests passed.
 ------------------------------------------------
 - Binding 0.0.0.0 means anyone on the LAN can read and write ledgers.
   Set a token; mates append ?token=... to PushURL/FetchURL (filenames

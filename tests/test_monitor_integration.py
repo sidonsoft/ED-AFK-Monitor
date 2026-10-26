@@ -650,13 +650,17 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 probe.bind(('127.0.0.1', 0))
                 dash_port = probe.getsockname()[1]  # injected via config, not a flag
                 probe.close()
+                probe = socket.socket()
+                probe.bind(('127.0.0.1', 0))
+                serve_port = probe.getsockname()[1]  # config-only --wing-serve
+                probe.close()
                 config = (ROOT / 'afk_monitor.example.toml').read_text(encoding='utf-8')
                 config = config.replace("BotToken = ''", "BotToken = 'TEST_SECRET_TOKEN'")
                 config = config.replace('ChatID = 0', 'ChatID = -123')
                 config = config.replace('LiveStatus = true', 'LiveStatus = false')
                 config = config.replace('SummaryMissions = 2', 'SummaryMissions = 3')
                 config = config.replace("PushURL = ''", f"PushURL = 'http://127.0.0.1:{port}/wing'")
-                config = config.replace("PushEvery = 0", "PushEvery = 1")
+                config = config.replace("PushEvery = 0", f"PushEvery = 1\nServePort = {serve_port}")
                 config = config.replace("WarnNoKills = 20",
                                    f"WarnNoKills = 20\nWatchdogSeconds = 5"
                                    f"\nDashboard = {dash_port}", 1)  # config-file dashboard, no flag
@@ -731,6 +735,25 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     with urlopen(f'http://127.0.0.1:{dash_port}/', timeout=5) as response:
                         page = response.read().decode('utf-8')
                     self.assertIn('id="wingpanel"', page)  # the rendered page ships too
+                    # config-only relay: ServePort turns the monitor itself into
+                    # a fetchable host for its pushed copies
+                    deadline = time.monotonic() + 30
+                    served = None
+                    while served is None and time.monotonic() < deadline:
+                        try:
+                            with urlopen(f'http://127.0.0.1:{serve_port}/wing/default.json',
+                                         timeout=5) as response:
+                                served = json.loads(response.read())
+                        except OSError:
+                            time.sleep(0.5)
+                    self.assertIsNotNone(served, 'embedded relay never served the pushed ledger')
+                    self.assertEqual(served['missions'][0]['id'], 4242)
+                    import urllib.error as _ue
+                    try:
+                        urlopen(f'http://127.0.0.1:{serve_port}/wing/ghost.json', timeout=5)
+                        self.fail('ghost.json should 404')
+                    except _ue.HTTPError as caught:
+                        self.assertEqual(caught.code, 404)
                     # Periodic pushes ride the idle watchdog; the scenario
                     # shortens its cadence via WatchdogSeconds = 5.
                     deadline = time.monotonic() + 60
@@ -753,6 +776,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5, 'turn_in': 0})
                 self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
                 self.assertTrue(any('no updates for' in error for error in dash['wing_view']['errors']))
+                self.assertIn('Wing relay: serving', combined)  # config-only ServePort came up
                 self.assertIn('/wing/default.json', store)
                 self.assertIn('/wing/default.json', pushed_midrun)  # PushEvery, not just on stop
                 pushed = json.loads(store['/wing/default.json'])

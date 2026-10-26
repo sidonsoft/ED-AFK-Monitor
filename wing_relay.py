@@ -110,7 +110,7 @@ def fetch_spread(url, timeout=5):
 
 
 class _WingRelayHandler(BaseHTTPRequestHandler):
-    directory = Path(".")
+    directories = []  # GET searches each in order; PUT lands in the first
     token = ""  # empty disables auth; mates carry it in the URL query
 
     def _authorized(self):
@@ -126,11 +126,13 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         name = unquote(urlsplit(self.path).path).lstrip("/").rsplit("/", 1)[-1]
-        if not name.endswith(".json") or not (self.directory / name).is_file():
+        found = next((d / name for d in self.directories
+                      if name.endswith(".json") and (d / name).is_file()), None)
+        if found is None:
             self.send_response(404)
             self.end_headers()
             return
-        body = (self.directory / name).read_bytes()
+        body = found.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.end_headers()
@@ -153,7 +155,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.send_response(400)
             self.end_headers()
             return
-        (self.directory / name).write_bytes(body)
+        (self.directories[0] / name).write_bytes(body)
         self.send_response(204)
         self.end_headers()
 
@@ -167,10 +169,13 @@ def start_wing_relay(port, directory, host="127.0.0.1", token=""):
     Returns (server, error): bind failures come back as an error string so
     the monitor can report them the same way it reports dashboard failures.
     """
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
+    # one folder or a chain: GET searches each (mates' pushed copies first,
+    # then the host's own ledgers), PUT always writes to the first
+    directories = [Path(d) for d in (directory if isinstance(directory, (list, tuple))
+                                     else [directory])]
+    directories[0].mkdir(parents=True, exist_ok=True)
     handler = type("Bound", (_WingRelayHandler,),
-                   {"directory": directory, "token": str(token or "")})
+                   {"directories": directories, "token": str(token or "")})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:

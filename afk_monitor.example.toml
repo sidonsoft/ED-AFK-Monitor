@@ -121,6 +121,9 @@ PushURL = ''
 FetchURL = []
 PushEvery = 0                # >0: also push mid-session, every N seconds (checked ~1/min)
 StaleHours = 24               # wingmate ledgers quieter than this flag as possibly stale
+ServePort = 0                # >0: serve ledgers over HTTP (mates push/fetch here)
+ServeHost = ''               # 0.0.0.0 to reach wingmates beyond this machine
+ServeToken = ''              # if set, mates' URLs need ?token= (401 otherwise)
 
 [Webhook]
 # Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks

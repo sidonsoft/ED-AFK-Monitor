@@ -128,6 +128,8 @@ turn in missions.
 ## Sharing without a relay host
 
 One wingmate can host for everyone: run their monitor with `--wing-serve 8099`
+(or set `ServePort = 8099` under `[Wing]`, handy in Docker; `ServeHost` and
+`ServeToken` cover the flag equivalents)
 (it serves and accepts `.json` ledgers on that port). Everyone else sets
 `PushURL`/`FetchURL` to `http://<that-machine>:8099/wing` - the monitor also
 accepts PUTs, so pushed ledgers land in its `mission_ledger/wing` folder and

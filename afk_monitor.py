@@ -555,7 +555,8 @@ def main() -> None:
     conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
     conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0,
-                               "StaleHours": 24}, False)
+                               "StaleHours": 24, "ServePort": 0,
+                               "ServeHost": "", "ServeToken": ""}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -741,15 +742,21 @@ def main() -> None:
     if args.dashboard_host == "127.0.0.1":
         args.dashboard_host = str(conf_settings.get("DashboardHost", "") or "127.0.0.1")
 
-    if args.wing_serve:
+    # the relay can also be switched on from config alone (service/Docker
+    # deployments have no convenient place for CLI flags)
+    wing_port = args.wing_serve or int(conf_wing["ServePort"] or 0)
+    wing_host = args.wing_serve_host or str(conf_wing["ServeHost"] or "") or "127.0.0.1"
+    wing_token = args.wing_serve_token or str(conf_wing["ServeToken"] or "")
+    if wing_port:
         wing_relay_server, wing_relay_error = start_wing_relay(
-            args.wing_serve, config_file_path / "mission_ledger" / "wing",
-            host=args.wing_serve_host, token=args.wing_serve_token)
+            wing_port, [config_file_path / "mission_ledger" / "wing",
+                        config_file_path / "mission_ledger"],
+            host=wing_host, token=wing_token)
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:
             msg.log(f"Wing relay: serving mission_ledger/wing on "
-                    f"{args.wing_serve_host}:{args.wing_serve}")
+                    f"{wing_host}:{wing_port}")
 
     if args.dashboard:
         dashboard_server, dashboard_error = start_dashboard(
