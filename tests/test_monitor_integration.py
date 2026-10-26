@@ -696,6 +696,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 combined = ''.join(output)
                 self.assertIn('Wing view: local + 1 shared ledger(s)', combined)
                 self.assertIn('Wing relay fetch', combined)  # the missing URL warns once
+                self.assertIn("'name': 'Wing view'", combined)  # the Discord embed carries it too
                 self.assertIn('/wing/default.json', store)
                 pushed = json.loads(store['/wing/default.json'])
                 self.assertEqual(pushed['missions'][0]['id'], 4242)

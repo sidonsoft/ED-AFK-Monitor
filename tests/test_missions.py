@@ -514,12 +514,19 @@ class MissionEmbedTests(unittest.TestCase):
 
     def test_embed_structure_with_projection_field(self):
         with TemporaryDirectory() as folder:
-            embed = self.ledger(folder).report_embed("Projection at current rate: 1,000 cr/h")
+            embed = self.ledger(folder).report_embed(
+                "Projection at current rate: 1,000 cr/h",
+                {"done": 1, "total": 3, "wing": 1, "left": 7, "reward": 0, "shareable_reward": 0,
+                 "turn_in": 0, "shareable_turn_in": 0, "unknown": 0, "ledgers": 2, "rows": []}, 1)
             self.assertIn("Mission spread", embed["title"])
             self.assertIn("Ready to turn in", embed["description"])
             names = [field["name"] for field in embed["fields"]]
             self.assertIn("Pirates A", names)
+            self.assertIn("Wing view", names)
             self.assertIn("Projection", names)
+            wing_field = next(f for f in embed["fields"] if f["name"] == "Wing view")
+            self.assertIn("local + 1 shared ledger(s)", wing_field["value"])
+            self.assertIn("7 kills left across the wing", wing_field["value"])
             self.assertIn("footer", embed)
             self.assertLessEqual(len(embed["fields"]), 25)
 

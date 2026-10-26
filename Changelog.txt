@@ -2,6 +2,17 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: Discord mission embed carries the wing view (2026-10-26)
+------------------------------------------------
+- With DiscordEmbeds on, summaries were the one place the wing view never
+  reached Discord; the mission embed now has a 'Wing view' field (combined
+  totals across local + shared ledgers) beside Projection.
+- One wing_view() pass per summary feeds embed, terminal and Telegram -
+  the relay is fetched once, not per output channel.
+- docs/wing-missions.md gained a full 'Sharing ledgers with wingmates'
+  section (shared folder, relay flags, [Wing] config automation).
+- Validation: 206 tests passed.
+
 Fork: wing view hotkey [w] (2026-10-26)
 ------------------------------------------------
 - Press 'w' while the monitor runs: combined wing view (local + copied

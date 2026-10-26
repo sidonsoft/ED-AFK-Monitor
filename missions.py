@@ -724,7 +724,7 @@ class MissionLedger:
             lines.append(f"Rewards: {data['reward']:,} cr")
         return "\n".join(lines)
 
-    def report_embed(self, projection_line=""):
+    def report_embed(self, projection_line="", wing_combined=None, wing_sources=0):
         """JSON-safe Discord embed payload; None when there are no missions."""
         data = self.spread()
         if not data["total"]:
@@ -741,6 +741,12 @@ class MissionLedger:
         if data["unknown"]:
             fields.append({"name": "Unknown targets",
                            "value": f"{data['unknown']} mission(s) with unknown target/faction",
+                           "inline": False})
+        if wing_combined and wing_combined.get("total"):
+            fields.append({"name": "Wing view",
+                           "value": (f"local + {wing_sources} shared ledger(s) ·"
+                                     f" {wing_combined['done']}/{wing_combined['total']} complete\n"
+                                     f"{wing_combined['left']} kills left across the wing"),
                            "inline": False})
         if projection_line:
             fields.append({"name": "Projection",

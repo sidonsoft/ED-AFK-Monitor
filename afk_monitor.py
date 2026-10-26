@@ -1424,6 +1424,16 @@ def main() -> None:
                     out_discord += f"\n:white_small_square: **{k}:** {v}"
                     out_telegram += f"\n  -> {k}: {v}"
 
+            wing_wings, wing_combined, wing_errors = [], None, []
+            if mission_level >= 3:
+                wing_wings, wing_errors = wing_view()
+                if wing_errors and not track.relay_warned:
+                    msg.log(f"{WARNING} Wing relay fetch: {'; '.join(wing_errors)}")
+                track.relay_warned = bool(wing_errors)
+                local_spread = mission_ledger.spread()
+                wing_combined = merge_spreads(([local_spread] if local_spread and local_spread.get("total") else [])
+                                              + [spread for _, spread in wing_wings])
+
             if mission_level > 0 and mission_ledger.has_missions():
                 mission_text = mission_ledger.report_text()
                 mission_rate = (stats.kills / session_seconds * 3600) if session_seconds > 0 else 0
@@ -1440,7 +1450,8 @@ def main() -> None:
                 out_terminal += f"\n\n{mission_text}"
                 if mission_level >= 2:
                     out_telegram += f"\n\n{mission_text}"
-                    embed = mission_ledger.report_embed(projection_line) if not live and conf_discord["DiscordEmbeds"] else None
+                    embed = (mission_ledger.report_embed(projection_line, wing_combined, len(wing_wings))
+                             if not live and conf_discord["DiscordEmbeds"] else None)
                     if embed:
                         out_discord = {"text": out_discord, "embeds": [embed]}
                     else:
@@ -1449,21 +1460,13 @@ def main() -> None:
                             live_missions = f"{live_missions}\n{projection_line}" if live_missions else projection_line
                         out_discord += f"\n\n{live_missions}"
 
-            if mission_level >= 3:
-                wings, errors = wing_view()
-                if errors and not track.relay_warned:
-                    msg.log(f"{WARNING} Wing relay fetch: {'; '.join(errors)}")
-                track.relay_warned = bool(errors)
-                if wings:
-                    local = mission_ledger.spread()
-                    combined = merge_spreads(([local] if local and local.get("total") else [])
-                                             + [spread for _, spread in wings])
-                    wing_line = (f"Wing view: local + {len(wings)} shared ledger(s) ·"
-                                 f" {combined['done']}/{combined['total']} complete"
-                                 f" · {combined['left']} kills left across the wing")
-                    out_terminal += f"\n{wing_line}"
-                    if not live:
-                        out_telegram += f"\n{wing_line}"
+            if wing_wings and wing_combined and wing_combined.get("total"):
+                wing_line = (f"Wing view: local + {len(wing_wings)} shared ledger(s) ·"
+                             f" {wing_combined['done']}/{wing_combined['total']} complete"
+                             f" · {wing_combined['left']} kills left across the wing")
+                out_terminal += f"\n{wing_line}"
+                if not live:
+                    out_telegram += f"\n{wing_line}"
 
             if not live:
                 logevent(msg_term=f"{out_terminal}",

@@ -124,3 +124,32 @@ target, quota and wing flag match. With multiple saved profiles, use
 
 The monitor reports completion; it does not automatically exit Elite Dangerous or
 turn in missions.
+
+## Sharing ledgers with wingmates
+
+Every commander keeps their own ledger; the monitor can fold copies together
+into one wing view wherever a `SummaryMissions` summary, `--missions --wing`,
+the `[w]` hotkey or the Discord mission embed renders missions.
+
+Two ways to get wingmate ledgers in reach:
+
+- **Shared folder** — wingmates copy their `mission_ledger/<profile>.json` into
+  your `mission_ledger/wing/` folder (any network share that syncs files).
+- **HTTP relay** — any host that accepts `PUT` works:
+
+```powershell
+py afk_monitor.py --wing-push https://relay.example/wing   # upload local ledgers, then exit
+py afk_monitor.py --missions --wing --wing-url https://relay.example/wing/default.json
+```
+
+For hands-free operation, configure it once in `afk_monitor.toml`:
+
+```toml
+[Wing]
+PushURL = 'https://relay.example/wing'                     # pushed on every monitor stop
+FetchURL = ['https://relay.example/wing/ana.json',
+            'https://relay.example/wing/bruno.json']       # folded into summaries (SummaryMissions = 3)
+```
+
+Unreachable fetch URLs warn once per outage, not per summary, and whatever
+answered still joins the wing line.
