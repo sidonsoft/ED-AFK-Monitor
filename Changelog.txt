@@ -2,6 +2,17 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing mission stack test build (2026-10-26)
+------------------------------------------------
+- Add issuer stacks, estimated kill progress, remaining kills and stack differences.
+- Count same-issuer missions in sequence and different issuers in parallel.
+- Add total/shareable rewards, confirmed turn-in value, averages and kill ratio.
+- Record and recover mission origins and destination systems from journals.
+- Expand saved mission reports and JSON; bound Discord reports and remove duplicates.
+- Preserve existing saved estimates and settings when upgrading.
+- Add guides for stack fields, accuracy, imports, testing, updates and rollback.
+- Validation: 102 tests passed on the gaming PC and six CI platform/Python jobs passed.
+
 v261017
 -------
 - Live monitoring of session stats to Discord
