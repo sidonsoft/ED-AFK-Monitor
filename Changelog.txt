@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: junk StaleHours can't make a whole wing look dead (2026-10-26)
+------------------------------------------------
+- A negative or unparseable StaleHours used to mark every ledger on
+  the relay page 'silent wingmate' (or never mark anything). Now the
+  window falls back to the one-day default, exactly like the fetch
+  side's staleness notes already did; numeric strings like '48' keep
+  working as configured.
+- Validation: 270 tests passed.
+
 Fork: the empty-wing hint ends with the one command to try (2026-10-26)
 ------------------------------------------------
 - Pressing [w] with nothing configured now closes with '--wing-test

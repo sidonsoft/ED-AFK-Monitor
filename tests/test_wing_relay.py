@@ -307,6 +307,30 @@ class WingServeTests(unittest.TestCase):
         self.assertIn("recent pushes", page)
         self.assertLess(page.index("two.json at"), page.index("one.json at"))
 
+    def test_junk_stale_hours_falls_back_to_the_default_window(self):
+        for junk in (-5, "nonsense", True):
+            server, error = start_wing_relay(0, self.folder.name, stale_hours=junk)
+            self.assertEqual(error, "")
+            try:
+                fresh = dict(LEDGER, updated=time() - 60)
+                (Path(self.folder.name) / "fresh.json").write_text(json.dumps(fresh), encoding="utf-8")
+                with urlopen(f"http://127.0.0.1:{server.server_address[1]}/wing/", timeout=3) as response:
+                    entries = {e["name"]: e for e in json.loads(response.read())["ledgers"]}
+                self.assertFalse(entries["fresh.json"]["stale"], f"junk {junk!r} flagged fresh")
+                (Path(self.folder.name) / "fresh.json").unlink()
+            finally:
+                server.shutdown()
+        numeric_string = start_wing_relay(0, self.folder.name, stale_hours="48")
+        self.assertEqual(numeric_string[1], "")
+        try:
+            old = dict(LEDGER, updated=time() - 30 * 3600)
+            (Path(self.folder.name) / "old30h.json").write_text(json.dumps(old), encoding="utf-8")
+            with urlopen(f"http://127.0.0.1:{numeric_string[0].server_address[1]}/wing/", timeout=3) as response:
+                entries = {e["name"]: e for e in json.loads(response.read())["ledgers"]}
+            self.assertFalse(entries["old30h.json"]["stale"])  # 48h window honored
+        finally:
+            numeric_string[0].shutdown()
+
     def test_wing_test_learns_the_remote_relay_build(self):
         server, error = start_wing_relay(0, self.folder.name, build="4242")
         self.assertEqual(error, "")

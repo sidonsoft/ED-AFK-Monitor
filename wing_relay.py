@@ -105,6 +105,17 @@ def _age_words(updated, now=None):
     return f"{hours // 24} d ago"
 
 
+def _as_hours(value):
+    """Numbers and numeric strings pass; junk and non-positive values come
+    back as 0.0 so the caller's default applies - the same rule the fetch
+    side's staleness notes use, never 'everything is stale' or 'nothing is'."""
+    try:
+        hours = float(value if value not in ("", None) else 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return hours if hours > 0 else 0.0
+
+
 def relay_meta(url, timeout=5):
     """Ask a relay root what it is: ('build', 'format', '') or ('', '', error)."""
     try:
@@ -494,7 +505,8 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                     # staticmethod: a plain callable in the class dict would
                     # bind as a method and hand the handler in as an argument
                     "on_put": staticmethod(on_put) if callable(on_put) else None,
-                    "stale_hours": float(stale_hours or STALE_AFTER_SECS / 3600),
+                    "stale_hours": (lambda sh: sh if sh > 0 else STALE_AFTER_SECS / 3600)(
+                        _as_hours(stale_hours)),
                     "recent": deque(maxlen=8),
                     "banner": str(banner or ""),
                     "build": str(build or "")})
