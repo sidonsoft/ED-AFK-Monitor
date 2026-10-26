@@ -14,8 +14,11 @@ jobs:
   tests:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # counts queue time too: congested macos pools exceed 10
-    timeout-minutes: 30
+    # timeout-minutes includes QUEUE time, and a busy pool can hold jobs
+    # queued for an hour. Cancelled-before-start jobs never reach the retry
+    # wrapper (nothing runs), so the budget must absorb realistic queueing;
+    # healthy suites still finish in ~3 minutes.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
