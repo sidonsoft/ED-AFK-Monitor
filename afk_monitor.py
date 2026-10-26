@@ -1438,6 +1438,8 @@ def main() -> None:
                      f" · {spread.get('left', 0)} left")
         for error in errors:
             text += f"\nWing relay fetch: {error}"
+        if wing_serve_label:
+            text += f"\n  this monitor serves the wing on {wing_serve_label}"
         return text
 
     def hotkey_missions_report():

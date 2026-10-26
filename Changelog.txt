@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: [w]ing hotkey reports the relay this monitor serves (2026-10-26)
+------------------------------------------------
+- The console wing report gains 'this monitor serves the wing on
+  <host>:<port>' when a serve port is on - copy it straight into a
+  wingmate's PushURL/FetchURL config.
+- Validation: 236 tests passed.
+
 Fork: dashboard provider errors answer 500 instead of dropping the socket (2026-10-26)
 ------------------------------------------------
 - A state read blowing up during a live/missions/sessions request used
