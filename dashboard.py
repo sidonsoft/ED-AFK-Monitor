@@ -80,6 +80,8 @@ fetch('missions.json' + query).then(r => r.json()).then(d => {
       + (c.turn_in ? ' · ' + fmt(c.turn_in) + ' cr ready' : '')
       + (wing.serve ? ' · relay ' + esc(wing.serve) : '')
       + (wing.serve ? ' · ' + fmt(wing.served || 0) + ' ledger(s) on the relay' : '')
+      + (wing.serve && wing.last_push ? ' · last push ' + esc(wing.last_push.name)
+          + ' at ' + new Date(wing.last_push.at * 1000).toLocaleTimeString() : '')
       + '<br>sources: '
       + esc(wing.sources.join(', ') || 'none');
     if (wing.errors && wing.errors.length)

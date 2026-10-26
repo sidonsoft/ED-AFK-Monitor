@@ -777,6 +777,11 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                     # remove it again: the shutdown wing-view counts below must
                     # stay about the fixture wing, not this plumbing probe
                     (root / 'mission_ledger' / 'wing' / 'putmate.json').unlink()
+                    # the panel must show the push while the monitor is still up
+                    with urlopen(f'http://127.0.0.1:{dash_port}/missions.json', timeout=5) as response:
+                        push_note = json.loads(response.read())['wing_view']['last_push']
+                    self.assertEqual(push_note['name'], 'putmate.json')
+                    self.assertGreater(push_note['size'], 0)
                     # Periodic pushes ride the idle watchdog; the scenario
                     # shortens its cadence via WatchdogSeconds = 5.
                     deadline = time.monotonic() + 60
@@ -797,6 +802,7 @@ class LiveWingRelayIntegrationTests(unittest.TestCase):
                 self.assertIn("'name': 'Wing view'", combined)  # the Discord embed carries it too
                 self.assertIn('mate.json', dash['wing_view']['sources'])
                 self.assertEqual(dash['wing_view']['serve'], f'127.0.0.1:{serve_port}')
+
                 self.assertEqual(dash['wing_view']['combined'], {'done': 0, 'total': 2, 'left': 5, 'turn_in': 0})
                 self.assertTrue(any('nobody.json' in error for error in dash['wing_view']['errors']))
                 self.assertTrue(any('no updates for' in error for error in dash['wing_view']['errors']))

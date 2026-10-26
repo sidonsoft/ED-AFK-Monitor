@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the dashboard shows the relay's last accepted push (2026-10-26)
+------------------------------------------------
+- The wing panel gains 'last push putmate.json at 21:04' - hosts watch
+  wingmates arrive without tailing the console.
+- Validation: 247 tests passed (the live scenario PUTs, then reads the
+  panel while the monitor is still up).
+
 Fork: every relay verdict is anti-cache, not just the 200s (2026-10-26)
 ------------------------------------------------
 - One _status() helper stamps Cache-Control: no-store on all 11

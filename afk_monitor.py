@@ -742,6 +742,7 @@ def main() -> None:
                                      "sources": [name for name, _ in wings],
                                      "serve": wing_serve_label,
                                      "served": served_count(wing_serve_dirs),
+                                     "last_push": dict(wing_last_push) or None,
                                      "errors": errors}
         return data
 
@@ -760,6 +761,7 @@ def main() -> None:
 
     wing_serve_label = ""
     wing_serve_dirs = []
+    wing_last_push = {}  # last ledger the relay accepted, for the panel
     # the relay can also be switched on from config alone (service/Docker
     # deployments have no convenient place for CLI flags)
     wing_port = args.wing_serve or int(conf_wing["ServePort"] or 0)
@@ -771,8 +773,9 @@ def main() -> None:
         wing_relay_server, wing_relay_error = start_wing_relay(
             wing_port, wing_serve_dirs,
             host=wing_host, token=wing_token,
-            on_put=lambda name, size: msg.log(
-                f"Wing relay: received {name} ({size:,} bytes)"))
+            on_put=lambda name, size: (
+                wing_last_push.update(name=name, size=size, at=int(time.time())),
+                msg.log(f"Wing relay: received {name} ({size:,} bytes)"))[0])
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:
