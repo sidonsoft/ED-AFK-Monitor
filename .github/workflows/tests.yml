@@ -13,7 +13,8 @@ jobs:
   tests:
     name: Python ${{ matrix.python }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    # counts queue time too: congested macos pools exceed 10
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
