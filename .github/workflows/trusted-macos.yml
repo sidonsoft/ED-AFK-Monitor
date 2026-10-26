@@ -29,13 +29,14 @@ jobs:
         with:
           persist-credentials: false
           clean: true
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          python-version: ${{ matrix.python }}
-          architecture: arm64
+          version: '0.13.5'
+          enable-cache: false
       - name: Create a fresh build environment
         run: |
-          python -m venv "${RUNNER_TEMP}/ed-afk-${{ matrix.python }}"
+          uv venv --managed-python --python "${{ matrix.python }}" --seed "${RUNNER_TEMP}/ed-afk-${{ matrix.python }}"
           echo "${RUNNER_TEMP}/ed-afk-${{ matrix.python }}/bin" >> "$GITHUB_PATH"
       - name: Install test dependency
         run: python -m pip install pillow
@@ -57,4 +58,4 @@ jobs:
       - name: Remove temporary build environment
         if: always()
         run: |
-          python -c "import os, shutil; shutil.rmtree(os.path.join(os.environ['RUNNER_TEMP'], 'ed-afk-${{ matrix.python }}'), ignore_errors=True)"
+          /usr/bin/python3 -c "import os, shutil; shutil.rmtree(os.path.join(os.environ['RUNNER_TEMP'], 'ed-afk-${{ matrix.python }}'), ignore_errors=True)"
