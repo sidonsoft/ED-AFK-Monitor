@@ -400,7 +400,12 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
                             + "".join(f"<li>{html_escape(n)} at "
                                       f"{datetime.fromtimestamp(t).strftime('%H:%M:%S')}</li>"
                                       for n, t in list(self.recent)) + "</ul>")
-                           if self.recent else "")).encode()
+                           if self.recent else "")
+                        + (("<h3>recent trouble</h3><ul>"
+                            + "".join(f"<li>{html_escape(n)}: {html_escape(why)} at "
+                                      f"{datetime.fromtimestamp(t).strftime('%H:%M:%S')}</li>"
+                                      for n, why, t in list(self.trouble)) + "</ul>")
+                           if self.trouble else "")).encode()
                 self._status(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -447,16 +452,19 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             return self._deny()
         if not name.endswith(".json"):
+            self.trouble.appendleft((name or "?", "not a .json path", int(time())))
             self._status(400)
             self.end_headers()
             return
         try:
             if len(body) > MAX_LEDGER_BYTES:
+                self.trouble.appendleft((name, "too big for a ledger", int(time())))
                 self._status(413)
                 self.end_headers()
                 return
             parsed = json.loads(body.decode("utf-8"))  # only real ledgers on disk
         except (ValueError, UnicodeDecodeError):
+            self.trouble.appendleft((name, "body was not JSON", int(time())))
             self._status(400)
             self.end_headers()
             return
@@ -465,6 +473,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         if got != FILE_VERSION:
             # say so now instead of storing junk the merge will silently
             # skip forever: the pusher's own run fails with this sentence
+            self.trouble.appendleft((name, f"ledger format {got!r}", int(time())))
             self._status(409)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -508,6 +517,7 @@ def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None,
                     "stale_hours": (lambda sh: sh if sh > 0 else STALE_AFTER_SECS / 3600)(
                         _as_hours(stale_hours)),
                     "recent": deque(maxlen=8),
+                    "trouble": deque(maxlen=5),
                     "banner": str(banner or ""),
                     "build": str(build or "")})
     try:

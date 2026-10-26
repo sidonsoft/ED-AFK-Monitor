@@ -293,6 +293,19 @@ class WingServeTests(unittest.TestCase):
             self.assertEqual(response.status, 204)
         self.assertFalse((Path(self.folder.name) / "junk.json").exists())
 
+    def test_rejected_pushes_show_up_as_trouble_on_the_page(self):
+        bad = {"version": FILE_VERSION + 3, "missions": []}
+        req = Request(f"{self.base}/badmate.json", method="PUT",
+                      data=json.dumps(bad).encode(), headers={"Content-Type": "application/json"})
+        try:
+            urlopen(req, timeout=3)
+        except urllib.error.HTTPError:
+            pass
+        page = urlopen(Request(f"{self.base}/", headers={"Accept": "text/html"}),
+                       timeout=3).read().decode("utf-8")
+        self.assertIn("recent trouble", page)
+        self.assertIn("badmate.json: ledger format", page)
+
     def test_page_lists_recent_pushes_newest_first(self):
         req = Request(f"{self.base}/one.json", method="PUT",
                       data=json.dumps(LEDGER).encode(), headers={"Content-Type": "application/json"})

@@ -2,6 +2,14 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: the relay page keeps a 'recent trouble' list (2026-10-26)
+------------------------------------------------
+- The last 5 refused pushes - wrong format, non-JSON body, oversized,
+  non-.json path - show on the page with the reason and the time. The
+  wingmate whose old monitor keeps getting 409s gets caught without
+  anyone asking them about it.
+- Validation: 271 tests passed.
+
 Fork: junk StaleHours can't make a whole wing look dead (2026-10-26)
 ------------------------------------------------
 - A negative or unparseable StaleHours used to mark every ledger on
