@@ -81,7 +81,8 @@ web page: set `Dashboard = 8080` (plus `DashboardToken`/`DashboardHost`) in
 the config volume and publish the port, e.g. `-p 8080:8080`.
 
 A container can also host the **wing relay** for the whole wing: set
-`ServePort = 8099` (plus optional `ServeHost`/`ServeToken`) under `[Wing]` in
+`ServePort = 8099` (plus optional `ServeHost`/`ServeToken`/`ServeDir`) under
+`[Wing]` in
 
 A wingmate's service that pushes or fetches can take its secret from the
 environment instead of the toml: set `Environment=ED_AFK_WING_TOKEN=sekret` on the
