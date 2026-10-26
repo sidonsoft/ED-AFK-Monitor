@@ -124,6 +124,7 @@ MAX_LEDGER_BYTES = 2 * 1024 * 1024  # a fat wingmate PUT must not fill the disk
 class _WingRelayHandler(BaseHTTPRequestHandler):
     directories = []  # GET searches each in order; PUT lands in the first
     token = ""  # empty disables auth; mates carry it in the URL query
+    on_put = None  # optional host(name, bytes) callback: accepted pushes appear in the monitor log
 
     def _authorized(self):
         if not self.token:
@@ -204,6 +205,11 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         (self.directories[0] / name).write_bytes(body)
+        if self.on_put:
+            try:
+                self.on_put(name, len(body))
+            except Exception:
+                pass  # visibility must never cost a wingmate their push
         self.send_response(204)
         self.end_headers()
 
@@ -211,7 +217,7 @@ class _WingRelayHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_wing_relay(port, directory, host="127.0.0.1", token=""):
+def start_wing_relay(port, directory, host="127.0.0.1", token="", on_put=None):
     """Tiny embedded relay: GET {base}/{name}.json reads, PUT writes.
 
     Returns (server, error): bind failures come back as an error string so
@@ -223,7 +229,10 @@ def start_wing_relay(port, directory, host="127.0.0.1", token=""):
                                      else [directory])]
     directories[0].mkdir(parents=True, exist_ok=True)
     handler = type("Bound", (_WingRelayHandler,),
-                   {"directories": directories, "token": str(token or "")})
+                   {"directories": directories, "token": str(token or ""),
+                    # staticmethod: a plain callable in the class dict would
+                    # bind as a method and hand the handler in as an argument
+                    "on_put": staticmethod(on_put) if callable(on_put) else None})
     try:
         server = ThreadingHTTPServer((host, int(port)), handler)
     except OSError as failure:

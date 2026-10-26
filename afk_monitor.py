@@ -765,7 +765,9 @@ def main() -> None:
         wing_relay_server, wing_relay_error = start_wing_relay(
             wing_port, [config_file_path / "mission_ledger" / "wing",
                         config_file_path / "mission_ledger"],
-            host=wing_host, token=wing_token)
+            host=wing_host, token=wing_token,
+            on_put=lambda name, size: msg.log(
+                f"Wing relay: received {name} ({size:,} bytes)"))
         if wing_relay_error:
             msg.log(f"{WARNING} {wing_relay_error}")
         else:

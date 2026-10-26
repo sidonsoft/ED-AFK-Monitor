@@ -182,6 +182,19 @@ class WingServeTests(unittest.TestCase):
             self.assertEqual(caught.code, 413)
         self.assertFalse((Path(self.folder.name) / "fat.json").exists())
 
+    def test_accepted_pushes_report_to_the_host(self):
+        seen = []
+        self.server, error = start_wing_relay(0, self.folder.name,
+                                              on_put=lambda name, size: seen.append((name, size)))
+        self.assertEqual(error, "")
+        base = f"http://127.0.0.1:{self.server.server_address[1]}/wing"
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / "buddy.json"
+            path.write_text(json.dumps(LEDGER), encoding="utf-8")
+            self.assertEqual(push_ledger(path, base, timeout=3), "")
+        self.assertEqual([name for name, _ in seen], ["buddy.json"])
+        self.assertGreater(seen[0][1], 0)
+
     def test_directory_listing_covers_both_tiers(self):
         (Path(self.folder.name) / "own.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         from urllib.request import urlopen

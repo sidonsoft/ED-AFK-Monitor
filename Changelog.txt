@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: relay hosts see their wingmates arrive (2026-10-26)
+------------------------------------------------
+- Accepted pushes are logged on the hosting monitor: 'Wing relay:
+  received buddy.json (1,234 bytes)'. Who is sharing, and whether
+  their pushes are landing, is now visible without opening folders.
+- Validation: 237 tests passed.
+
 Fork: token-gated relay answers 401 with instructions (2026-10-26)
 ------------------------------------------------
 - A browser or curl visit to a token relay now gets
