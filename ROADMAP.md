@@ -50,7 +50,7 @@ Generated 2026‑10‑26 from a review of this fork at `b5e3b3b`. Each item: val
 16. ✅ **Packaging & ops** *(pip metadata, extras, Docker, PyInstaller release builds and a service-mode guide delivered; self-update and automatic log rotation deferred)* (★★ / ††) — `pip install ed-afk-monitor` entry point, GitHub Actions
     PyInstaller release builds, `--self-update` link, log file with rotation, service mode
     (Task Scheduler/launchd/systemd) and Docker for headless rigs.
-17. ✅ **Config quality of life** *(`--set Section.Key=value` typed overrides shipped; tomlkit comment-preserving edits deferred)* (★ / †) — `tomlkit` so the app can edit config without destroying
+17. ✅ **Config quality of life** *(complete: `--set` typed overrides + `--save` persisting them into afk_monitor.toml with a dependency-free comment-preserving editor)* (★ / †) — `tomlkit` so the app can edit config without destroying
     comments; `--set key=value` CLI; config hot-reload.
 18. ✅ **Journal schema drift detector** *(seen-event counting + handled/ignored catalogue + drift report on exit)* (★ / †) — count unknown events/fields and report them in the
     summary; add a corpus of real journal fixtures to CI so game updates surface as failing tests,

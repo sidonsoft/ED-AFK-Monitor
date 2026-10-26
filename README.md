@@ -208,6 +208,7 @@ You can pass the following arguments when launching AFK Monitor:
 --json                                      With --missions/--history, print JSON output
 --import-missions <file>                    Import a mission list (CSV or text) and exit
 --set <Section.Key=value>                   Override a config setting for this run
+--save <Section.Key=value>                  ...and persist it into afk_monitor.toml (comments kept)
 --export <file>                           With --history, write sessions to .json/.csv/.png
 --share                                   With --history, print a compact shareable recap
 --dashboard <port>                        Serve a read-only web dashboard locally

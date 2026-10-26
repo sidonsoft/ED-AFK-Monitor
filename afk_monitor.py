@@ -26,6 +26,7 @@ from hotkeys import format_keymap, parse_keymap, start_hotkeys
 from instance_runner import parse_instances, run_instances
 from monitor_state import Stats, Tracking, num_format, per_hour, time_format
 from journal_schema import unhandled_types
+from config_edit import save_overrides
 from config_overrides import apply_overrides, parse_overrides
 
 try:
@@ -111,6 +112,8 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="With --missions/--history, print machine-readable JSON")
     parser.add_argument("--import-missions", metavar="file", help="Import a mission list (CSV or text, '-' for stdin) and exit")
     parser.add_argument("--plain", action="store_true", help="Use plain text without colours, emojis or a live status line")
+    parser.add_argument("--save", action="append", default=[], metavar="SECTION.KEY=VALUE",
+                        help="Like --set, but persist the value into afk_monitor.toml (comments kept)")
     parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE",
                         help="Override a config setting, e.g. --set Discord.Timestamp=false (repeatable)")
     file_group = parser.add_mutually_exclusive_group()
@@ -504,6 +507,14 @@ def main() -> None:
         msg.log(f"{WARNING} {warning}")
 
     cli_overrides = parse_overrides(args.set, _override_warning)
+    persisted = parse_overrides(args.save, _override_warning)
+    if persisted:
+        failure = save_overrides(config_file, persisted)
+        if failure:
+            msg.log(f"{WARNING} {failure}")
+        else:
+            msg.log(f"Saved {len(persisted)} setting(s) to {config_file.name}")
+            cli_overrides += persisted
     for conf, section in ((conf_settings, "Settings"), (conf_discord, "Discord"),
                           (conf_log_levels, "LogLevels"), (conf_telegram, "Telegram"),
                           (conf_ntfy, "Ntfy"), (conf_webhook, "Webhook")):

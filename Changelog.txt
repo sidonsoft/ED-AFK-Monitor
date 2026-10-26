@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: config persistence with --save (2026-10-26)
+------------------------------------------------
+- '--save Section.Key=value' writes typed values back into afk_monitor.toml
+  and applies them to the current run, like '--set' did for one run only.
+- New dependency-free editor keeps comments and layout intact (inline
+  '# ...' notes survive value edits); writes atomically via temp file.
+- Completes roadmap item 17; no tomlkit dependency needed.
+- Validation: 195 tests passed.
+
 Fork: main() wrapper + typed runtime state (2026-10-26)
 ------------------------------------------------
 - afk_monitor.py top-level flow now runs inside main(); module import no

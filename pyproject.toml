@@ -32,6 +32,7 @@ Changelog = "https://github.com/sidonsoft/ED-AFK-Monitor/blob/main/Changelog.txt
 [tool.setuptools]
 py-modules = [
     "afk_monitor",
+    "config_edit",
     "config_overrides",
     "dashboard",
     "journal_reader",
