@@ -120,6 +120,7 @@ URL = ''
 PushURL = ''
 FetchURL = []
 PushEvery = 0                # >0: also push mid-session, every N seconds (checked ~1/min)
+StaleHours = 24               # wingmate ledgers quieter than this flag as possibly stale
 
 [Webhook]
 # Generic JSON webhook posting {"text": message} - works with Slack-style hooks and Home Assistant webhooks

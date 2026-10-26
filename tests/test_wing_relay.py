@@ -127,6 +127,10 @@ class StaleLedgerTests(unittest.TestCase):
         self.assertIsNone(stale_spread({"updated": "nonsense"}, self.NOW))
 
     def test_day_old_flags_hours(self):
+        self.assertIsNone(stale_spread({"updated": self.NOW - 10 * 3600},
+                                       self.NOW, older_than_hours=48))
+        self.assertIsNotNone(stale_spread({"updated": self.NOW - 10 * 3600},
+                                          self.NOW, older_than_hours=6))
         hours = stale_spread({"updated": self.NOW - 30 * 3600}, self.NOW)
         self.assertIsNotNone(hours)
         self.assertAlmostEqual(hours, 30, delta=0.01)

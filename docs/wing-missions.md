@@ -155,4 +155,4 @@ FetchURL = ['https://relay.example/wing/ana.json',
 Unreachable fetch URLs warn once per outage, not per summary, and whatever
 answered still joins the wing line. A ledger nobody updated for over 24 hours
 (died, or forgot to run the monitor) is flagged in the same warnings as
-'mate: no updates for Nh - counts may be stale' while its numbers still count.
+'mate: no updates for Nh - counts may be stale' while its numbers still count. Tune the quiet period with `StaleHours` under `[Wing]` (default 24).

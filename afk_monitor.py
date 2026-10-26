@@ -160,13 +160,14 @@ def main() -> None:
                     f" · {data['left']} left · {data['turn_in']:,} cr ready")
 
 
-    def show_mission_ledgers(directory, as_json=False, wing=False, wing_urls=()):
+    def show_mission_ledgers(directory, as_json=False, wing=False, wing_urls=(),
+                             stale_hours=None):
         paths = ledger_paths(directory)
         wings = wing_spreads(Path(directory) / "wing") if wing else []
         if wing:
             fetched, errors = fetch_spreads(wing_urls)
             wings.extend(fetched)
-            errors.extend(stale_notes(wings))
+            errors.extend(stale_notes(wings, stale_hours))
             for error in errors:
                 msg.log(f"{WARNING} Wing ledger {error}")
         if as_json:
@@ -307,8 +308,16 @@ def main() -> None:
         sys.exit(1 if failed and not pushed else 0)
 
     if args.missions:
+        # this offline exit predates the nested getconfig; read the one knob
+        # the wing view needs ([Wing] StaleHours) straight from the config file
+        stale_hours = 24
+        try:
+            with config_file.open("rb") as handle:
+                stale_hours = tomllib.load(handle).get("Wing", {}).get("StaleHours", 24)
+        except Exception:
+            pass
         show_mission_ledgers(config_file_path / "mission_ledger", as_json=args.json, wing=args.wing,
-                             wing_urls=args.wing_url)
+                             wing_urls=args.wing_url, stale_hours=stale_hours)
         sys.exit()
 
     if args.history:
@@ -533,7 +542,8 @@ def main() -> None:
     conf_telegram = getconfig("Telegram", DEFAULTS_TELEGRAM, False)
     conf_ntfy = getconfig("Ntfy", DEFAULTS_NTFY, False)
     conf_webhook = getconfig("Webhook", DEFAULTS_WEBHOOK, False)
-    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0}, False)
+    conf_wing = getconfig("Wing", {"PushURL": "", "FetchURL": [], "PushEvery": 0,
+                               "StaleHours": 24}, False)
 
     def _override_warning(warning):
         msg.log(f"{WARNING} {warning}")
@@ -673,7 +683,7 @@ def main() -> None:
         wings = wing_spreads(config_file_path / "mission_ledger" / "wing")
         fetched, errors = fetch_spreads(conf_wing["FetchURL"]) if conf_wing["FetchURL"] else ([], [])
         wings.extend(fetched)
-        errors.extend(stale_notes(wings))
+        errors.extend(stale_notes(wings, conf_wing["StaleHours"]))
         return wings, errors
 
     def dashboard_live():

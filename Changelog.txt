@@ -2,6 +2,13 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: staleness window is configurable ([Wing] StaleHours) (2026-10-26)
+------------------------------------------------
+- Wingmate ledgers flag as 'no updates ... may be stale' after
+  StaleHours quiet time; default stays 24. Applies to every surface
+  (summaries, hotkey, dashboard, offline --wing view).
+- Validation: 216 tests passed.
+
 Fork: wing view shows credits ready across the wing (2026-10-26)
 ------------------------------------------------
 - Combined wing totals now include 'Cr ready' (merged turn-in value)
