@@ -2,6 +2,15 @@
 ED AFK Monitor Changelog
 ========================
 
+Fork: wing totals can't double-count the same URL (2026-10-26)
+------------------------------------------------
+- FetchURL lists that mix a relay root with explicit entries (or repeat
+  a URL) used to fold one ledger in twice, inflating 'the wing' stats.
+  Each distinct URL now contributes at most once - while same-named
+  ledgers from different relays (two wingmates both pushing
+  'default.json') stay correctly separate.
+- Validation: 241 tests passed.
+
 Fork: a junk StaleHours can't blind the wing to staleness (2026-10-26)
 ------------------------------------------------
 - stale_spread now parses the configured threshold defensively: a typo

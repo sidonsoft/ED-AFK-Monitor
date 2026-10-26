@@ -202,6 +202,18 @@ class WingServeTests(unittest.TestCase):
         self.assertEqual([name for name, _ in seen], ["buddy.json"])
         self.assertGreater(seen[0][1], 0)
 
+    def test_same_ledger_via_two_urls_counts_once(self):
+        (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        spreads, errors = fetch_spreads([f"{self.base}/", f"{self.base}/mate.json"], timeout=3)
+        self.assertEqual(errors, [])
+        self.assertEqual([name for name, _ in spreads], ["mate.json"])
+        # two different ledgers that share a basename both survive
+        (Path(self.folder.name) / "second.json").write_text(json.dumps(LEDGER), encoding="utf-8")
+        spreads, errors = fetch_spreads([f"{self.base}/second.json",
+                                         f"{self.base}/mate.json?x=1",
+                                         f"{self.base}/mate.json?x=1"], timeout=3)
+        self.assertEqual(sorted(name for name, _ in spreads), ["mate.json", "second.json"])
+
     def test_relay_root_fetchurl_expands_the_inventory(self):
         (Path(self.folder.name) / "mate.json").write_text(json.dumps(LEDGER), encoding="utf-8")
         with TemporaryDirectory() as folder:

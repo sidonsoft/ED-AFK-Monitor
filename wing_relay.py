@@ -83,8 +83,14 @@ def _listing_entries(url, timeout=5):
 
 
 def fetch_spreads(urls, timeout=5):
-    """Fetch every URL; returns ([(name, spread)], [error strings])."""
-    spreads, errors = [], []
+    """Fetch every URL; returns ([(name, spread)], [error strings]).
+
+    The same *URL* fetched twice (relay root expansion plus an explicit
+    entry for it) is kept once: double-counted wing totals read as a busy
+    wing, not a config accident. Different relays carrying same-named
+    ledgers (two wingmates both pushing 'default.json') stay distinct.
+    """
+    spreads, errors, seen = [], [], set()
     for url in as_url_list(urls):
         if not urlsplit(url).path.rsplit("/", 1)[-1].endswith(".json"):
             targets, error = _listing_entries(url, timeout=timeout)
@@ -94,10 +100,13 @@ def fetch_spreads(urls, timeout=5):
         else:
             targets = [url]
         for target in targets:
+            if target in seen:
+                continue
             spread, name, error = fetch_spread(target, timeout=timeout)
             if error:
                 errors.append(f"{redact(target)}: {error}")
             else:
+                seen.add(target)
                 spreads.append((name, spread))
     return spreads, errors
 
